@@ -1722,6 +1722,34 @@ static struct builtin bintab[] = {
  *******************/
 
 static char **
+zcurses_featuresgetfn(UNUSED(Param pm))
+{
+    /* Keep these conditions in step with the operations they describe.
+     * This is compile-time support, not terminal capability or state. */
+    static char *features[] = {
+#ifdef HAVE_USE_DEFAULT_COLORS
+	"default_colors",
+#endif
+#ifdef TIOCGWINSZ
+	"geometry",
+#endif
+#ifdef NCURSES_MOUSE_VERSION
+	"mouse",
+#endif
+#ifdef HAVE_RESIZE_TERM
+	"resize",
+#endif
+	NULL
+    };
+
+    return arrdup(features);
+}
+
+static const struct gsu_array zcurses_features_gsu =
+{ zcurses_featuresgetfn, arrsetfn, stdunsetfn };
+
+
+static char **
 zcurses_colorsarrgetfn(UNUSED(Param pm))
 {
     return zcurses_pairs_to_array(zcurses_colors);
@@ -1792,6 +1820,8 @@ static const struct gsu_integer zcurses_colorpairsint_gsu =
 
 
 static struct paramdef partab[] = {
+    SPECIALPMDEF("zcurses_features", PM_ARRAY|PM_READONLY,
+		 &zcurses_features_gsu, NULL, NULL),
     SPECIALPMDEF("zcurses_colors", PM_ARRAY|PM_READONLY,
 		 &zcurses_colorsarr_gsu, NULL, NULL),
     SPECIALPMDEF("zcurses_attrs", PM_ARRAY|PM_READONLY,

@@ -10,6 +10,12 @@ barrier() { read -r -u "$control_fd" command || exit 1; }
 check() { "$@" || { report "FAIL $*"; exit 1; }; }
 
 typeset -a dimensions=(sentinel) position cells
+typeset -a compiled_features=("${zcurses_features[@]}")
+check_features() {
+  [[ "${(j: :)zcurses_features}" == "${(j: :)compiled_features}" ]] || exit 1
+}
+check zmodload -F -e zsh/curses +p:zcurses_features
+check_features
 check zcurses geometry dimensions
 report "before ${(j: :)dimensions}"
 barrier
@@ -24,15 +30,25 @@ check zcurses init
   [[ $cells[1] == h && $cells[2] == green/black && $cells[3] == bold ]] || exit 1
   check zcurses refresh sample stdscr
   check zcurses position stdscr position
+  # Discovery is stable after initialization and agrees with the legacy probes.
+  check_features
+  zcurses mouse
+  [[ $? -eq $(( ! ${zcurses_features[(Ie)mouse]} )) ]] || exit 1
+  zcurses resize 0 0
+  [[ $? -eq $(( ${zcurses_features[(Ie)resize]} ? 0 : 2 )) ]] || exit 1
   report "ready $position[5] $position[6]"
   barrier
 
+  # Leave a drawing change pending: discovery must not present it.
+  check zcurses string sample pending
+  check_features
   check zcurses geometry dimensions
   check zcurses position stdscr position
   report "resized ${(j: :)dimensions} cached $position[5] $position[6]"
   barrier
 
   dimensions=(sentinel)
+  check_features
   zcurses geometry dimensions
   report "zero $? ${(j: :)dimensions}"
   barrier
@@ -55,4 +71,5 @@ check zcurses init
   zcurses end
 }
 check zcurses geometry dimensions
+check_features
 report "after ${(j: :)dimensions}"

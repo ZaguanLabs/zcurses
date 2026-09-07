@@ -7,8 +7,10 @@ It has no dependency on another application or a contributor's local setup.
 
 An example consumer is [zcoder.zsh](https://github.com/ZaguanLabs/zcoder.zsh).
 
-The first extension, **`zcurses geometry array`**, queries the controlling
-terminal's current rows and columns without a subprocess or screen update.
+**`zcurses geometry array`** queries the controlling terminal's current rows
+and columns without a subprocess or screen update. The read-only
+**`zcurses_features`** array reports optional compiled support without accessing
+the terminal, including in headless processes.
 See the [design notes](docs/design.md) for scope and future work.
 
 ## Build and test
@@ -90,6 +92,46 @@ verified, while BSD/macOS and alternative curses libraries still need testing.
 
 ## API
 
+### Compiled feature discovery
+
+After loading the module, use Zsh's standard module-feature check to discover
+whether the read-only `zcurses_features` array is available:
+
+```zsh
+zmodload zsh/curses
+if zmodload -F -e zsh/curses +p:zcurses_features; then
+  if (( ${zcurses_features[(Ie)geometry]} )); then
+    print -r -- 'Native terminal-size queries are compiled in.'
+  else
+    print -r -- 'Native terminal-size queries are not compiled in.'
+  fi
+else
+  print -r -- 'Compiled feature information is unavailable.'
+fi
+```
+
+This example works without a controlling terminal or `zcurses init`. On an older
+module the feature check returns 1 silently; it does not invoke an unsupported
+`zcurses` command. A missing or disabled discovery parameter means support is
+unknown, so the application chooses its fallback policy.
+
+| Feature name | Compiled support |
+| --- | --- |
+| `geometry` | Terminal-size queries through `TIOCGWINSZ` |
+| `resize` | Curses resizing through `resize_term` |
+| `mouse` | Ncurses mouse input and configuration |
+| `default_colors` | The `default` color name through `use_default_colors` |
+
+Read the array as a set: order is unspecified, and future names should be ignored
+unless understood. A listed feature can still fail at runtime, for example when
+`geometry` has no controlling terminal. These names describe compiled support;
+they do not report terminfo data, negotiated protocols, or ABI compatibility.
+The array is unchanged by initialization, resizing, and `end`. Reading it emits
+no output, consumes no input, and changes no terminal state. It can also be loaded
+alone with `zmodload -F zsh/curses p:zcurses_features`.
+
+### Terminal geometry
+
 ```text
 zcurses geometry array
 ```
@@ -112,7 +154,9 @@ The [upstream-format documentation](Doc/Zsh/mod_curses.yo) includes the extensio
 The PTY tests exercise live resizing before curses processes input, zero-sized
 terminals, local and readonly parameters, argument errors, operation before and
 after curses, terminal-mode restoration, no controlling terminal, and existing
-window/text/color/refresh operations.
+window/text/color/refresh operations. Feature tests cover headless discovery,
+read-only enforcement, module feature lifecycle, and temporary builds with
+optional support disabled and with the preserved stock module.
 
 ## Source and upstream contribution
 
@@ -122,10 +166,11 @@ window/text/color/refresh operations.
 - `tests/`: standalone module tests, with no application dependencies.
 - `.build/`: ignored build inputs and outputs.
 
-Run `make -s patch > geometry.patch` to export the C and documentation changes as
-a focused patch against the recorded baseline. See [provenance](upstream/README.md)
-for its origin. An upstream submission also needs tests adapted to Zsh's test
-harness and review against the maintainers' current tree. This project is not
-part of the official Zsh distribution.
+Run `make -s patch > zcurses.patch` to export the combined C and documentation
+changes against the recorded baseline. For an independent feature submission,
+select its changes with `git diff` against the preceding revision instead.
+See [provenance](upstream/README.md) for the baseline's origin. An upstream
+submission also needs tests adapted to Zsh's test harness and review against the
+maintainers' current tree. This project is not part of the official Zsh distribution.
 
 The original copyright notices and [Zsh licence](LICENCE) are retained.

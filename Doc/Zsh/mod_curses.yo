@@ -245,6 +245,36 @@ enditem()
 subsect(Parameters)
 
 startitem()
+vindex(zcurses_features)
+item(tt(zcurses_features))(
+Readonly array of optional features compiled into tt(zsh/curses), available
+as soon as the parameter is enabled when loading the module.  Reading it does
+not initialise curses, access the terminal, consume input, or produce output.
+Its contents are unchanged by tt(init), tt(end), or terminal availability.
+
+The following feature names are defined:
+startsitem()
+sitem(tt(default_colors))(Support for the color name tt(default) through
+tt(use_default_colors).)
+sitem(tt(geometry))(Support for the tt(geometry) subcommand's terminal size
+query through tt(TIOCGWINSZ).)
+sitem(tt(mouse))(Support for ncurses mouse input and the tt(mouse) subcommand.)
+sitem(tt(resize))(Support for the tt(resize) subcommand through tt(resize_term).)
+endsitem()
+
+A listed feature indicates compiled support, not that an operation will
+succeed with the current terminal.  An omitted name from the list above
+indicates that support was not compiled in.  This array is not a list of all
+subcommands, terminfo capabilities, or enabled terminal protocols.  Its order
+is unspecified and future versions may add names; callers should test for
+individual names and ignore unfamiliar ones.  It is not an ABI identifier.
+
+After loading the module, `tt(zmodload -F -e zsh/curses +p:zcurses_features)'
+tests whether this parameter is provided and enabled.  This also works with
+older modules which lack the parameter, returning status 1 without invoking
+an unsupported tt(zcurses) subcommand.  Failure of this test means feature
+information is unavailable; it does not establish that an operation is absent.
+)
 vindex(ZCURSES_COLORS)
 item(tt(ZCURSES_COLORS))(
 Readonly integer.  The maximum number of colors the terminal

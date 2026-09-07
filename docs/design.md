@@ -22,6 +22,30 @@ It does not require curses initialization, trigger a refresh, change terminal
 modes, or take ownership of input. Platforms without `TIOCGWINSZ` return status 2.
 The API and a standalone example are in the [README](../README.md).
 
+## Compiled feature discovery
+
+The read-only `zcurses_features` array exposes optional compiled support using
+the same parameter interface as `zcurses_attrs` and `zcurses_colors`. Its initial
+vocabulary is `geometry`, `resize`, `mouse`, and `default_colors`, gated by the
+same compile-time conditions as the corresponding implementations.
+
+Zsh's existing `zmodload -F -e zsh/curses +p:zcurses_features` check discovers the
+interface without calling an unknown subcommand on an older module. A missing
+or disabled parameter means information is unavailable; an omitted documented
+name in an available array means that support was not compiled in. A listed
+feature is not a promise that the operation can succeed at runtime.
+
+The query works headlessly, before initialization, during a session and after
+`end`. It performs no terminal I/O, initialization or protocol negotiation.
+Callers test individual names and ignore unfamiliar additions. Feature presence
+provides the compatibility contract for this small interface; build identity,
+ABI metadata and a broader error contract remain separate design work. Existing
+command statuses are unchanged.
+
+Terminal capabilities and negotiated state need distinct future interfaces.
+They must represent unavailable information explicitly rather than converting an
+unanswered query into a claim of unsupported hardware or protocol behavior.
+
 ## Design constraints
 
 Use Zsh's platform feature checks, parameter assignment, memory management and
@@ -40,15 +64,15 @@ shell command strings as a drawing or event protocol.
 
 ## Candidate work
 
-Only `geometry` is implemented. These areas require independent use cases,
-standalone examples, measurements where relevant, and compatibility tests before
-an API is chosen:
+`geometry` and compiled feature discovery are implemented. These areas require
+independent use cases, standalone examples, measurements where relevant, and
+compatibility tests before an API is chosen:
 
 | Area | Questions to resolve |
 | --- | --- |
 | Cursor visibility and window operations | Define ownership and restoration; test repeated resize and overlay dismissal |
 | Drawing helpers | Measure shell-call overhead separately from terminal output; specify clipping and partial-error behavior |
-| Capabilities and colors | Separate compiled features from terminal capabilities; handle color/pair limits and exhaustion |
+| Runtime capabilities and colors | Keep terminal capabilities and negotiated state separate from compiled features; handle color/pair limits and exhaustion |
 | Structured input | Define coexistence with curses decoding, deadlines, bounded buffers and lossless paste handling |
 | Unicode | Test combining marks, wide characters, emoji sequences and ambiguous-width policies |
 | Terminal protocols | Require a concrete benefit, opt-in negotiation, input ownership and terminal/multiplexer tests |
@@ -61,11 +85,13 @@ input, never an implicit dependency. Builds and tests must leave the original
 source tree and installed modules untouched.
 
 The geometry tests distinguish current terminal size from stale curses size,
-check output and terminal modes, and cover failure paths. Existing text, color,
-window and refresh operations are also exercised. Expand verification across
-Zsh versions and build configurations, Linux and BSD/macOS, alternative curses
-libraries, and the unsupported-geometry compile branch. A PTY does not establish
-rendering correctness across real terminals or multiplexers.
+check output and terminal modes, and cover failure paths. Feature discovery is
+tested headlessly, across the module lifecycle, during pending screen changes,
+and against builds with optional support removed and the preserved stock module.
+Existing text, color, window and refresh operations are also exercised. Expand
+verification across Zsh versions and build configurations, Linux and BSD/macOS,
+and alternative curses libraries. A PTY does not establish rendering correctness
+across real terminals or multiplexers.
 
 Preserve the original sources and licence attribution. Export one focused patch
 per independent feature, including manual changes. Before submission, adapt tests
