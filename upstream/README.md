@@ -1,25 +1,17 @@
 # Baseline provenance
 
-Recorded on 2026-09-07 from the source tree supplied by the project owner:
+The baseline was recorded on 2026-09-07 from the distribution source package
+`zsh-5.9.2-1.zen3.mga10`. That package identifies the historical origin; it is
+not a build dependency.
 
-```text
-/home/stig/dev/mgarepo/zsh/BUILD/zsh-5.9.2-build/zsh-5.9.2
-```
+The recorded `curses.c` and `mod_curses.yo` have also been verified byte-for-byte
+against the public [Zsh 5.9.2 release](https://www.zsh.org/pub/zsh-5.9.2.tar.xz).
+The release archive's SHA-256 is
+`36fa734374b44783582cec09bcd67822e2f992c779ec1624ab5596df078d2f81`.
+This verifies the two patch baselines, not the entirety of the original
+distribution build or its installed binaries.
 
-Installed shell: `zsh 5.9.2 (x86_64-mageia-linux-gnu)`.
-Installed RPM: `zsh-5.9.2-1.zen3.mga10`.
-Installed module: `/usr/lib64/zsh/5.9.2/zsh/curses.so`.
-Matching source RPM also exists at:
-
-```text
-/home/stig/rpmbuild/repo/SRPMS/zsh-5.9.2-1.zen3.mga10.src.rpm
-```
-
-This is the supplied distribution build tree, not a verified pristine upstream
-Git revision. Any distribution patches already present are part of this baseline.
-No claim of a byte-for-byte reproducible system binary is made.
-
-| Recorded file | Original path |
+| Recorded file | Path in Zsh sources |
 | --- | --- |
 | `upstream/curses.c` | `Src/Modules/curses.c` |
 | `upstream/mod_curses.yo` | `Doc/Zsh/mod_curses.yo` |
@@ -28,14 +20,9 @@ No claim of a byte-for-byte reproducible system binary is made.
 | `LICENCE` | `LICENCE` |
 
 Run `sha256sum -c upstream/SHA256SUMS` from the project root to verify these
-recorded files. The full configured tree is a local build dependency, not vendored
-source. The original copyright headers and licence are retained.
+recorded files (or `shasum -a 256 -c upstream/SHA256SUMS` where appropriate).
+The original source files, copyright headers and licence are retained.
 
-For Zsh documentation, the project's reference is:
-
-```text
-~/dev/ai/zaguan/PowerHouse/inspiration/zsh/zsh_html/
-```
-
-The module text is in `Zsh-Modules.html#The-zsh_002fcurses-Module`; the separate
-`The-zsh_002fcurses-Module.html` file in this copy is a redirect page.
+The full Zsh source tree is a build dependency obtained separately; see the
+[build instructions](../README.md#build-and-test). Consult the documentation
+shipped with that release and the module documentation in `Doc/Zsh/mod_curses.yo`.

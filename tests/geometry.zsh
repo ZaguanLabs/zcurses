@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 emulate -R zsh
 setopt nounset
-module_path=("$1" $module_path)
+module_path=("$1")
 typeset control_fd=$2 report_fd=$3 command=''
 zmodload zsh/curses || exit 1
 

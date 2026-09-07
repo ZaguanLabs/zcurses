@@ -1,12 +1,19 @@
-.PHONY: build test patch
+ZSH_BIN ?= zsh
+PYTHON ?= python3
+
+.PHONY: build test clean patch
 
 build:
-	zsh -df scripts/build.zsh
+	+ZCURSES_MAKE="$(MAKE)" "$(ZSH_BIN)" -df scripts/build.zsh
 
 test: build
-	zsh -dfn scripts/build.zsh
-	zsh -dfn tests/geometry.zsh
-	python3 tests/test_geometry.py
+	"$(ZSH_BIN)" -dfn scripts/build.zsh
+	"$(ZSH_BIN)" -dfn tests/geometry.zsh
+	"$(PYTHON)" tests/test_geometry.py
+
+# Keep downloaded/extracted sources and other files under .build intact.
+clean:
+	rm -rf .build/zsh .build/modules .build/source-root
 
 # One focused patch against the recorded upstream files.
 patch:

@@ -15,7 +15,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 MODULES = ROOT / '.build/modules'
-ZSH = shutil.which('zsh')
+ZSH = shutil.which(os.environ.get('ZSH_TEST_SHELL', str(ROOT / '.build/zsh/Src/zsh')))
+if ZSH is None:
+    raise RuntimeError('Build Zsh first with make build, or set ZSH_TEST_SHELL to a matching shell')
 
 
 class GeometryTests(unittest.TestCase):
@@ -122,7 +124,7 @@ class GeometryTests(unittest.TestCase):
     def test_no_controlling_terminal(self):
         result = subprocess.run(
             [ZSH, '-dfc', '''
-                module_path=("$1" $module_path)
+                module_path=("$1")
                 zmodload zsh/curses || exit 99
                 typeset -a dimensions=(sentinel)
                 zcurses geometry dimensions
