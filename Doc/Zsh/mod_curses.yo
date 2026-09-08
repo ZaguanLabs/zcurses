@@ -20,10 +20,12 @@ xitem(tt(zcurses) tt(clear) var(targetwin) [ tt(redraw) | tt(eol) | tt(bot) ])
 xitem(tt(zcurses) tt(position) var(targetwin) var(array))
 xitem(tt(zcurses) tt(geometry) var(array))
 xitem(tt(zcurses) tt(colorinfo) var(association))
+xitem(tt(zcurses) tt(textinfo) var(association) var(text) [ var(columns) ])
 xitem(tt(zcurses) tt(truecolor) tt(on)|tt(off))
 xitem(tt(zcurses) tt(char) var(targetwin) var(character) )
 xitem(tt(zcurses) tt(string) var(targetwin) var(string) )
 xitem(tt(zcurses) tt(spans) var(targetwin) var(row) var(column) var(style) var(text) [ var(style) var(text) ... ] )
+xitem(tt(zcurses) tt(spansclip) var(targetwin) var(row) var(column) var(columns) var(style) var(text) [ var(style) var(text) ... ] )
 xitem(tt(zcurses) tt(border) var(targetwin) [ var(left) var(right) var(top) var(bottom) var(top_left) var(top_right) var(bottom_left) var(bottom_right) ] )
 xitem(tt(zcurses) tt(attr) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) ] [...])
 xitem(tt(zcurses) tt(bg) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) | tt(@)var(char) ] [...])
@@ -33,7 +35,7 @@ xitem(tt(zcurses) tt(mouse) [ tt(delay) var(num) | [tt(+)|tt(-)]tt(motion) ])
 xitem(tt(zcurses) tt(timeout) var(targetwin) var(intval))
 xitem(tt(zcurses) tt(querychar) var(targetwin) [ var(param) ])
 item(tt(zcurses) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
-Manipulate curses windows.  Except for tt(geometry) and tt(colorinfo), uses of
+Manipulate curses windows.  Except for tt(geometry), tt(colorinfo) and tt(textinfo), uses of
 this command should be
 bracketed by `tt(zcurses init)' to initialise use of curses, and
 `tt(zcurses end)' to end it; omitting `tt(zcurses end)' can cause
@@ -162,6 +164,47 @@ Capabilities reflect curses' terminal description, not a probe of the physical
 terminal.  Compiled support remains separately discoverable through
 tt(zcurses_features), including its tt(colorinfo) entry.
 
+The subcommand tt(textinfo) measures var(text) and optionally clips it to a
+prefix fitting within var(columns).  It can be used before tt(init), after
+tt(end), and without a controlling terminal or tt(TERM).  It replaces or creates
+an ordinary writable associative parameter named var(association).  Readonly or
+special parameters, subscripts and other parameter types are rejected.  Omitting
+var(columns) returns and measures all text.  The result has these keys:
+startsitem()
+sitem(tt(text))(The retained prefix, preserving its original bytes.)
+sitem(tt(remainder))(The omitted suffix; concatenating this with the prefix
+reconstructs the input.)
+sitem(tt(width))(The prefix width in columns.)
+sitem(tt(total_width))(The entire input width in columns.)
+sitem(tt(truncated))(1 if any text was omitted, otherwise 0.)
+endsitem()
+
+A clipping unit is one positive-width character followed by all immediately
+following zero-width characters.  The system tt(wcwidth) function and current
+locale determine widths; Zsh's optional Unicode width table is not used.
+Multibyte characters are never split.  A unit is retained if its positive-width
+character fits; all its zero-width characters stay with it.  The first non-fitting
+unit ends the prefix, even if a later narrower character could fit in the unused
+space.  No padding, ellipsis, replacement character or normalization is added.
+
+Text must be printable, and either empty or begin with a positive-width
+character.  Controls, tabs, line breaks, NULs, invalid encoding and leading
+zero-width characters are rejected.  The entire input is validated, including
+the omitted suffix.  Budgets are unsigned decimal integers from 0 through
+tt(INT_MAX); an input whose total width exceeds tt(INT_MAX) is rejected.
+A zero budget is valid.  Invalid input leaves an existing result unchanged and
+does not create a missing parameter.  The return status is 0 on successful
+measurement or clipping, 1 on invalid input or assignment failure, and 2 for
+non-ASCII text on a build without multibyte text support.
+
+The compiled features tt(textinfo) and tt(wide_text) describe availability.
+Printable ASCII is always supported.  Multibyte text requires tt(wide_text),
+a suitable locale and the tt(MULTIBYTE) option.  On such a build, an unsuitable
+locale or tt(MULTIBYTE) being unset causes non-ASCII text to fail with status 1.
+Measurement is independent of wide curses support and does not enforce curses'
+complex-character storage limit.  The query does not initialize curses, allocate
+colors, read input, change terminal modes or emit terminal output.
+
 The subcommand tt(truecolor) accepts exactly tt(on) or tt(off).  It enables or
 disables tt(#RRGGBB) color arguments in tt(attr), tt(bg) and tt(spans).
 RGB is disabled initially.  Repeating tt(init) preserves the setting;
@@ -260,6 +303,36 @@ successful allocations but changes no cells.  A curses write error can leave
 partial drawing.  The tt(spans_pair_limit) field of tt(colorinfo) describes the
 additional pair-ID limit of the ASCII implementation; an unrepresentable pair
 is rejected instead of truncated.
+
+The subcommand tt(spansclip) uses the same style/text interface as tt(spans),
+with an additional unsigned decimal column budget after the coordinates.
+One budget is shared across all spans and capped by the space remaining to the
+window's right edge.  Coordinates must be inside the window, even for a zero
+budget.  Prefix selection follows the cell-width rules of tt(textinfo).
+The original tt(spans) command still rejects overflow instead of clipping.
+
+Each nonempty span must start with a positive-width character.  Keep a base and
+its following zero-width characters within the same span, even when adjacent
+styles are identical; this avoids assigning conflicting styles within a curses
+complex character.  All text and styles are validated, including clipped runs,
+before allocating colors or drawing.  Unrepresentable combining sequences are
+rejected instead of silently truncated.  Fully omitted or empty spans allocate
+no pairs.  A later allocation failure can retain earlier successful allocations
+but changes no cells; a curses write error can partially draw.
+
+The tt(clipped_spans) feature describes availability; tt(wide_spans) is required
+for non-ASCII drawing.  Styles, cursor and background preservation, status codes,
+input ownership and deferred refresh follow tt(spans).  Unused columns and cells
+after the prefix remain unchanged, subject to curses' usual repair of an
+overwritten wide character; clearing stale text belongs to the application.
+
+The clipping APIs use cell-width rules, not Unicode grapheme segmentation.
+Emoji ZWJ sequences, flags and skin-tone sequences can be split between their
+positive-width characters.  Zero-width variation selectors remain with the
+preceding character but do not change its tt(wcwidth) result.  Ambiguous-width
+characters follow the system locale's policy.  Terminal shaping and font policy
+may differ from this model.  No Unicode tables, segmentation dependency or
+terminal-width probing are added, and grapheme-safe rendering is not promised.
 
 To draw a border around window var(targetwin), use tt(border).  Note
 that the border is not subsequently handled specially:  in other words,
@@ -446,6 +519,10 @@ sitem(tt(resize))(Support for the tt(resize) subcommand through tt(resize_term).
 sitem(tt(wide_borders))(Non-ASCII border characters through wide curses.)
 sitem(tt(truecolor))(Optional ncurses extended-color functions and terminfo queries for RGB.)
 sitem(tt(styled_spans))(Single-row styled text batching.)
+sitem(tt(clipped_spans))(Styled-span drawing with one column budget.)
+sitem(tt(textinfo))(Headless text measurement and prefix clipping.)
+sitem(tt(wide_text))(Locale-based multibyte measurement and clipping, independent
+of wide curses support.)
 sitem(tt(wide_spans))(Wide characters and representable combining sequences in spans.)
 endsitem()
 

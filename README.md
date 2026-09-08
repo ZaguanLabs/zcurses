@@ -31,6 +31,11 @@ styled text in one module call, preserving cursor and window state. See the
 terminal description support 24-bit direct colors. See [the API](#truecolor)
 and the standalone [gradient example](examples/truecolor.zsh).
 
+**Cell-aware clipping** adds headless `textinfo` measurement and `spansclip`
+drawing with a shared column budget. It uses system character widths and adds
+no Unicode database or grapheme segmentation. See the [contract](#cell-aware-clipping)
+and [headless example](examples/clipping.zsh).
+
 ## Build and test
 
 Prerequisites:
@@ -151,6 +156,9 @@ unknown, so the application chooses its fallback policy.
 | `truecolor` | Optional ncurses extended-color APIs and terminfo queries for RGB |
 | `styled_spans` | Single-row styled text batching |
 | `wide_spans` | Wide characters and representable combining sequences in spans |
+| `clipped_spans` | Styled-span drawing with one shared column budget |
+| `textinfo` | Headless text measurement and prefix clipping; printable ASCII always supported |
+| `wide_text` | Locale-based multibyte measurement/clipping, independent of wide curses support |
 
 Read the array as a set: order is unspecified, and future names should be ignored
 unless understood. A listed feature can still fail at runtime, for example when
@@ -361,7 +369,8 @@ or read input. `refresh` remains the application's responsibility. As with other
 curses writes, replacing part of an existing wide character can clear its other
 cells to avoid leaving an orphaned half-character.
 
-Text must fit in the remaining columns of that row; it is never clipped. Tabs,
+For `spans`, text must fit in the remaining columns of that row; it is never
+clipped. Use the separate `spansclip` command for bounded prefix drawing. Tabs,
 newlines, other controls, NULs, invalid encoding, and unrepresentable text are
 rejected. The `wide_spans` path uses the current locale's system `wcwidth`, with
 the `MULTIBYTE` option required for non-ASCII text. A spacing character can have
@@ -384,6 +393,101 @@ highest usable pair ID: the normal `pair_limit` on the wide path, further limite
 by packed curses attributes on the ASCII path, or zero when spans are unavailable.
 Before initialization and after `end` this value is `unknown`. The narrow path
 rejects a pair that exceeds its limit instead of truncating the ID.
+
+## Cell-aware clipping
+
+```zsh
+typeset -A info
+zcurses textinfo info $'e\u0301界b' 2
+# info[text]        = e + combining acute
+# info[width]       = 1
+# info[remainder]   = 界b
+# info[total_width] = 4
+# info[truncated]   = 1
+```
+
+`zcurses textinfo association text [columns]` measures text and optionally keeps
+the longest fitting prefix. It works before `init`, after `end`, and without a
+controlling terminal or `TERM`. Omit the budget to measure and return all text.
+The named ordinary writable association is replaced, or created if absent, with:
+
+| Key | Value |
+| --- | --- |
+| `text` | The retained prefix, preserving original bytes |
+| `remainder` | The omitted suffix; concatenating it with `text` reconstructs the input |
+| `width` | Columns occupied by the prefix under the system-width model |
+| `total_width` | Columns occupied by the entire input under that model |
+| `truncated` | `1` if any text was omitted; otherwise `0` |
+
+A clipping unit is **one positive-width character followed by all immediately
+following zero-width characters**. Widths come from the current locale's system
+`wcwidth`, matching the character-width function used by curses, and not Zsh's
+optional Unicode width table. Complete multibyte characters are preserved.
+A unit is retained only if its positive-width character fits; its zero-width
+suffix is retained with it. The first non-fitting unit ends the prefix, even if
+some later, narrower character could fit in the leftover space. No partial wide
+character, padding, ellipsis, replacement character or normalization is inserted.
+The caller can choose such presentation policies in Zsh.
+
+Text must be printable and start with a positive-width character, or be empty.
+Tabs, line breaks, other controls, NULs, invalid encoding, and leading zero-width
+characters are rejected. A zero budget is valid and retains no nonempty text.
+The entire input is validated, including any omitted suffix. Budgets are unsigned
+decimal integers from zero through `INT_MAX`; an input whose total width exceeds
+`INT_MAX` is rejected. Invalid input leaves an existing association unchanged and
+does not create a missing one. Readonly/special parameters, subscripts and other
+parameter types are rejected, following `colorinfo`'s assignment contract.
+
+Status is 0 on successful measurement or clipping, 1 for invalid input or
+assignment failure, and 2 for non-ASCII text on a build without `wide_text`.
+Multibyte text requires a suitable locale and the `MULTIBYTE` option. Without
+`wide_text`, printable ASCII is supported. With that feature but an unsuitable
+locale or `MULTIBYTE` unset, non-ASCII text fails with status 1. `wide_text` is
+independent of `wide_spans`: being able to measure text does not establish that
+the linked curses library can draw it. Measurement does not enforce curses'
+complex-character storage limit; styled drawing does.
+
+For drawing a composite stream of complete style/text runs:
+
+```zsh
+zcurses spansclip panel 1 2 12 \
+  'bold,cyan/black' 'Status: ' \
+  'green/black' 'ready and waiting'
+zcurses refresh panel
+```
+
+`zcurses spansclip window row column columns style text [style text ...]` uses
+one budget across all spans. The effective budget is the smaller of `columns`
+and the space to the window's right edge. Coordinates must be inside the window,
+even for a zero budget. Styles, cursor/background preservation, status codes and
+refresh behavior follow `spans`; ordinary `spans` retains its overflow error.
+Unused columns and cells after the prefix are left alone, subject to curses'
+normal repair of an overwritten wide character. Clearing stale text is the
+application's responsibility.
+
+Each nonempty span must start with a positive-width character. Keep a base and
+its zero-width suffix in the **same span**, even when styles on adjacent runs
+match; this avoids assigning conflicting styles within one curses complex
+character. All text and styles are validated before drawing, including clipped
+runs. Unrepresentable combining sequences are rejected rather than silently
+truncated by curses. Entirely omitted or empty spans allocate no color pairs.
+A later allocation failure can retain earlier successful allocations but changes
+no cells; a curses write error may partially draw, as with `spans`.
+
+These are **cell-width rules, not grapheme boundaries**. Emoji ZWJ sequences,
+regional-indicator flags and skin-tone sequences can be split between their
+positive-width characters. Zero-width variation selectors stay with the preceding
+character but do not alter the width reported by `wcwidth`. Ambiguous-width
+characters follow the system locale's policy. A terminal emulator's shaping or
+font policy can differ from this model. The module adds no Unicode tables,
+segmentation dependency, terminal-width probing, or promises of grapheme-safe
+rendering. Neither query nor drawing consumes input or refreshes the terminal.
+
+Run the headless example using the matching staged shell:
+
+```sh
+.build/zsh/Src/zsh -df examples/clipping.zsh
+```
 
 ## Truecolor
 

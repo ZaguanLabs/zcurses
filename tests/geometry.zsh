@@ -43,6 +43,10 @@ check zcurses init
   check zcurses string sample pending
   check zcurses border sample '|' '|' '-' '-' '+' '+' '+' '+'
   check zcurses spans sample 1 1 bold batch '' ed
+  check zcurses spansclip sample 2 1 4 bold pending '' trailing
+  typeset -A text_info
+  check zcurses textinfo text_info abcdef 3
+  [[ $text_info[text] == abc && $text_info[width] == 3 ]] || exit 1
   typeset -A runtime_colors
   check zcurses colorinfo runtime_colors
   check zcurses truecolor off

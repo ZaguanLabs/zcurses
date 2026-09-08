@@ -89,7 +89,8 @@ to these candidates, identifies existing correctness gaps, and proposes a patch
 sequence without committing to new APIs.
 
 `geometry`, compiled feature discovery, custom borders and runtime color
-information, styled-span batching and opt-in truecolor are implemented.
+information, styled-span batching, opt-in truecolor and cell-aware clipping
+are implemented.
 The initial drawing changes also correct wide-character buffers and guard
 numeric color parsing and pair allocation. Custom borders preserve the original
 form and expose eight glyphs without adding title or layout policy. The
@@ -107,7 +108,7 @@ compatibility tests before an API is chosen:
 | Drawing helpers | Styled spans are implemented; measure application workloads before adding further helpers |
 | Extended colors and capabilities | RGB values are implemented; wider pair IDs or additional encodings require a separate end-to-end audit |
 | Structured input | Define coexistence with curses decoding, deadlines, bounded buffers and lossless paste handling |
-| Unicode | Test combining marks, wide characters, emoji sequences and ambiguous-width policies |
+| Unicode | Cell-aware measurement/clipping is implemented; full grapheme segmentation remains outside the current contract |
 | Terminal protocols | Require a concrete benefit, opt-in negotiation, input ownership and terminal/multiplexer tests |
 
 ## Verification and upstream path
@@ -158,9 +159,24 @@ and background SGR bytes, mixed/default colors, pair IDs beyond 255, input and
 refresh ownership, optional builds, allocation failure and session cleanup.
 The [example](../examples/truecolor.zsh) keeps gradient generation in Zsh.
 
-General Unicode measurement/clipping is the next phase, with an explicit
-distinction between system column widths and grapheme boundaries. Wider pair IDs
-and alternative RGB encodings remain separate work.
+Phase three adds cell-aware measurement and clipping. `textinfo` works headlessly
+and returns a byte-preserving prefix/remainder plus retained and total widths.
+`spansclip` applies one budget to a sequence of complete style/text runs. Both
+use the same decoder and system `wcwidth`; there is no new Unicode table or
+segmentation dependency. A positive-width character and its following zero-width
+characters form the unit. A base and its marks stay within one styled span.
+
+The complete input is validated even after the prefix ends. Measurement does not
+impose curses' combining-character capacity, while drawing validates every unit
+against it and allocates pairs only for visible spans. The existing `spans`
+overflow behavior and its state preservation remain intact. The
+[contract](../README.md#cell-aware-clipping) states how this differs from grapheme
+boundaries and terminal-specific emoji shaping. Padding, ellipses and layouts
+remain in Zsh; a [headless example](../examples/clipping.zsh) shows the results.
+
+Full grapheme segmentation, wider pair IDs and alternative RGB encodings remain
+separate work. No commitment to maintaining a Unicode segmentation database is
+introduced by cell-aware clipping.
 
 Primary references: [ncurses color functions](https://invisible-island.net/ncurses/man/curs_color.3x.html)
 [the RGB terminfo capability](https://invisible-island.net/ncurses/man/user_caps.5.html),

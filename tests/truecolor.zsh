@@ -96,6 +96,9 @@ check zcurses init
       (( ! ${reply[(Ie)bold]} )) || fail 'span inherited attributes'
       cell 1 1 C '#ABCDEF/#181818'
       (( ${reply[(Ie)underline]} )) || fail 'span attributes'
+      check zcurses spansclip sample 1 2 2 '#112233/#445566' ABCDEF
+      cell 1 2 A '#112233/#445566'
+      cell 1 3 B '#112233/#445566'
       check zcurses bg sample '#204060/#102030'
       cell 3 3 ' ' '#204060/#102030'
       check zcurses attr sample '#112233/#445566'

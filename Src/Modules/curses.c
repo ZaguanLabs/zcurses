@@ -937,16 +937,8 @@ zccmd_string(const char *nam, char **args)
 
 
 
-#if defined(ZCURSES_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
-/* A span has a complete style, independent of the window's current style. */
-struct zcurses_span {
-    chtype attrs;
-    char *color;
-    int first, count;
-};
-
 static int
-zcurses_span_coordinate(char *str, int *value)
+zcurses_nonnegative(char *str, int *value)
 {
     int n = 0;
     if (!*str)
@@ -959,6 +951,59 @@ zcurses_span_coordinate(char *str, int *value)
     *value = n;
     return 0;
 }
+
+
+/* Decode the same printable characters for measurement and styled drawing.
+ * Use the system width consumed by curses, not Zsh's optional width table. */
+static int
+zcurses_text_next(char **text, int wide, convchar_t *wc, int *width)
+{
+    unsigned char ch;
+#ifdef MULTIBYTE_SUPPORT
+    if (wide) {
+	int len = mb_metacharlenconv(*text, wc);
+	if (len <= 0 || *wc == WEOF || !*wc || !iswprint(*wc) ||
+	    (!isset(MULTIBYTE) && *wc > 127))
+	    return 1;
+	*width = wcwidth(*wc);
+	if (*width < 0)
+	    return 1;
+	*text += len;
+	return 0;
+    }
+#else
+    (void)wide;
+#endif
+    ch = (unsigned char)*(*text)++;
+    if (ch == Meta)
+	ch = (unsigned char)*(*text)++ ^ 32;
+    if (ch >= 128)
+	return 2;
+    if (ch < 32 || ch > 126)
+	return 1;
+    *wc = ch;
+    *width = 1;
+    return 0;
+}
+
+#ifdef ZCURSES_WIDE_SPANS
+static int
+zcurses_span_cell(cchar_t *cell, const wchar_t *group, chtype attrs)
+{
+    /* setcchar may silently discard excess combining characters. */
+    return setcchar(cell, group, attrs, 0, NULL) == ERR ||
+	(size_t)getcchar(cell, NULL, NULL, NULL, NULL) != wcslen(group) + 1;
+}
+#endif
+
+#if defined(ZCURSES_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
+/* A span has a complete style, independent of the window's current style. */
+struct zcurses_span {
+    chtype attrs;
+    char *color;
+    int first, count;
+};
+
 
 static int
 zcurses_span_style(char *style, struct zcurses_span *span)
@@ -996,7 +1041,7 @@ zcurses_span_style(char *style, struct zcurses_span *span)
 /* One row, one curses array write, and no cursor or window-style changes.
  * Preflight all input before allocating colors or touching window cells. */
 static int
-zccmd_spans(const char *nam, char **args)
+zcurses_drawspans(const char *nam, char **args, int clip)
 {
 #if defined(ZCURSES_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
     LinkNode node;
@@ -1004,28 +1049,29 @@ zccmd_spans(const char *nam, char **args)
     struct zcurses_span *spans, *span;
     Colorpairnode pair;
     int nargs = 0, nspans, row, col, rows, cols, y, x;
-    int i, j, count = 0, width = 0, result;
+    int i, j, count = 0, width = 0, result, cw;
+    int first_arg = clip ? 4 : 3, budget = 0, retaining = 1;
+    convchar_t wc;
     short cp;
     char *str;
 #ifdef ZCURSES_WIDE_SPANS
-    cchar_t *cells, saved_bg, neutral_bg;
+    cchar_t *cells, saved_bg, neutral_bg, discarded;
+    int keep_group;
     attr_t saved_attrs;
     short saved_pair;
     wchar_t **groups, *out, *group;
-    wint_t wc;
-    int clen, cw;
     size_t len;
 #else
     chtype *cells;
-    unsigned char ch;
 #endif
 
     while (args[nargs])
 	nargs++;
-    if ((nargs - 3) % 2 ||
-	zcurses_span_coordinate(args[1], &row) ||
-	zcurses_span_coordinate(args[2], &col)) {
-	zwarnnam(nam, "spans: expected row, column and style/text pairs");
+    if ((nargs - first_arg) % 2 ||
+	zcurses_nonnegative(args[1], &row) ||
+	zcurses_nonnegative(args[2], &col) ||
+	(clip && zcurses_nonnegative(args[3], &budget))) {
+	zwarnnam(nam, "spans: expected decimal coordinates/budget and style/text pairs");
 	return 1;
     }
     node = zcurses_validate_window(args[0], ZCURSES_USED);
@@ -1040,25 +1086,27 @@ zccmd_spans(const char *nam, char **args)
 	return 1;
     }
     cols -= col;
-    nspans = (nargs - 3) / 2;
+    if (clip && budget < cols)
+	cols = budget;
+    nspans = (nargs - first_arg) / 2;
     if ((size_t)nspans > (size_t)-1 / sizeof(*spans) ||
 	(size_t)cols > (size_t)-1 / sizeof(*cells))
 	return 1;
     spans = zhalloc((size_t)nspans * sizeof(*spans));
-    cells = zhalloc((size_t)cols * sizeof(*cells));
+    cells = zhalloc((size_t)(cols ? cols : 1) * sizeof(*cells));
 #ifdef ZCURSES_WIDE_SPANS
     if ((size_t)cols > (size_t)-1 / sizeof(*groups))
 	return 1;
-    groups = zhalloc((size_t)cols * sizeof(*groups));
+    groups = zhalloc((size_t)(cols ? cols : 1) * sizeof(*groups));
 #endif
     for (i = 0; i < nspans; i++) {
 	span = spans + i;
-	if (zcurses_span_style(args[3 + 2*i], span)) {
-	    zwarnnam(nam, "spans: invalid style: %s", args[3 + 2*i]);
+	if (zcurses_span_style(args[first_arg + 2*i], span)) {
+	    zwarnnam(nam, "spans: invalid style: %s", args[first_arg + 2*i]);
 	    return 1;
 	}
 	span->first = count;
-	str = args[4 + 2*i];
+	str = args[first_arg + 1 + 2*i];
 #ifdef ZCURSES_WIDE_SPANS
 	/* Room for decoded characters and a terminator after each group. */
 	len = strlen(str);
@@ -1066,47 +1114,55 @@ zccmd_spans(const char *nam, char **args)
 	    return 1;
 	out = zhalloc(2 * (len + 1) * sizeof(wchar_t));
 	group = NULL;
-	mb_charinit();
+	keep_group = 0;
+	MB_METACHARINIT();
 	while (*str) {
-	    clen = mb_metacharlenconv(str, &wc);
-	    if (clen <= 0 || wc == WEOF || !wc || !iswprint(wc) ||
-		(!isset(MULTIBYTE) && wc > 127))
-		goto badtext;
-	    cw = wcwidth(wc);
-	    if (cw < 0 || (!cw && !group))
+	    result = zcurses_text_next(&str, 1, &wc, &cw);
+	    if (result || (!cw && !group))
 		goto badtext;
 	    if (cw) {
-		if (cw > cols - width)
-		    goto badtext;
-		if (group)
+		if (group) {
 		    *out++ = L'\0';
-		groups[count++] = group = out;
-		width += cw;
+		    if (zcurses_span_cell(keep_group ? cells + count - 1 : &discarded,
+				  group, span->attrs))
+			goto badtext;
+		}
+		if (cw > cols - width) {
+		    if (!clip)
+			goto badtext;
+		    retaining = 0;
+		}
+		group = out;
+		keep_group = retaining;
+		if (keep_group) {
+		    groups[count++] = group;
+		    width += cw;
+		}
 	    }
 	    *out++ = (wchar_t)wc;
-	    str += clen;
 	}
 	*out = L'\0';
-	/* Reject library truncation of combining sequences, not just ERR. */
-	for (j = span->first; j < count; j++) {
-	    if (setcchar(cells + j, groups[j], span->attrs, 0, NULL) == ERR ||
-		(size_t)getcchar(cells + j, NULL, NULL, NULL, NULL) !=
-		wcslen(groups[j]) + 1)
-		goto badtext;
-	}
+	if (group && zcurses_span_cell(keep_group ? cells + count - 1 : &discarded,
+				     group, span->attrs))
+	    goto badtext;
 #else
 	while (*str) {
-	    ch = (unsigned char)*str++;
-	    if (ch == Meta)
-		ch = (unsigned char)*str++ ^ 32;
-	    if (ch >= 128) {
+	    result = zcurses_text_next(&str, 0, &wc, &cw);
+	    if (result == 2) {
 		zwarnnam(nam, "spans: non-ASCII text requires wide span support");
 		return 2;
 	    }
-	    if (ch < 32 || ch > 126 || width == cols)
+	    if (result)
 		goto badtext;
-	    cells[count++] = ch | span->attrs;
-	    width++;
+	    if (width == cols) {
+		if (!clip)
+		    goto badtext;
+		retaining = 0;
+	    }
+	    if (retaining) {
+		cells[count++] = (chtype)wc | span->attrs;
+		width++;
+	    }
 	}
 #endif
 	span->count = count - span->first;
@@ -1173,8 +1229,21 @@ badtext:
 #else
     (void)nam;
     (void)args;
+    (void)clip;
     return 2;
 #endif
+}
+
+static int
+zccmd_spans(const char *nam, char **args)
+{
+    return zcurses_drawspans(nam, args, 0);
+}
+
+static int
+zccmd_spansclip(const char *nam, char **args)
+{
+    return zcurses_drawspans(nam, args, 1);
 }
 
 static int
@@ -2103,6 +2172,70 @@ zccmd_colorinfo(const char *nam, char **args)
     return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
 }
 
+
+/* Headless width/clip query. Validation, including the discarded suffix,
+ * precedes assignment, so invalid text cannot be hidden behind a small budget. */
+static int
+zccmd_textinfo(const char *nam, char **args)
+{
+    Param pm;
+    LinkList info;
+    char *str = args[1], *end = str, *prefix;
+    int budget = INT_MAX, width = 0, total = 0, keeping = 1, have_base = 0;
+    int cw, result, wide = 0;
+    size_t bytes;
+    convchar_t wc;
+
+    if (!isident(args[0]) || strchr(args[0], '[')) {
+	zwarnnam(nam, "textinfo expects an associative parameter name");
+	return 1;
+    }
+    pm = (Param)gethashnode2(paramtab, args[0]);
+    if (pm && ((pm->node.flags & (PM_READONLY|PM_SPECIAL)) ||
+	       PM_TYPE(pm->node.flags) != PM_HASHED)) {
+	zwarnnam(nam, "textinfo expects an ordinary writable associative parameter: %s", args[0]);
+	return 1;
+    }
+    if (args[2] && zcurses_nonnegative(args[2], &budget)) {
+	zwarnnam(nam, "textinfo expects a nonnegative decimal column budget");
+	return 1;
+    }
+#ifdef MULTIBYTE_SUPPORT
+    wide = 1;
+#endif
+    MB_METACHARINIT();
+    while (*str) {
+	result = zcurses_text_next(&str, wide, &wc, &cw);
+	if (result || (!cw && !have_base) || total > INT_MAX - cw) {
+	    zwarnnam(nam, "textinfo requires printable text with a spacing character before zero-width characters");
+	    return result == 2 ? 2 : 1;
+	}
+	total += cw;
+	if (cw) {
+	    have_base = 1;
+	    if (cw > budget - width)
+		keeping = 0;
+	}
+	if (keeping) {
+	    width += cw;
+	    end = str;
+	}
+    }
+    bytes = end - args[1];
+    prefix = zhalloc(bytes + 1);
+    memcpy(prefix, args[1], bytes);
+    prefix[bytes] = '\0';
+    info = newlinklist();
+    addlinknode(info, "text");
+    addlinknode(info, prefix);
+    addlinknode(info, "remainder");
+    addlinknode(info, end);
+    zcurses_colorinfo_value(info, "width", width);
+    zcurses_colorinfo_value(info, "total_width", total);
+    zcurses_colorinfo_value(info, "truncated", *end != '\0');
+    return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
 static int
 zccmd_resize(const char *nam, char **args)
 {
@@ -2194,10 +2327,12 @@ bin_zcurses(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"position", zccmd_position, 2, 2},
 	{"geometry", zccmd_geometry, 1, 1},
 	{"colorinfo", zccmd_colorinfo, 1, 1},
+	{"textinfo", zccmd_textinfo, 2, 3},
 	{"truecolor", zccmd_truecolor, 1, 1},
 	{"char", zccmd_char, 2, 2},
 	{"string", zccmd_string, 2, 2},
 	{"spans", zccmd_spans, 5, -1},
+	{"spansclip", zccmd_spansclip, 6, -1},
 	{"border", zccmd_border, 1, 9},
 	{"end", zccmd_endwin, 0, 0},
 	{"attr", zccmd_attr, 2, -1},
@@ -2236,6 +2371,7 @@ bin_zcurses(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 
     if (zcsc->cmd != zccmd_init && zcsc->cmd != zccmd_endwin &&
 	zcsc->cmd != zccmd_geometry && zcsc->cmd != zccmd_colorinfo &&
+	zcsc->cmd != zccmd_textinfo &&
 	!zcurses_getwindowbyname("stdscr")) {
 	zwarnnam(nam, "command `%s' can't be used before `zcurses init'",
 		 zcsc->name);
@@ -2263,11 +2399,16 @@ zcurses_featuresgetfn(UNUSED(Param pm))
     static char *features[] = {
 	"colorinfo",
 	"custom_borders",
+	"textinfo",
+#ifdef MULTIBYTE_SUPPORT
+	"wide_text",
+#endif
 #ifdef ZCURSES_TRUECOLOR
 	"truecolor",
 #endif
 #if defined(ZCURSES_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
 	"styled_spans",
+	"clipped_spans",
 #endif
 #ifdef ZCURSES_WIDE_SPANS
 	"wide_spans",
