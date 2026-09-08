@@ -27,6 +27,10 @@ before initialization, reporting unavailable values as `unknown`.
 styled text in one module call, preserving cursor and window state. See the
 [API](#styled-span-batching) and [reproducible benchmark](benchmarks/README.md).
 
+**Opt-in truecolor** accepts `#RRGGBB` colors through curses when the build and
+terminal description support 24-bit direct colors. See [the API](#truecolor)
+and the standalone [gradient example](examples/truecolor.zsh).
+
 ## Build and test
 
 Prerequisites:
@@ -36,7 +40,8 @@ Prerequisites:
 - Autoconf (including Autoheader), M4, and Patch to regenerate Zsh's configuration
   with the optional drawing function checks.
 - Curses development headers and libraries, such as ncurses, and a terminfo
-  database containing `xterm-256color` and `vt100` for the tests.
+  database containing `xterm-256color` and `vt100` for the tests. The truecolor
+  tests also use ncurses `tic -x` to compile private fixtures under `.build/`.
 - Python 3.9 or newer and an installed UTF-8 locale for the PTY tests. The drawing
   tests select a UTF-8 locale from `locale -a`; `ZCURSES_TEST_LOCALE` overrides it.
 - Curl, Tar, and Xz for the download example below.
@@ -143,6 +148,7 @@ unknown, so the application chooses its fallback policy.
 | `custom_borders` | Eight-character borders, including printable ASCII |
 | `wide_borders` | Unicode borders through `setcchar` and `wborder_set` |
 | `colorinfo` | Runtime color capabilities and allocation information |
+| `truecolor` | Optional ncurses extended-color APIs and terminfo queries for RGB |
 | `styled_spans` | Single-row styled text batching |
 | `wide_spans` | Wide characters and representable combining sequences in spans |
 
@@ -228,7 +234,8 @@ fit in C's `short` type. Index 255 is valid on a 256-color terminal. Pair IDs
 also must fit in `short`; allocation fails before exceeding either that range
 or the library limit. Existing pairs remain usable after exhaustion. Named and
 numeric spellings retain separate cache entries and their existing `querychar`
-readback spelling. Extended color APIs remain future work.
+readback spelling. Opt-in [truecolor](#truecolor) adds a separate RGB syntax
+without widening decimal indices or pair IDs.
 
 The wide-character `char` operation now decodes Zsh's internal string encoding
 and passes a terminated buffer to curses, as does the background operation.
@@ -261,6 +268,9 @@ fields below are `unknown`. During a session:
 | `color_started` | Whether `start_color` succeeded: `0` or `1` |
 | `default_colors` | Whether `use_default_colors` succeeded: `0` or `1`; `0` if unavailable or color initialization failed |
 | `can_change_color` | Curses' palette-redefinition capability: `0` or `1` |
+| `truecolor_supported` | `0` or `1`: this build and initialized terminal description support the RGB interface |
+| `truecolor_enabled` | `0` or `1`: the application has enabled RGB color arguments in this session |
+| `rgb_min`, `rgb_max` | Inclusive packed RGB range, independent of `color_limit`; `unknown` if unsupported |
 | `colors`, `color_pairs` | Raw library counts after successful color initialization; otherwise `unknown` |
 | `color_limit` | Number of representable numeric colors: `min(colors, SHRT_MAX + 1)`; indices start at zero |
 | `pair_limit` | Available nonzero pair slots: `max(0, min(color_pairs - 1, SHRT_MAX))`; also the highest allocatable pair ID |
@@ -374,3 +384,76 @@ highest usable pair ID: the normal `pair_limit` on the wide path, further limite
 by packed curses attributes on the ASCII path, or zero when spans are unavailable.
 Before initialization and after `end` this value is `unknown`. The narrow path
 rejects a pair that exceeds its limit instead of truncating the ID.
+
+## Truecolor
+
+Start the **matching built shell** with a direct-color terminal description that
+is appropriate for the actual terminal. For an xterm-compatible terminal that
+supports the entry's RGB sequences, and with `xterm-direct` installed:
+
+```sh
+TERM=xterm-direct .build/zsh/Src/zsh -df examples/truecolor.zsh
+```
+
+Inside an initialized session:
+
+```zsh
+zcurses truecolor on || return
+zcurses attr panel 'bold' '#80c0ff/#181818'
+zcurses bg panel '#e0e0e0/#181818'
+zcurses spans panel 1 2 'bold,#80c0ff/#181818' 'RGB text'
+zcurses refresh panel
+```
+
+The `truecolor` subcommand takes exactly `on` or `off`. It returns 0 on success,
+1 for invalid arguments or use outside a curses session, and 2 when `on` cannot
+be supported by the current build/library/terminal description. `off` succeeds
+within any session. RGB starts disabled; repeated `init` preserves the current
+setting, and `end` resets it. `colorinfo` reports support and enabled state
+separately. Capability reporting itself does not opt in.
+
+With RGB enabled, either side of a color pair accepts exactly `#RRGGBB`, with
+six hexadecimal digits in either case. Quote color arguments. RGB can be mixed
+with existing named colors, decimal indices and `default` where supported.
+`attr`, `bg` and `spans` share the implementation and cache; subsequent character,
+string and border drawing uses the selected pair as usual. `querychar` returns
+the cached pair spelling, including hex case. Existing incremental-error behavior
+of `attr` and validation behavior of `bg`/`spans` are preserved.
+
+This interface requires optional ncurses extended-color functions, successful
+color initialization, exactly 16,777,216 advertised colors, and an `RGB`
+capability describing eight bits per channel (Boolean, numeric `8`, or string
+`8/8/8`). A library color-content query confirms the encoding without allocating
+pairs or writing to the terminal. `COLORTERM`, a large color count alone, palette
+redefinition capability, and a guessed `TERM` name do not establish support.
+A listed compiled `truecolor` feature can still be unavailable at runtime.
+
+**Reserved low values:** some direct-color entries, including `xterm-direct`,
+interpret values 0–7 as ANSI palette indices. The module reads the entry's `CO`
+reservation, defaulting conservatively to eight when absent. RGB values below
+`rgb_min` are rejected, including `#000000` when the minimum is eight; `black`
+still selects the entry's palette black, whose RGB value may differ. An entry
+with explicit `CO#0` and corresponding direct RGB setters can represent the
+entire range, including exact black and `#000001`. The module trusts the selected
+terminal description; it does not probe or rewrite it. Test fixtures cover both
+encodings and inspect their emitted SGR bytes.
+
+RGB values are carried as integers to `init_extended_pair`; allocated pair IDs
+retain the existing `SHRT_MAX` bound. Decimal color indices retain their existing
+`color_limit` even while RGB is enabled. Background, span and readback paths keep
+their additional pair-ID limits. Different spellings can allocate distinct pairs;
+pairs are never recycled and exhaustion fails normally. No palette approximation
+or palette redefinition is performed. Applications choose their own fallback
+when enabling RGB or requesting a particular color fails; drawing commands return
+status 1 for rejected RGB arguments or allocation failure.
+
+`truecolor off` rejects further RGB arguments, including cache hits, but leaves
+existing cells, pairs and window styles intact. It does not recolor the screen;
+normal drawing can still use an existing window style until the application
+changes it. Re-enabling can reuse retained pairs. `end` releases the session's
+pair cache and restores terminal state through the existing curses cleanup.
+
+The subcommand and capability checks do not consume input, emit terminal replies,
+refresh pending drawing, or alter input ownership. Input stays with the existing
+`zcurses input` API. There is no additional negotiation or reply parser. All
+screen output remains within curses and its retained-screen refresh machinery.

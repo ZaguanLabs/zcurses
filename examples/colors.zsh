@@ -27,6 +27,7 @@ printf '%-20s %12s %12s %12s %12s\n' field before-init after-init after-attr aft
 typeset key
 for key in initialized has_colors color_started default_colors can_change_color \
            colors color_pairs color_limit pair_limit bg_pair_limit query_pair_limit \
+           spans_pair_limit truecolor_supported truecolor_enabled rgb_min rgb_max \
            pairs_used pairs_free; do
   printf '%-20s %12s %12s %12s %12s\n' "$key" "$before[$key]" "$active[$key]" \
     "$allocated[$key]" "$ended[$key]"

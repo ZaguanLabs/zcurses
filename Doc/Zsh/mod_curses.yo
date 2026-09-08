@@ -20,6 +20,7 @@ xitem(tt(zcurses) tt(clear) var(targetwin) [ tt(redraw) | tt(eol) | tt(bot) ])
 xitem(tt(zcurses) tt(position) var(targetwin) var(array))
 xitem(tt(zcurses) tt(geometry) var(array))
 xitem(tt(zcurses) tt(colorinfo) var(association))
+xitem(tt(zcurses) tt(truecolor) tt(on)|tt(off))
 xitem(tt(zcurses) tt(char) var(targetwin) var(character) )
 xitem(tt(zcurses) tt(string) var(targetwin) var(string) )
 xitem(tt(zcurses) tt(spans) var(targetwin) var(row) var(column) var(style) var(text) [ var(style) var(text) ... ] )
@@ -122,6 +123,12 @@ initialization.  This is 0 if it is not compiled in or color initialization
 failed; it describes support for mixing tt(default) with other colors.)
 sitem(tt(can_change_color))(0 or 1: curses' palette-redefinition capability.
 This does not promise direct RGB drawing or expose a palette modification command.)
+sitem(tt(truecolor_supported))(0 or 1: the compiled library and initialized
+terminal description support the RGB interface described below.)
+sitem(tt(truecolor_enabled))(0 or 1: whether the application has enabled RGB
+color arguments in this session.)
+sitem(tt(rgb_min), tt(rgb_max))(The inclusive packed RGB range; tt(unknown)
+when unsupported.  These are separate from the decimal-index tt(color_limit).)
 sitem(tt(colors))(The raw curses color count after successful tt(start_color);
 otherwise tt(unknown).)
 sitem(tt(color_pairs))(The raw curses pair count after successful tt(start_color);
@@ -154,6 +161,52 @@ use of tt(default/default) retains the existing allocation behavior.
 Capabilities reflect curses' terminal description, not a probe of the physical
 terminal.  Compiled support remains separately discoverable through
 tt(zcurses_features), including its tt(colorinfo) entry.
+
+The subcommand tt(truecolor) accepts exactly tt(on) or tt(off).  It enables or
+disables tt(#RRGGBB) color arguments in tt(attr), tt(bg) and tt(spans).
+RGB is disabled initially.  Repeating tt(init) preserves the setting;
+tt(end) resets it.  Status 0 indicates success, 1 invalid arguments or use
+outside a curses session, and 2 that tt(on) is unsupported by the current build,
+library or terminal description.  tt(off) succeeds within any session.
+
+The implementation requires optional ncurses extended-color functions,
+successful color initialization, exactly 16777216 advertised colors, and an
+RGB capability with eight bits per channel: Boolean tt(RGB), numeric tt(RGB#8),
+or string tt(RGB=8/8/8).  A read-only library color-content query checks the
+encoding.  The compiled tt(truecolor) feature does not imply runtime support;
+tt(colorinfo) reports support separately from whether the application opted in.
+A large color count, tt(COLORTERM), or palette redefinition support is not enough.
+Select a suitable direct-color terminal description before starting the shell;
+the module neither changes tt(TERM) nor probes the physical terminal.
+
+When enabled, either side of a color pair can use tt(#) followed by exactly six
+hexadecimal digits, in either case.  Quote these arguments.  RGB can be mixed
+with existing named or decimal colors and with tt(default) when supported.
+RGB values are passed as integers to tt(init_extended_pair), but pair IDs and
+decimal indices retain their existing bounds.  Drawing and tt(querychar) use the
+same pairs; readback retains the cached spelling.  Existing narrower limits of
+tt(bg), tt(spans) and tt(querychar) still apply.  Rejected RGB arguments and
+allocation failures return status 1 through these drawing commands.
+
+Some direct-color descriptions reserve low values for ANSI palette indices.
+The tt(CO) numeric capability gives the reservation; when absent, eight indices
+are conservatively reserved.  RGB values below tt(rgb_min) are rejected.
+For example, tt(xterm-direct) normally reserves 0 through 7, so tt(#000000)
+is rejected while tt(black) still selects palette black, which need not be exact
+RGB black.  A description with tt(CO#0) and matching direct RGB setters supports
+the full range.  The module trusts the selected description and does not
+approximate unavailable colors or redefine the palette.
+
+Turning RGB off rejects new RGB arguments, including cached pair references,
+without changing existing cells, pairs, or window styles.  Existing styles can
+still be used by subsequent drawing.  Re-enabling permits cache reuse.  Pairs
+are never recycled; different spellings can consume separate pairs and exhaustion
+fails normally.  tt(end) clears the cache through the existing session cleanup.
+
+The tt(truecolor) subcommand and capability checks allocate no pairs, read no
+terminal input, emit no terminal output, and do not refresh pending drawing or
+change input ownership.  There is no additional protocol negotiation or reply
+parser.  Curses owns rendering and cleanup, and input remains with tt(input).
 
 The subcommand tt(position) writes various positions associated with
 var(targetwin) into the array named var(array).
@@ -391,6 +444,7 @@ query through tt(TIOCGWINSZ).)
 sitem(tt(mouse))(Support for ncurses mouse input and the tt(mouse) subcommand.)
 sitem(tt(resize))(Support for the tt(resize) subcommand through tt(resize_term).)
 sitem(tt(wide_borders))(Non-ASCII border characters through wide curses.)
+sitem(tt(truecolor))(Optional ncurses extended-color functions and terminfo queries for RGB.)
 sitem(tt(styled_spans))(Single-row styled text batching.)
 sitem(tt(wide_spans))(Wide characters and representable combining sequences in spans.)
 endsitem()

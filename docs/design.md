@@ -63,8 +63,8 @@ or recycling pairs. These are upper bounds, not a resource reservation.
 The command reads cached state and does not touch terminal modes, input, screen
 updates or protocol negotiation. It preserves existing color commands and legacy
 count parameters. The [API](../README.md#runtime-color-information) describes
-the fields and a standalone example. Extended colors and direct RGB drawing need
-separate proposals.
+the fields and a standalone example. Opt-in direct RGB drawing is now
+implemented; see the rendering phases below.
 
 ## Design constraints
 
@@ -89,7 +89,7 @@ to these candidates, identifies existing correctness gaps, and proposes a patch
 sequence without committing to new APIs.
 
 `geometry`, compiled feature discovery, custom borders and runtime color
-information and styled-span batching are implemented.
+information, styled-span batching and opt-in truecolor are implemented.
 The initial drawing changes also correct wide-character buffers and guard
 numeric color parsing and pair allocation. Custom borders preserve the original
 form and expose eight glyphs without adding title or layout policy. The
@@ -105,7 +105,7 @@ compatibility tests before an API is chosen:
 | --- | --- |
 | Cursor visibility and window operations | Define ownership and restoration; test repeated resize and overlay dismissal |
 | Drawing helpers | Styled spans are implemented; measure application workloads before adding further helpers |
-| Extended colors and capabilities | Audit wider color paths end to end; keep negotiated state separate from compiled features and cached runtime information |
+| Extended colors and capabilities | RGB values are implemented; wider pair IDs or additional encodings require a separate end-to-end audit |
 | Structured input | Define coexistence with curses decoding, deadlines, bounded buffers and lossless paste handling |
 | Unicode | Test combining marks, wide characters, emoji sequences and ambiguous-width policies |
 | Terminal protocols | Require a concrete benefit, opt-in negotiation, input ownership and terminal/multiplexer tests |
@@ -142,9 +142,28 @@ and drawing. Failed allocation can retain newly allocated pairs; a library write
 error can partially draw. See the [API](../README.md#styled-span-batching) and
 [benchmark](../benchmarks/README.md).
 
-The next phase is an opt-in truecolor design: detect direct-color support, audit
-integer color IDs and pair handling through allocation, attributes, backgrounds
-and readback, and define fallback without mixing raw ANSI writes into curses'
-retained screen. General Unicode measurement/clipping follows separately, with
-an explicit distinction between system column widths and grapheme boundaries.
-Neither phase changes existing command semantics implicitly.
+Phase two adds opt-in truecolor through ncurses' extended pair initialization.
+RGB color values use integers while pair IDs stay within their existing short
+bounds. This allows the existing attribute, background, span and readback paths
+to share RGB pairs without changing their representations. Capability detection
+checks the terminal description and library encoding; it does not probe the
+terminal, negotiate replies, or allocate colors. Decimal indices remain bounded
+as before. Reserved palette indices are reported and rejected for RGB requests,
+not silently approximated. Off disables new RGB arguments and leaves existing
+cells and styles valid until changed or the session ends.
+
+The [API](../README.md#truecolor) documents terminal setup, color ranges and
+fallback. PTY tests compile private terminfo entries and verify exact foreground
+and background SGR bytes, mixed/default colors, pair IDs beyond 255, input and
+refresh ownership, optional builds, allocation failure and session cleanup.
+The [example](../examples/truecolor.zsh) keeps gradient generation in Zsh.
+
+General Unicode measurement/clipping is the next phase, with an explicit
+distinction between system column widths and grapheme boundaries. Wider pair IDs
+and alternative RGB encodings remain separate work.
+
+Primary references: [ncurses color functions](https://invisible-island.net/ncurses/man/curs_color.3x.html)
+[the RGB terminfo capability](https://invisible-island.net/ncurses/man/user_caps.5.html),
+and [ncurses' direct-color entries](https://github.com/mirror/ncurses/blob/master/misc/terminfo.src).
+The implementation follows the library's distinction between integer RGB values
+and bounded pair identifiers, and checks the declared per-channel encoding.

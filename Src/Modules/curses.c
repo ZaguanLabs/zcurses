@@ -60,6 +60,14 @@
 # define ZCURSES_WIDE_SPANS 1
 #endif
 
+/* RGB values need int, but pair IDs remain within the existing short limits. */
+#if defined(NCURSES_VERSION) && defined(NCURSES_EXT_COLORS) && \
+    defined(HAVE_INIT_EXTENDED_PAIR) && defined(HAVE_EXTENDED_COLOR_CONTENT) && \
+    defined(HAVE_TIGETFLAG) && defined(HAVE_TIGETNUM) && defined(HAVE_TIGETSTR) && \
+    INT_MAX >= 0xffffff
+# define ZCURSES_TRUECOLOR 1
+#endif
+
 enum zc_win_flags {
     /* Window is permanent (probably "stdscr") */
     ZCWF_PERMANENT = 0x0001,
@@ -123,6 +131,8 @@ static short next_cp=0;
 /* Results of the current session's initialization, not compiled features. */
 static int zc_has_colors, zc_color_started, zc_default_colors;
 static int zc_can_change_color;
+static int zc_truecolor, zc_truecolor_supported;
+static int zc_rgb_min = -1;
 
 enum {
     ZCF_MOUSE_ACTIVE,
@@ -332,12 +342,30 @@ zcurses_attrget(UNUSED(WINDOW *w), char *attr)
     return NULL;
 }
 
-static short
+static int
 zcurses_color(const char *color)
 {
     struct zcurses_namenumberpair *zc;
     const char *p;
     int value = 0;
+
+    if (*color == '#') {
+	if (!zc_truecolor || strlen(color) != 7)
+	    return -2;
+	for (p = color + 1; *p; p++) {
+	    int digit;
+	    if (*p >= '0' && *p <= '9')
+		digit = *p - '0';
+	    else if (*p >= 'a' && *p <= 'f')
+		digit = *p - 'a' + 10;
+	    else if (*p >= 'A' && *p <= 'F')
+		digit = *p - 'A' + 10;
+	    else
+		return -2;
+	    value = value * 16 + digit;
+	}
+	return value >= zc_rgb_min ? value : -2;
+    }
 
     /* Validate the entire decimal value before converting to curses' short.
      * In particular, atoi() would accept suffixes and could overflow. */
@@ -373,11 +401,11 @@ static Colorpairnode
 zcurses_colorget(const char *nam, char *colorpair)
 {
     char *bg, *cp;
-    short f, b;
+    int f, b, result;
     Colorpairnode cpn;
 
     /* zcurses_colorpairs is only initialised if color is supported */
-    if (!zcurses_colorpairs)
+    if (!zcurses_colorpairs || (!zc_truecolor && strchr(colorpair, '#')))
 	return NULL;
 
     if (zc_color_phase==1 ||
@@ -420,7 +448,14 @@ zcurses_colorget(const char *nam, char *colorpair)
 	    zsfree(cp);
 	    return NULL;
 	}
-	if (init_pair((short)(next_cp + 1), f, b) == ERR) {
+	/* Decimal indices keep their old bounds and allocation path. */
+#ifdef ZCURSES_TRUECOLOR
+	if (strchr(colorpair, '#'))
+	    result = init_extended_pair((int)next_cp + 1, f, b);
+	else
+#endif
+	    result = init_pair((short)(next_cp + 1), (short)f, (short)b);
+	if (result == ERR) {
 	    zfree(cpn, sizeof(struct colorpairnode));
 	    zsfree(cp);
 	    return NULL;
@@ -466,6 +501,59 @@ freecolorpairnode(HashNode hn)
 /*************
  * Subcommands
  *************/
+
+/* Inspect the initialized library and terminal description, never the wire.
+ * Accept only 8/8/8 direct encoding; COLORS alone does not establish RGB. */
+static void
+zcurses_truecolor_detect(void)
+{
+    zc_truecolor = zc_truecolor_supported = 0;
+    zc_rgb_min = -1;
+#ifdef ZCURSES_TRUECOLOR
+    if (zc_has_colors && zc_color_started && COLORS == 0x1000000) {
+	char *encoding = tigetstr("RGB");
+	char *fg = tigetstr("setaf"), *bg = tigetstr("setab");
+	int r, g, b, minimum = tigetnum("CO");
+	if (!(tigetflag("RGB") == 1 || tigetnum("RGB") == 8 ||
+	      (encoding && encoding != (char *)-1 && !strcmp(encoding, "8/8/8"))) ||
+	    !fg || fg == (char *)-1 || !*fg ||
+	    !bg || bg == (char *)-1 || !*bg)
+	    return;
+	/* Confirm that the library actually interprets direct 24-bit colors.
+	 * This is a read-only query, not a palette modification or allocation. */
+	if (extended_color_content(0x123456, &r, &g, &b) == ERR ||
+	    r != 1000 * 0x12 / 255 || g != 1000 * 0x34 / 255 || b != 1000 * 0x56 / 255)
+	    return;
+	/* CO describes the low indices reserved for ANSI colors in direct
+	 * entries. Without it, retain the conventional eight-index reservation. */
+	if (minimum < 0)
+	    minimum = 8;
+	if (minimum > 0xffffff)
+	    return;
+	zc_rgb_min = minimum;
+	zc_truecolor_supported = 1;
+    }
+#endif
+}
+
+static int
+zccmd_truecolor(const char *nam, char **args)
+{
+    if (!strcmp(args[0], "off")) {
+	/* Existing cells and pairs remain valid; only new RGB arguments stop
+	 * being accepted, including references to already cached RGB pairs. */
+	zc_truecolor = 0;
+	return 0;
+    }
+    if (strcmp(args[0], "on")) {
+	zwarnnam(nam, "truecolor expects on or off");
+	return 1;
+    }
+    if (!zc_truecolor_supported)
+	return 2;
+    zc_truecolor = 1;
+    return 0;
+}
 
 static int
 zccmd_init(UNUSED(const char *nam), UNUSED(char **args))
@@ -522,6 +610,7 @@ zccmd_init(UNUSED(const char *nam), UNUSED(char **args))
 			    ztrdup("default/default"), (void *)cpn);
 	    }
 	}
+	zcurses_truecolor_detect();
 	/*
 	 * We use cbreak mode because we don't want line buffering
 	 * on input since we'd just need to loop over characters.
@@ -1199,6 +1288,8 @@ zccmd_endwin(UNUSED(const char *nam), UNUSED(char **args))
 	zc_color_phase = 0;
 	zc_has_colors = zc_color_started = zc_default_colors = 0;
 	zc_can_change_color = 0;
+	zc_truecolor = zc_truecolor_supported = 0;
+	zc_rgb_min = -1;
     }
     return 0;
 }
@@ -1991,6 +2082,10 @@ zccmd_colorinfo(const char *nam, char **args)
 
     info = newlinklist();
     zcurses_colorinfo_value(info, "initialized", initialized);
+    zcurses_colorinfo_value(info, "truecolor_supported", initialized ? zc_truecolor_supported : -1);
+    zcurses_colorinfo_value(info, "truecolor_enabled", initialized ? zc_truecolor : -1);
+    zcurses_colorinfo_value(info, "rgb_min", initialized ? zc_rgb_min : -1);
+    zcurses_colorinfo_value(info, "rgb_max", initialized && zc_truecolor_supported ? 0xffffff : -1);
     zcurses_colorinfo_value(info, "has_colors", initialized ? zc_has_colors : -1);
     zcurses_colorinfo_value(info, "color_started", initialized ? zc_color_started : -1);
     zcurses_colorinfo_value(info, "default_colors", initialized ? zc_default_colors : -1);
@@ -2099,6 +2194,7 @@ bin_zcurses(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"position", zccmd_position, 2, 2},
 	{"geometry", zccmd_geometry, 1, 1},
 	{"colorinfo", zccmd_colorinfo, 1, 1},
+	{"truecolor", zccmd_truecolor, 1, 1},
 	{"char", zccmd_char, 2, 2},
 	{"string", zccmd_string, 2, 2},
 	{"spans", zccmd_spans, 5, -1},
@@ -2167,6 +2263,9 @@ zcurses_featuresgetfn(UNUSED(Param pm))
     static char *features[] = {
 	"colorinfo",
 	"custom_borders",
+#ifdef ZCURSES_TRUECOLOR
+	"truecolor",
+#endif
 #if defined(ZCURSES_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
 	"styled_spans",
 #endif

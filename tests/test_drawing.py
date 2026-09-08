@@ -75,6 +75,7 @@ def drawing_session(case, mode, modules=None, env=None,
         case.assertIn(marker, output)
         case.assertNotIn(b'runtime error:', output)
         case.assertNotIn(b'ERROR: AddressSanitizer', output)
+        return bytes(output)
     finally:
         if not reaped:
             try:

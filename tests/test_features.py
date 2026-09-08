@@ -119,6 +119,7 @@ class FeatureTests(unittest.TestCase):
 #undef NCURSES_MOUSE_VERSION
 #undef HAVE_USE_DEFAULT_COLORS
 #undef HAVE_WBORDER_SET
+#undef HAVE_INIT_EXTENDED_PAIR
 #undef HAVE_WADDCHNSTR
 #undef HAVE_WADD_WCHNSTR''', 1)
         with tempfile.TemporaryDirectory(prefix='features-disabled-', dir=ROOT / '.build') as tmp:

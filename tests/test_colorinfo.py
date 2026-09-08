@@ -26,7 +26,8 @@ class ColorInfoTests(unittest.TestCase):
                 [[ $info[initialized] == 0 && ${+info[stale]} == 0 ]] || exit 4
                 local key
                 for key in has_colors color_started default_colors can_change_color \\
-                    colors color_pairs color_limit pair_limit bg_pair_limit query_pair_limit spans_pair_limit pairs_used pairs_free; do
+                    colors color_pairs color_limit pair_limit bg_pair_limit query_pair_limit spans_pair_limit pairs_used pairs_free \
+                    truecolor_supported truecolor_enabled rgb_min rgb_max; do
                     [[ $info[$key] == unknown ]] || exit 5
                 done
                 # Assignment must find the caller's local association.

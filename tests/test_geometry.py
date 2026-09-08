@@ -22,6 +22,9 @@ if ZSH is None:
 
 class GeometryTests(unittest.TestCase):
     def test_geometry_and_legacy_operations(self):
+        self.geometry_session()
+
+    def geometry_session(self, terminal_type='xterm-256color', terminfo=None):
         control_r, control_w = os.pipe()
         report_r, report_w = os.pipe()
         pid, terminal = pty.fork()
@@ -32,7 +35,9 @@ class GeometryTests(unittest.TestCase):
             os.set_inheritable(report_w, True)
             # Set the initial size before the shell initializes.
             fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
-            os.environ['TERM'] = 'xterm-256color'
+            os.environ['TERM'] = terminal_type
+            if terminfo:
+                os.environ['TERMINFO'] = terminfo
             os.environ.pop('LINES', None)
             os.environ.pop('COLUMNS', None)
             os.execl(ZSH, ZSH, '-df', str(ROOT / 'tests/geometry.zsh'),
@@ -94,6 +99,7 @@ class GeometryTests(unittest.TestCase):
             drain_screen()
             screen.clear()
             curses_mode = termios.tcgetattr(terminal)
+            os.write(terminal, b'Z')
             advance(40, 120)
             self.assertEqual(line(), 'resized 40 120 cached 24 80')
             self.assertEqual(termios.tcgetattr(terminal), curses_mode)
@@ -102,6 +108,7 @@ class GeometryTests(unittest.TestCase):
             advance(0, 0)
             self.assertEqual(line(), 'zero 1 sentinel')
             advance(32, 100)
+            self.assertEqual(line(), 'input Z')
             self.assertEqual(line(), 'local 32 100')
             self.assertEqual(line(), 'readonly 1')
             self.assertEqual(line(), 'missing 1')

@@ -12,9 +12,11 @@ test: build
 	"$(ZSH_BIN)" -dfn tests/drawing.zsh
 	"$(ZSH_BIN)" -dfn tests/colorinfo.zsh
 	"$(ZSH_BIN)" -dfn tests/spans.zsh
+	"$(ZSH_BIN)" -dfn tests/truecolor.zsh
 	"$(ZSH_BIN)" -dfn benchmarks/spans.zsh
 	"$(ZSH_BIN)" -dfn examples/borders.zsh
 	"$(ZSH_BIN)" -dfn examples/colors.zsh
+	"$(ZSH_BIN)" -dfn examples/truecolor.zsh
 	ZCURSES_MAKE="$(MAKE)" "$(PYTHON)" -m unittest discover -s tests -v
 
 # Keep downloaded/extracted sources and other files under .build intact.
