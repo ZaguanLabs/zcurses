@@ -113,6 +113,9 @@ static int zcurses_flags;
 
 static int zc_errno, zc_color_phase=0;
 static short next_cp=0;
+/* Results of the current session's initialization, not compiled features. */
+static int zc_has_colors, zc_color_started, zc_default_colors;
+static int zc_can_change_color;
 
 enum {
     ZCF_MOUSE_ACTIVE,
@@ -349,6 +352,16 @@ zcurses_color(const char *color)
     return (short)-2;
 }
 
+/* Number of nonzero pair IDs representable by both curses and this module.
+ * Keep allocation and runtime reporting on the same boundary. */
+static int
+zcurses_pair_limit(void)
+{
+    if (!zc_color_started || COLOR_PAIRS <= 1)
+	return 0;
+    return COLOR_PAIRS - 1 < SHRT_MAX ? COLOR_PAIRS - 1 : SHRT_MAX;
+}
+
 static Colorpairnode
 zcurses_colorget(const char *nam, char *colorpair)
 {
@@ -389,7 +402,7 @@ zcurses_colorget(const char *nam, char *colorpair)
 
 	/* The library may advertise more pairs than this interface can hold.
 	 * Check before incrementing, and never recycle a pair used by cells. */
-	if (next_cp == SHRT_MAX || (int)next_cp + 1 >= COLOR_PAIRS) {
+	if (next_cp >= zcurses_pair_limit()) {
 	    zsfree(cp);
 	    return NULL;
 	}
@@ -467,8 +480,12 @@ zccmd_init(UNUSED(const char *nam), UNUSED(char **args))
 	}
 	w->flags = ZCWF_PERMANENT;
 	zinsertlinknode(zcurses_windows, lastnode(zcurses_windows), (void *)w);
+	zc_has_colors = has_colors() != 0;
+	zc_can_change_color = can_change_color() != 0;
+	zc_color_started = zc_default_colors = 0;
 	if (start_color() != ERR) {
 	    Colorpairnode cpn;
+	    zc_color_started = 1;
 
 	    if(!zc_color_phase)
 		zc_color_phase = 1;
@@ -488,7 +505,7 @@ zccmd_init(UNUSED(const char *nam), UNUSED(char **args))
 	    zcurses_colorpairs->printnode   = NULL;
 
 #ifdef HAVE_USE_DEFAULT_COLORS
-	    use_default_colors();
+	    zc_default_colors = use_default_colors() != ERR;
 #endif
 	    /* Initialise the default color pair, always 0 */
 	    cpn = (Colorpairnode)zshcalloc(sizeof(struct colorpairnode));
@@ -932,6 +949,8 @@ zccmd_endwin(UNUSED(const char *nam), UNUSED(char **args))
 	}
 	next_cp = 0;
 	zc_color_phase = 0;
+	zc_has_colors = zc_color_started = zc_default_colors = 0;
+	zc_can_change_color = 0;
     }
     return 0;
 }
@@ -1655,6 +1674,84 @@ zccmd_geometry(UNUSED(const char *nam), char **args)
 #endif
 }
 
+/* A negative value denotes unavailable information, not a negative count. */
+static void
+zcurses_colorinfo_value(LinkList list, const char *key, zlong value)
+{
+    char digits[DIGBUFSIZE];
+
+    addlinknode(list, dupstring(key));
+    if (value < 0)
+	addlinknode(list, dupstring("unknown"));
+    else {
+	convbase(digits, value, 10);
+	addlinknode(list, dupstring(digits));
+    }
+}
+
+static int
+zccmd_colorinfo(const char *nam, char **args)
+{
+    Param pm;
+    LinkList info;
+    int initialized = zcurses_getwindowbyname("stdscr") != NULL;
+    zlong colors = -1, pairs = -1, color_limit = -1, pair_limit = -1;
+    zlong bg_limit = -1, query_limit = -1;
+
+    /* Restrict assignment to a plain association: a special hash can run
+     * setters with effects unrelated to this informational operation. */
+    if (!isident(args[0]) || strchr(args[0], '[')) {
+	zwarnnam(nam, "colorinfo expects an associative parameter name");
+	return 1;
+    }
+    pm = (Param)gethashnode2(paramtab, args[0]);
+    if (pm && ((pm->node.flags & (PM_READONLY|PM_SPECIAL)) ||
+	       PM_TYPE(pm->node.flags) != PM_HASHED)) {
+	zwarnnam(nam, "colorinfo expects an ordinary writable associative parameter: %s", args[0]);
+	return 1;
+    }
+
+    if (initialized) {
+	color_limit = pair_limit = 0;
+	if (zc_color_started) {
+	    colors = COLORS;
+	    pairs = COLOR_PAIRS;
+	    if (colors > 0)
+		color_limit = colors <= (zlong)SHRT_MAX ? colors : (zlong)SHRT_MAX + 1;
+	    pair_limit = zcurses_pair_limit();
+	}
+	bg_limit = query_limit = pair_limit;
+#ifndef HAVE_SETCCHAR
+	/* bg encodes the pair in chtype and also has a legacy 255 guard. */
+	if (bg_limit > 255)
+	    bg_limit = 255;
+	if (bg_limit > PAIR_NUMBER(A_COLOR))
+	    bg_limit = PAIR_NUMBER(A_COLOR);
+#endif
+#if !defined(HAVE_WIN_WCH) || !defined(HAVE_GETCCHAR)
+	if (query_limit > PAIR_NUMBER(A_COLOR))
+	    query_limit = PAIR_NUMBER(A_COLOR);
+#endif
+    }
+
+    info = newlinklist();
+    zcurses_colorinfo_value(info, "initialized", initialized);
+    zcurses_colorinfo_value(info, "has_colors", initialized ? zc_has_colors : -1);
+    zcurses_colorinfo_value(info, "color_started", initialized ? zc_color_started : -1);
+    zcurses_colorinfo_value(info, "default_colors", initialized ? zc_default_colors : -1);
+    zcurses_colorinfo_value(info, "can_change_color", initialized ? zc_can_change_color : -1);
+    zcurses_colorinfo_value(info, "colors", colors);
+    zcurses_colorinfo_value(info, "color_pairs", pairs);
+    zcurses_colorinfo_value(info, "color_limit", color_limit);
+    zcurses_colorinfo_value(info, "pair_limit", pair_limit);
+    zcurses_colorinfo_value(info, "bg_pair_limit", bg_limit);
+    zcurses_colorinfo_value(info, "query_pair_limit", query_limit);
+    zcurses_colorinfo_value(info, "pairs_used", initialized ? next_cp : -1);
+    zcurses_colorinfo_value(info, "pairs_free", initialized ? pair_limit - next_cp : -1);
+
+    return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
 static int
 zccmd_resize(const char *nam, char **args)
 {
@@ -1745,6 +1842,7 @@ bin_zcurses(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"clear", zccmd_clear, 1, 2},
 	{"position", zccmd_position, 2, 2},
 	{"geometry", zccmd_geometry, 1, 1},
+	{"colorinfo", zccmd_colorinfo, 1, 1},
 	{"char", zccmd_char, 2, 2},
 	{"string", zccmd_string, 2, 2},
 	{"border", zccmd_border, 1, 9},
@@ -1784,7 +1882,7 @@ bin_zcurses(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
     }
 
     if (zcsc->cmd != zccmd_init && zcsc->cmd != zccmd_endwin &&
-	zcsc->cmd != zccmd_geometry &&
+	zcsc->cmd != zccmd_geometry && zcsc->cmd != zccmd_colorinfo &&
 	!zcurses_getwindowbyname("stdscr")) {
 	zwarnnam(nam, "command `%s' can't be used before `zcurses init'",
 		 zcsc->name);
@@ -1810,6 +1908,7 @@ zcurses_featuresgetfn(UNUSED(Param pm))
     /* Keep these conditions in step with the operations they describe.
      * This is compile-time support, not terminal capability or state. */
     static char *features[] = {
+	"colorinfo",
 	"custom_borders",
 #ifdef HAVE_USE_DEFAULT_COLORS
 	"default_colors",

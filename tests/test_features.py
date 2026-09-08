@@ -124,7 +124,9 @@ class FeatureTests(unittest.TestCase):
             self.assertEqual(self.run_shell('''
                 zmodload zsh/curses || exit 1
                 zmodload -F -e zsh/curses +p:zcurses_features || exit 2
-                [[ $zcurses_features == custom_borders ]] || exit 3
+                (( ${#zcurses_features} == 2 &&
+                   ${zcurses_features[(Ie)custom_borders]} &&
+                   ${zcurses_features[(Ie)colorinfo]} )) || exit 3
                 (( ! ${zcurses_colors[(Ie)default]} )) || exit 4
                 typeset -a dimensions=(sentinel)
                 zcurses geometry dimensions

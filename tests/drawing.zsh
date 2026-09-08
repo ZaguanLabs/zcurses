@@ -20,8 +20,12 @@ check zcurses init
 {
   check zcurses addwin sample 5 12 1 1
   if [[ $mode == exhaustion ]]; then
+    typeset -A colorinfo
+    check zcurses colorinfo colorinfo
     typeset -i limit=$(( ZCURSES_COLOR_PAIRS - 1 )) i f b
     (( limit > short_max )) && limit=$short_max
+    (( colorinfo[pair_limit] == limit && colorinfo[pairs_used] == 0 &&
+       colorinfo[pairs_free] == limit )) || fail 'initial pair budget'
     (( limit > 0 && ZCURSES_COLORS * ZCURSES_COLORS >= limit )) || fail 'insufficient palette for exhaustion fixture'
     typeset pair last_pair
     for (( i=0; i<limit; i++ )); do
@@ -36,6 +40,8 @@ check zcurses init
     # A new spelling requires a new pair; failure must not corrupt old cells
     # or prevent reuse of an already allocated pair.
     reject zcurses attr sample 0000/0000
+    check zcurses colorinfo colorinfo
+    (( colorinfo[pairs_free] == 0 && colorinfo[pairs_used] == limit )) || fail 'exhausted pair budget'
     check zcurses attr sample "$last_pair"
     check zcurses move sample 0 0
     typeset -a reply

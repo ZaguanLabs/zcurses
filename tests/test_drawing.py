@@ -18,7 +18,8 @@ import tempfile
 ROOT, ZSH = test_features.ROOT, test_features.ZSH
 
 
-def drawing_session(case, mode, modules=None, env=None):
+def drawing_session(case, mode, modules=None, env=None,
+                    fixture='drawing.zsh', marker=b'DRAWING PASS'):
     locales = subprocess.run(['locale', '-a'], capture_output=True, text=True, check=True).stdout.splitlines()
     utf8_locale = os.environ.get('ZCURSES_TEST_LOCALE') or next(
         (name for name in locales if 'utf8' in name.lower().replace('-', '')), None)
@@ -32,7 +33,7 @@ def drawing_session(case, mode, modules=None, env=None):
         os.environ.pop('COLUMNS', None)
         if env:
             os.environ.update(env)
-        os.execl(ZSH, ZSH, '-df', str(ROOT / 'tests/drawing.zsh'),
+        os.execl(ZSH, ZSH, '-df', str(ROOT / 'tests' / fixture),
                  str(modules or ROOT / '.build/modules'), mode, str(short_max))
     output = bytearray()
     reaped = False
@@ -71,7 +72,7 @@ def drawing_session(case, mode, modules=None, env=None):
                         output.extend(data)
                     break
         case.assertEqual(os.waitstatus_to_exitcode(result), 0, output.decode(errors='replace'))
-        case.assertIn(b'DRAWING PASS', output)
+        case.assertIn(marker, output)
         case.assertNotIn(b'runtime error:', output)
         case.assertNotIn(b'ERROR: AddressSanitizer', output)
     finally:

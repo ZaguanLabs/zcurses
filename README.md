@@ -19,6 +19,10 @@ rounded Unicode borders on wide curses builds. A standalone
 borders. Color allocation now validates numeric values and fails safely when
 the library or module pair limit is reached.
 
+**`zcurses colorinfo association`** reports the current session's color
+capabilities, usable limits and remaining pair capacity. It works headlessly
+before initialization, reporting unavailable values as `unknown`.
+
 ## Build and test
 
 Prerequisites:
@@ -28,7 +32,7 @@ Prerequisites:
 - Autoconf (including Autoheader), M4, and Patch to regenerate Zsh's configuration
   with the wide-border function check.
 - Curses development headers and libraries, such as ncurses, and a terminfo
-  database containing `xterm-256color` for the tests.
+  database containing `xterm-256color` and `vt100` for the tests.
 - Python 3.9 or newer and an installed UTF-8 locale for the PTY tests. The drawing
   tests select a UTF-8 locale from `locale -a`; `ZCURSES_TEST_LOCALE` overrides it.
 - Curl, Tar, and Xz for the download example below.
@@ -134,6 +138,7 @@ unknown, so the application chooses its fallback policy.
 | `default_colors` | The `default` color name through `use_default_colors` |
 | `custom_borders` | Eight-character borders, including printable ASCII |
 | `wide_borders` | Unicode borders through `setcchar` and `wborder_set` |
+| `colorinfo` | Runtime color capabilities and allocation information |
 
 Read the array as a set: order is unspecified, and future names should be ignored
 unless understood. A listed feature can still fail at runtime, for example when
@@ -217,8 +222,7 @@ fit in C's `short` type. Index 255 is valid on a 256-color terminal. Pair IDs
 also must fit in `short`; allocation fails before exceeding either that range
 or the library limit. Existing pairs remain usable after exhaustion. Named and
 numeric spellings retain separate cache entries and their existing `querychar`
-readback spelling. Extended color APIs and richer runtime reporting are future
-work.
+readback spelling. Extended color APIs remain future work.
 
 The wide-character `char` operation now decodes Zsh's internal string encoding
 and passes a terminated buffer to curses, as does the background operation.
@@ -227,6 +231,69 @@ for the full curses cell, retaining its existing first-character result when
 combining marks are present. Drawing tests cover these paths, custom borders,
 deferred refresh, color validation and pair exhaustion, and a temporary module
 build using narrow drawing paths.
+
+### Runtime color information
+
+```zsh
+typeset -A colors
+zcurses colorinfo colors
+```
+
+This replaces the named ordinary writable association, creating it if absent.
+Other types, readonly or special parameters, and subscripted names are rejected.
+There is no default output variable. Status 0 means assignment succeeded; status
+1 means invalid arguments or assignment failure. A successful query does not
+imply that color drawing is available.
+
+Before `zcurses init` and after `zcurses end`, `initialized` is `0` and all other
+fields below are `unknown`. During a session:
+
+| Key | Meaning |
+| --- | --- |
+| `initialized` | `1` while the module has a curses session |
+| `has_colors` | Curses' color capability for the terminal type: `0` or `1` |
+| `color_started` | Whether `start_color` succeeded: `0` or `1` |
+| `default_colors` | Whether `use_default_colors` succeeded: `0` or `1`; `0` if unavailable or color initialization failed |
+| `can_change_color` | Curses' palette-redefinition capability: `0` or `1` |
+| `colors`, `color_pairs` | Raw library counts after successful color initialization; otherwise `unknown` |
+| `color_limit` | Number of representable numeric colors: `min(colors, SHRT_MAX + 1)`; indices start at zero |
+| `pair_limit` | Available nonzero pair slots: `max(0, min(color_pairs - 1, SHRT_MAX))`; also the highest allocatable pair ID |
+| `bg_pair_limit` | Highest pair ID representable by `bg`, accounting for its narrower packed-color path where applicable |
+| `query_pair_limit` | Highest pair ID representable by `querychar`, accounting for its narrower readback path where applicable |
+| `pairs_used` | Nonzero pair IDs allocated in this session |
+| `pairs_free` | `pair_limit - pairs_used` |
+
+If color initialization fails, module limits and allocation counts are zero,
+while raw library counts remain `unknown`. A monochrome terminal can have
+`color_started=1` with zero colors; check capabilities and limits as well.
+The narrower `bg` and `querychar`
+limits apply to **pair IDs**, not foreground/background color indices. Limits
+are upper bounds; they do not reserve resources or guarantee a drawing call.
+Palette mutability does not establish direct RGB drawing support.
+
+The query reads session state and cached library data. It does not initialize
+curses, refresh the screen, allocate pairs, consume input, emit terminal output
+or negotiate protocols. Capabilities reflect curses' terminal description.
+The legacy count parameters and drawing behavior are unchanged. Applications
+can check the `colorinfo` entry in `zcurses_features` before using the command.
+Ignore unfamiliar future keys; association order is unspecified.
+
+Repeated queries and repeated `init` calls leave pair allocations alone. Existing
+allocation rules still apply: distinct spellings can consume separate slots,
+window deletion does not release pairs, and `end` clears them. This also preserves
+the existing first-use behavior of `default/default`.
+
+The standalone example captures values before initialization, after initialization,
+after allocating a pair, and after cleanup, then prints them with the terminal
+restored:
+
+```sh
+.build/zsh/Src/zsh -df examples/colors.zsh
+```
+
+Tests cover headless and local assignment, readonly/invalid targets, lifecycle
+and allocation accounting, monochrome terminals, failed color initialization,
+failed or absent default-color support, and narrow builds.
 
 ## Source and upstream contribution
 

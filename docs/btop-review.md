@@ -15,7 +15,8 @@ not implemented APIs or measured performance claims.
 
 Implementation follow-up: the first drawing changes now fix the wide-character
 buffers and color allocation bounds and implement the eight-glyph border form.
-See the [current API](../README.md#custom-borders). The review below records the
+Runtime color information is also implemented. See the [current API](../README.md#runtime-color-information).
+The review below records the
 findings at the revisions above; its references to defects describe that baseline.
 
 ## What creates the appearance and responsiveness

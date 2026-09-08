@@ -19,6 +19,7 @@ xitem(tt(zcurses) tt(move) var(targetwin) var(new_y) var(new_x) )
 xitem(tt(zcurses) tt(clear) var(targetwin) [ tt(redraw) | tt(eol) | tt(bot) ])
 xitem(tt(zcurses) tt(position) var(targetwin) var(array))
 xitem(tt(zcurses) tt(geometry) var(array))
+xitem(tt(zcurses) tt(colorinfo) var(association))
 xitem(tt(zcurses) tt(char) var(targetwin) var(character) )
 xitem(tt(zcurses) tt(string) var(targetwin) var(string) )
 xitem(tt(zcurses) tt(border) var(targetwin) [ var(left) var(right) var(top) var(bottom) var(top_left) var(top_right) var(bottom_left) var(bottom_right) ] )
@@ -30,7 +31,8 @@ xitem(tt(zcurses) tt(mouse) [ tt(delay) var(num) | [tt(+)|tt(-)]tt(motion) ])
 xitem(tt(zcurses) tt(timeout) var(targetwin) var(intval))
 xitem(tt(zcurses) tt(querychar) var(targetwin) [ var(param) ])
 item(tt(zcurses) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
-Manipulate curses windows.  Except for tt(geometry), uses of this command should be
+Manipulate curses windows.  Except for tt(geometry) and tt(colorinfo), uses of
+this command should be
 bracketed by `tt(zcurses init)' to initialise use of curses, and
 `tt(zcurses end)' to end it; omitting `tt(zcurses end)' can cause
 the terminal to be in an unwanted state.
@@ -92,6 +94,62 @@ The return status is 0 on success, 1 if the terminal size cannot be obtained,
 either dimension is zero, or the parameter cannot be assigned, and 2 if
 terminal size queries are not supported by the build.  A failed terminal
 query leaves var(array) unchanged.  No fallback dimensions are invented.
+
+The subcommand tt(colorinfo) replaces the ordinary writable associative
+parameter named var(association) with runtime color information.  An absent
+parameter is created; readonly parameters, special parameters, other parameter
+types and subscripted names are rejected.  There is no default output parameter.
+Return status 0 means the information was assigned, including when curses has
+not been initialized; status 1 indicates invalid arguments or assignment failure.
+
+This query works before tt(init) and after tt(end).  It does not initialize
+curses, refresh windows, allocate color pairs, read terminal input, emit terminal
+output or negotiate terminal protocols.  It reads the module's current session
+state and curses' cached limits.  The existing tt(ZCURSES_COLORS) and
+tt(ZCURSES_COLOR_PAIRS) parameters are unchanged.
+
+The following keys are returned; their order is unspecified and callers should
+ignore unfamiliar future keys.  Values are decimal integers or tt(unknown).
+Before tt(init) and after tt(end), tt(initialized) is 0 and every other value
+below is tt(unknown).  During a session the following meanings apply:
+startsitem()
+sitem(tt(initialized))(1 when the module has an active curses session.)
+sitem(tt(has_colors))(0 or 1: curses' color capability for the terminal type.)
+sitem(tt(color_started))(0 or 1: whether tt(start_color) succeeded during initialization.)
+sitem(tt(default_colors))(0 or 1: whether tt(use_default_colors) succeeded during
+initialization.  This is 0 if it is not compiled in or color initialization
+failed; it describes support for mixing tt(default) with other colors.)
+sitem(tt(can_change_color))(0 or 1: curses' palette-redefinition capability.
+This does not promise direct RGB drawing or expose a palette modification command.)
+sitem(tt(colors))(The raw curses color count after successful tt(start_color);
+otherwise tt(unknown).)
+sitem(tt(color_pairs))(The raw curses pair count after successful tt(start_color);
+otherwise tt(unknown).  This includes reserved pair 0.)
+sitem(tt(color_limit))(The number of numeric color indices representable through
+the module: the smaller of tt(colors) and tt(SHRT_MAX+1).  Valid indices start
+at 0.  This is 0 if color initialization failed.)
+sitem(tt(pair_limit))(The maximum number of nonzero pair IDs the module can
+allocate: the smaller of tt(color_pairs-1) and tt(SHRT_MAX), bounded below by 0.
+This is also the highest allocatable pair ID, and is 0 if color initialization failed.)
+sitem(tt(bg_pair_limit))(The highest pair ID representable by tt(bg), no greater
+than tt(pair_limit).  Narrow curses paths have an additional packed-attribute
+limit and the existing maximum of 255.)
+sitem(tt(query_pair_limit))(The highest pair ID representable by tt(querychar),
+no greater than tt(pair_limit).  Narrow readback has a packed-attribute limit.)
+sitem(tt(pairs_used))(The number of allocated nonzero pair IDs in this session.)
+sitem(tt(pairs_free))(tt(pair_limit) minus tt(pairs_used).)
+endsitem()
+
+Limits are upper bounds, not reservations or guarantees that a drawing call
+will succeed.  Successful tt(start_color) can initialize a table of zero colors
+on a monochrome terminal.  Pair accounting follows existing allocation behavior: different
+spellings may consume separate pairs, deleting a window does not free pairs,
+and tt(end) clears allocations.  Limits for tt(bg) and tt(querychar) concern
+the assigned pair ID, not a foreground or background color index.  The first
+use of tt(default/default) retains the existing allocation behavior.
+Capabilities reflect curses' terminal description, not a probe of the physical
+terminal.  Compiled support remains separately discoverable through
+tt(zcurses_features), including its tt(colorinfo) entry.
 
 The subcommand tt(position) writes various positions associated with
 var(targetwin) into the array named var(array).
@@ -280,6 +338,7 @@ Its contents are unchanged by tt(init), tt(end), or terminal availability.
 
 The following feature names are defined:
 startsitem()
+sitem(tt(colorinfo))(Runtime color information through tt(colorinfo).)
 sitem(tt(custom_borders))(The eight-character form of tt(border), including
 printable ASCII borders.)
 sitem(tt(default_colors))(Support for the color name tt(default) through

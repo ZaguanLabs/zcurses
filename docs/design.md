@@ -46,6 +46,26 @@ Terminal capabilities and negotiated state need distinct future interfaces.
 They must represent unavailable information explicitly rather than converting an
 unanswered query into a claim of unsupported hardware or protocol behavior.
 
+## Runtime color information
+
+`zcurses colorinfo association` reports color information separately from the
+compiled feature array. It assigns an ordinary associative parameter so fields
+can be added without changing positional output. Before initialization and after
+cleanup only `initialized=0` is known; other fields are `unknown`.
+
+During a session, recorded capability and initialization results distinguish
+`has_colors` from successful `start_color` and successful `use_default_colors`.
+Library counts remain distinct from module limits. Pair allocation and reporting
+share the same bound, and the query exposes the additional limits of narrow
+background and cell-readback paths. Allocations are counted without assigning
+or recycling pairs. These are upper bounds, not a resource reservation.
+
+The command reads cached state and does not touch terminal modes, input, screen
+updates or protocol negotiation. It preserves existing color commands and legacy
+count parameters. The [API](../README.md#runtime-color-information) describes
+the fields and a standalone example. Extended colors and direct RGB drawing need
+separate proposals.
+
 ## Design constraints
 
 Use Zsh's platform feature checks, parameter assignment, memory management and
@@ -68,7 +88,8 @@ The [btop rendering review](btop-review.md) maps concrete implementation pattern
 to these candidates, identifies existing correctness gaps, and proposes a patch
 sequence without committing to new APIs.
 
-`geometry`, compiled feature discovery and custom borders are implemented.
+`geometry`, compiled feature discovery, custom borders and runtime color
+information are implemented.
 The initial drawing changes also correct wide-character buffers and guard
 numeric color parsing and pair allocation. Custom borders preserve the original
 form and expose eight glyphs without adding title or layout policy. The
@@ -84,7 +105,7 @@ compatibility tests before an API is chosen:
 | --- | --- |
 | Cursor visibility and window operations | Define ownership and restoration; test repeated resize and overlay dismissal |
 | Drawing helpers | Measure shell-call overhead separately from terminal output; specify clipping and partial-error behavior |
-| Runtime capabilities and colors | Keep terminal capabilities and negotiated state separate from compiled features; handle color/pair limits and exhaustion |
+| Extended colors and capabilities | Audit wider color paths end to end; keep negotiated state separate from compiled features and cached runtime information |
 | Structured input | Define coexistence with curses decoding, deadlines, bounded buffers and lossless paste handling |
 | Unicode | Test combining marks, wide characters, emoji sequences and ambiguous-width policies |
 | Terminal protocols | Require a concrete benefit, opt-in negotiation, input ownership and terminal/multiplexer tests |
