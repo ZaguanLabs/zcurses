@@ -40,6 +40,26 @@ fi
 }
 cp "$project_root"/Src/Modules/{curses.c,curses.mdd,curses_keys.awk} "$build_root/Src/Modules/"
 cp "$project_root/Doc/Zsh/mod_curses.yo" "$build_root/Doc/Zsh/"
+# Add the wide-border function check using Zsh's own configure machinery.
+# Only the disposable working copy is patched, including for configured inputs.
+typeset configure_patch=$project_root/patches/configure-wide-borders.patch
+typeset configure_stamp=$build_root/.zcurses-configure-patch
+if [[ ! -f $configure_stamp ]]; then
+  (
+    cd "$build_root"
+    patch -p1 < "$configure_patch"
+    autoconf
+    autoheader
+    if [[ -f config.status ]]; then
+      ./config.status --recheck
+      ./config.status
+    fi
+  )
+  cp "$configure_patch" "$configure_stamp"
+elif ! cmp -s "$configure_patch" "$configure_stamp"; then
+  print -u2 -r -- 'Configuration patch changed; run make clean and retry.'
+  exit 1
+fi
 if [[ ! -f $build_root/config.status ]]; then
   ( cd "$build_root"; ./configure --enable-dynamic )
 fi

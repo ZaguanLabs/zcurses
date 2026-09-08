@@ -13,15 +13,24 @@ and columns without a subprocess or screen update. The read-only
 the terminal, including in headless processes.
 See the [design notes](docs/design.md) for scope and future work.
 
+**Custom borders** support eight configurable edge/corner characters, including
+rounded Unicode borders on wide curses builds. A standalone
+[border showcase](examples/borders.zsh) demonstrates ASCII, rounded and double
+borders. Color allocation now validates numeric values and fails safely when
+the library or module pair limit is reached.
+
 ## Build and test
 
 Prerequisites:
 
 - Zsh to run the build script, GNU Make, a C compiler, and standard Unix build
   tools (including a POSIX shell, Awk, and Sed).
+- Autoconf (including Autoheader), M4, and Patch to regenerate Zsh's configuration
+  with the wide-border function check.
 - Curses development headers and libraries, such as ncurses, and a terminfo
   database containing `xterm-256color` for the tests.
-- Python 3.9 or newer for the PTY tests.
+- Python 3.9 or newer and an installed UTF-8 locale for the PTY tests. The drawing
+  tests select a UTF-8 locale from `locale -a`; `ZCURSES_TEST_LOCALE` overrides it.
 - Curl, Tar, and Xz for the download example below.
 
 From this repository's root, download and extract a public
@@ -42,7 +51,9 @@ as listed in the publisher's [checksums](https://www.zsh.org/pub/SHA256SUM).
 Use `gmake` instead of `make` on systems where GNU Make has that name.
 
 The build copies the supplied source tree to `.build/zsh`, overlays this module,
-and uses Zsh's own configuration and build rules. It builds both the shell and
+applies the small `configure.ac` patch in `patches/`, and regenerates configuration
+using Autoconf and Autoheader. Configured copies are rechecked with their saved
+configuration arguments. It uses Zsh's own build rules to build both the shell and
 its modules; tests use that matching shell. All build products stay in `.build/`.
 No installation, administrator access, or changes to the supplied tree are needed.
 The tests create their own pseudo-terminal, so they also run without an
@@ -121,6 +132,8 @@ unknown, so the application chooses its fallback policy.
 | `resize` | Curses resizing through `resize_term` |
 | `mouse` | Ncurses mouse input and configuration |
 | `default_colors` | The `default` color name through `use_default_colors` |
+| `custom_borders` | Eight-character borders, including printable ASCII |
+| `wide_borders` | Unicode borders through `setcchar` and `wborder_set` |
 
 Read the array as a set: order is unspecified, and future names should be ignored
 unless understood. A listed feature can still fail at runtime, for example when
@@ -158,16 +171,76 @@ window/text/color/refresh operations. Feature tests cover headless discovery,
 read-only enforcement, module feature lifecycle, and temporary builds with
 optional support disabled and with the preserved stock module.
 
+### Custom borders
+
+```text
+zcurses border window [left right top bottom top_left top_right bottom_left bottom_right]
+```
+
+The existing `zcurses border window` operation is unchanged. The new form takes
+all eight characters; each empty argument selects that edge/corner's curses
+default, while a literal space selects a space instead of a border glyph
+(curses' normal background-character substitution still applies).
+For example, after creating a
+window named `panel` in a UTF-8 session:
+
+```zsh
+zcurses border panel '│' '│' '─' '─' '╭' '╮' '╰' '╯'
+zcurses refresh panel
+```
+
+Custom borders preserve the cursor, current window attributes and interior
+cells. They inherit the window's drawing attributes and do not refresh the
+screen. Windows must have at least two rows and columns. Glyphs must be single
+printable characters with system display width one; controls, combining marks,
+multi-character strings and double-width characters are rejected before drawing.
+
+Check `custom_borders` in `zcurses_features` before using the new form and
+`wide_borders` before selecting Unicode glyphs. Printable ASCII works on narrow
+builds. Unicode also requires a suitable locale and Zsh's `MULTIBYTE` option.
+Status 0 means success, 1 means invalid arguments or a curses failure, and 2
+means a non-ASCII glyph was requested without compiled wide-border support.
+A curses failure during drawing can leave a partial border.
+
+Run the showcase with the matching shell, in a UTF-8 terminal of at least
+19 rows and 50 columns:
+
+```sh
+.build/zsh/Src/zsh -df examples/borders.zsh
+```
+
+### Color and character correctness
+
+`ZCURSES_COLORS` and `ZCURSES_COLOR_PAIRS` remain the library's raw counts.
+Numeric colors must contain only decimal digits, be below `ZCURSES_COLORS`, and
+fit in C's `short` type. Index 255 is valid on a 256-color terminal. Pair IDs
+also must fit in `short`; allocation fails before exceeding either that range
+or the library limit. Existing pairs remain usable after exhaustion. Named and
+numeric spellings retain separate cache entries and their existing `querychar`
+readback spelling. Extended color APIs and richer runtime reporting are future
+work.
+
+The wide-character `char` operation now decodes Zsh's internal string encoding
+and passes a terminated buffer to curses, as does the background operation.
+`querychar` allocates enough space
+for the full curses cell, retaining its existing first-character result when
+combining marks are present. Drawing tests cover these paths, custom borders,
+deferred refresh, color validation and pair exhaustion, and a temporary module
+build using narrow drawing paths.
+
 ## Source and upstream contribution
 
 - `Src/Modules/`: forked module sources, retaining Zsh's file layout.
 - `Doc/Zsh/`: module documentation in Zsh's native format.
 - `upstream/`: preserved original sources, checksums and provenance.
 - `tests/`: standalone module tests, with no application dependencies.
+- `examples/`: standalone Zsh demonstrations of module primitives.
+- `patches/`: small changes to Zsh's configuration checks, applied in `.build/`.
 - `.build/`: ignored build inputs and outputs.
 
-Run `make -s patch > zcurses.patch` to export the combined C and documentation
-changes against the recorded baseline. For an independent feature submission,
+Run `make -s patch > zcurses.patch` to export the configuration, C and documentation
+changes against the recorded baseline. Regenerate `configure` and `config.h.in`
+with `autoconf` and `autoheader` after applying it. For an independent feature submission,
 select its changes with `git diff` against the preceding revision instead.
 See [provenance](upstream/README.md) for the baseline's origin. An upstream
 submission also needs tests adapted to Zsh's test harness and review against the

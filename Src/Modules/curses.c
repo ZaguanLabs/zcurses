@@ -38,6 +38,7 @@
 # undef HAVE_WADDWSTR
 # undef HAVE_WGET_WCH
 # undef HAVE_WIN_WCH
+# undef HAVE_WBORDER_SET
 # undef HAVE_NCURSESW_NCURSES_H
 #endif
 
@@ -50,6 +51,7 @@
 #endif
 
 #include <stdio.h>
+#include <limits.h>
 
 enum zc_win_flags {
     /* Window is permanent (probably "stdscr") */
@@ -324,6 +326,20 @@ static short
 zcurses_color(const char *color)
 {
     struct zcurses_namenumberpair *zc;
+    const char *p;
+    int value = 0;
+
+    /* Validate the entire decimal value before converting to curses' short.
+     * In particular, atoi() would accept suffixes and could overflow. */
+    if (*color >= '0' && *color <= '9') {
+	for (p = color; *p; p++) {
+	    if (*p < '0' || *p > '9' ||
+		value > (SHRT_MAX - (*p - '0')) / 10)
+		return (short)-2;
+	    value = value * 10 + (*p - '0');
+	}
+	return value < COLORS ? (short)value : (short)-2;
+    }
 
     for(zc=(struct zcurses_namenumberpair *)zcurses_colors;zc->name;zc++)
 	if (!strcmp(color, zc->name)) {
@@ -357,19 +373,8 @@ zcurses_colorget(const char *nam, char *colorpair)
 
 	*bg = '\0';        
 
-        // cp/bg can be {number}/{number} or {name}/{name}
-
-        if( cp[0] >= '0' && cp[0] <= '9' ) {
-            f = atoi(cp);
-        } else {
-            f = zcurses_color(cp);
-        }
-
-        if( (bg+1)[0] >= '0' && (bg+1)[0] <= '9' ) {
-            b = atoi(bg+1);
-        } else {
-            b = zcurses_color(bg+1);
-        }
+	f = zcurses_color(cp);
+	b = zcurses_color(bg+1);
 
 	if (f==-2 || b==-2) {
 	    if (f == -2)
@@ -382,9 +387,9 @@ zcurses_colorget(const char *nam, char *colorpair)
 	}
 	*bg = '/';
 
-	++next_cp;
-	if (next_cp >= COLOR_PAIRS || init_pair(next_cp, f, b) == ERR)  {
-	    --next_cp;
+	/* The library may advertise more pairs than this interface can hold.
+	 * Check before incrementing, and never recycle a pair used by cells. */
+	if (next_cp == SHRT_MAX || (int)next_cp + 1 >= COLOR_PAIRS) {
 	    zsfree(cp);
 	    return NULL;
 	}
@@ -392,12 +397,16 @@ zcurses_colorget(const char *nam, char *colorpair)
 	cpn = (Colorpairnode)zshcalloc(sizeof(struct colorpairnode));
 	
 	if (!cpn) {
-	    --next_cp;
+	    zsfree(cp);
+	    return NULL;
+	}
+	if (init_pair((short)(next_cp + 1), f, b) == ERR) {
+	    zfree(cpn, sizeof(struct colorpairnode));
 	    zsfree(cp);
 	    return NULL;
 	}
 
-	cpn->colorpair = next_cp;
+	cpn->colorpair = ++next_cp;
 	addhashnode(zcurses_colorpairs, cp, (void *)cpn);
     }
 
@@ -736,9 +745,9 @@ zccmd_char(const char *nam, char **args)
     LinkNode node;
     ZCWin w;
 #ifdef HAVE_SETCCHAR
-    wchar_t c;
+    wchar_t c[2];
+    wint_t wc;
     cchar_t cc;
-    size_t ret;
 #endif
 
     node = zcurses_validate_window(args[0], ZCURSES_USED);
@@ -750,11 +759,14 @@ zccmd_char(const char *nam, char **args)
     w = (ZCWin)getdata(node);
 
 #ifdef HAVE_SETCCHAR
-    ret = mbrtowc(&c, args[1], MB_CUR_MAX, NULL);
-    if (ret == 0 || ret == MB_INVALID || ret == MB_INCOMPLETE)
+    mb_charinit();
+    if (!*args[1] || !mb_metacharlenconv(args[1], &wc) ||
+	wc == WEOF || wc == 0)
 	return 1;
+    c[0] = wc;
+    c[1] = L'\0';
 
-    if (setcchar(&cc, &c, A_NORMAL, 0, NULL)==ERR)
+    if (setcchar(&cc, c, A_NORMAL, 0, NULL)==ERR)
 	return 1;
 
     if (wadd_wch(w->win, &cc)!=OK)
@@ -816,6 +828,23 @@ zccmd_border(const char *nam, char **args)
 {
     LinkNode node;
     ZCWin w;
+    int i, nargs = 0;
+#if defined(HAVE_SETCCHAR) && defined(HAVE_WBORDER_SET)
+    cchar_t chars[8];
+    const cchar_t *border[8];
+    wchar_t glyph[2];
+    wint_t wc;
+    int len;
+#else
+    chtype border[8];
+#endif
+
+    while (args[nargs])
+	nargs++;
+    if (nargs != 1 && nargs != 9) {
+	zwarnnam(nam, "border expects a window and either zero or eight characters");
+	return 1;
+    }
 
     node = zcurses_validate_window(args[0], ZCURSES_USED);
     if (node == NULL) {
@@ -825,10 +854,58 @@ zccmd_border(const char *nam, char **args)
 
     w = (ZCWin)getdata(node);
 
-    if (wborder(w->win, 0, 0, 0, 0, 0, 0, 0, 0)!=OK)
-	return 1;
+    if (nargs == 1)
+	return wborder(w->win, 0, 0, 0, 0, 0, 0, 0, 0) != OK;
 
-    return 0;
+    /* Degenerate perimeters have overlapping edges and corners.  Keep the
+     * legacy operation, but require unambiguous geometry for custom borders. */
+    if (getmaxy(w->win) < 2 || getmaxx(w->win) < 2) {
+	zwarnnam(nam, "custom border requires at least two rows and columns");
+	return 1;
+    }
+
+    /* Prepare every glyph before drawing.  Empty selects the curses default;
+     * a space is an explicit blank, not a request for the default. */
+    for (i = 0; i < 8; i++) {
+	char *arg = args[i+1];
+	if (!*arg) {
+	    border[i] = 0;
+	    continue;
+	}
+#if defined(HAVE_SETCCHAR) && defined(HAVE_WBORDER_SET)
+	mb_charinit();
+	len = mb_metacharlenconv(arg, &wc);
+	/* Use the system width used by curses, not Zsh's optional width table. */
+	if (len <= 0 || wc == WEOF || arg[len] || !iswprint(wc) ||
+	    wcwidth(wc) != 1) {
+	    zwarnnam(nam, "border character %d must be one printable single-width character", i+1);
+	    return 1;
+	}
+	glyph[0] = wc;
+	glyph[1] = L'\0';
+	if (setcchar(&chars[i], glyph, A_NORMAL, 0, NULL) == ERR)
+	    return 1;
+	border[i] = &chars[i];
+#else
+	if ((unsigned char)*arg >= 0x80) {
+	    zwarnnam(nam, "wide border characters are not supported by this build");
+	    return 2;
+	}
+	if (*arg < 0x20 || *arg > 0x7e || arg[1]) {
+	    zwarnnam(nam, "border character %d must be one printable ASCII character", i+1);
+	    return 1;
+	}
+	border[i] = (chtype)*arg;
+#endif
+    }
+
+#if defined(HAVE_SETCCHAR) && defined(HAVE_WBORDER_SET)
+    return wborder_set(w->win, border[0], border[1], border[2], border[3],
+		       border[4], border[5], border[6], border[7]) != OK;
+#else
+    return wborder(w->win, border[0], border[1], border[2], border[3],
+		   border[4], border[5], border[6], border[7]) != OK;
+#endif
 }
 
 
@@ -934,7 +1011,7 @@ zccmd_bg(const char *nam, char **args)
     int ret = 0;
 #ifdef HAVE_SETCCHAR
     cchar_t cc;
-    wchar_t wch = L' ';
+    wchar_t wch[2] = { L' ', L'\0' };
     attr_t  bg_attrs = A_NORMAL;
     short   bg_cp = 0;
 #else
@@ -961,7 +1038,7 @@ zccmd_bg(const char *nam, char **args)
 #ifdef HAVE_SETCCHAR
 		bg_cp = (short)cpn->colorpair;
 	} else if (**attrs == '@') {
-	    wch = (wchar_t)(unsigned char)((*attrs)[1] == Meta
+	    wch[0] = (wchar_t)(unsigned char)((*attrs)[1] == Meta
 			    ? (*attrs)[2] ^ 32
 			    : (*attrs)[1]);
 #else
@@ -1013,7 +1090,7 @@ zccmd_bg(const char *nam, char **args)
     }
 
     if (ret == 0) {
-	if (setcchar(&cc, &wch, bg_attrs, bg_cp, NULL) == ERR)
+	if (setcchar(&cc, wch, bg_attrs, bg_cp, NULL) == ERR)
 	    return 1;
 	return wbkgrnd(w->win, &cc) != OK;
     }
@@ -1434,7 +1511,7 @@ zccmd_querychar(const char *nam, char **args)
     LinkList clist;
 #if defined(HAVE_WIN_WCH) && defined(HAVE_GETCCHAR)
     attr_t attrs;
-    wchar_t c;
+    wchar_t *c;
     cchar_t cc;
     int count;
     VARARR(char, instr, 2*MB_CUR_MAX+1);
@@ -1455,7 +1532,13 @@ zccmd_querychar(const char *nam, char **args)
     if (win_wch(w->win, &cc) == ERR)
 	return 1;
 
-    if (getcchar(&cc, &c, &attrs, &cp, NULL) == ERR)
+    /* getcchar writes a terminated string, including any combining marks.
+     * Keep the existing first-character result, but provide the full buffer. */
+    count = getcchar(&cc, NULL, NULL, NULL, NULL);
+    if (count <= 0)
+	return 1;
+    c = (wchar_t *)zhalloc(count * sizeof(wchar_t));
+    if (getcchar(&cc, c, &attrs, &cp, NULL) == ERR)
 	return 1;
     /* only overwrite with workaround if we do get 0, the winch method
      * is limited to 256 color pairs */
@@ -1463,7 +1546,7 @@ zccmd_querychar(const char *nam, char **args)
 	/* Hmmm... I always get 0 for cp, whereas the following works... */
 	cp = PAIR_NUMBER(winch(w->win));
 
-    count = wctomb(instr, c);
+    count = wctomb(instr, c[0]);
     if (count == -1)
 	return 1;
     (void)metafy(instr, count, META_NOALLOC);
@@ -1664,7 +1747,7 @@ bin_zcurses(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"geometry", zccmd_geometry, 1, 1},
 	{"char", zccmd_char, 2, 2},
 	{"string", zccmd_string, 2, 2},
-	{"border", zccmd_border, 1, 1},
+	{"border", zccmd_border, 1, 9},
 	{"end", zccmd_endwin, 0, 0},
 	{"attr", zccmd_attr, 2, -1},
 	{"bg", zccmd_bg, 2, -1},
@@ -1727,6 +1810,7 @@ zcurses_featuresgetfn(UNUSED(Param pm))
     /* Keep these conditions in step with the operations they describe.
      * This is compile-time support, not terminal capability or state. */
     static char *features[] = {
+	"custom_borders",
 #ifdef HAVE_USE_DEFAULT_COLORS
 	"default_colors",
 #endif
@@ -1738,6 +1822,9 @@ zcurses_featuresgetfn(UNUSED(Param pm))
 #endif
 #ifdef HAVE_RESIZE_TERM
 	"resize",
+#endif
+#if defined(HAVE_SETCCHAR) && defined(HAVE_WBORDER_SET)
+	"wide_borders",
 #endif
 	NULL
     };

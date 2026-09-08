@@ -94,7 +94,7 @@ class FeatureTests(unittest.TestCase):
             [[ "${(j: :)snapshot}" == "${(j: :)zcurses_features}" ]] || exit 17
         '''), '')
 
-    def variant(self, directory, source):
+    def variant(self, directory, source, make_args=()):
         # All source edits and builds are confined to a disposable copied tree.
         tree = Path(directory) / 'zsh'
         shutil.copytree(BUILD, tree, symlinks=True)
@@ -103,7 +103,7 @@ class FeatureTests(unittest.TestCase):
                            (tree / 'Src/Makefile').read_text(), re.M).group(1)
         result = subprocess.run(
             [os.environ.get('ZCURSES_MAKE', 'make'), '-C', str(tree / 'Src/Modules'),
-             f'curses.{suffix}'], capture_output=True, text=True, timeout=120)
+             f'curses.{suffix}', *make_args], capture_output=True, text=True, timeout=120)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         modules = Path(directory) / 'modules'
         (modules / 'zsh').mkdir(parents=True)
@@ -117,13 +117,14 @@ class FeatureTests(unittest.TestCase):
 #undef TIOCGWINSZ
 #undef HAVE_RESIZE_TERM
 #undef NCURSES_MOUSE_VERSION
-#undef HAVE_USE_DEFAULT_COLORS''', 1)
+#undef HAVE_USE_DEFAULT_COLORS
+#undef HAVE_WBORDER_SET''', 1)
         with tempfile.TemporaryDirectory(prefix='features-disabled-', dir=ROOT / '.build') as tmp:
             modules = self.variant(tmp, source)
             self.assertEqual(self.run_shell('''
                 zmodload zsh/curses || exit 1
                 zmodload -F -e zsh/curses +p:zcurses_features || exit 2
-                (( ${#zcurses_features} == 0 )) || exit 3
+                [[ $zcurses_features == custom_borders ]] || exit 3
                 (( ! ${zcurses_colors[(Ie)default]} )) || exit 4
                 typeset -a dimensions=(sentinel)
                 zcurses geometry dimensions

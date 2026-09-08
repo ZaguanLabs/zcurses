@@ -1,0 +1,11 @@
+--- a/configure.ac
++++ b/configure.ac
+@@ -1280,7 +1280,7 @@
+ 	       pathconf sysconf \
+ 	       tgetent tigetflag tigetnum tigetstr setupterm initscr resize_term \
+-	       getcchar setcchar waddwstr wget_wch win_wch use_default_colors \
++	       getcchar setcchar waddwstr wget_wch win_wch wborder_set use_default_colors \
+ 	       nl_langinfo \
+ 	       erand48 open_memstream \
+ 	       posix_openpt \
+ 	       wctomb iconv \

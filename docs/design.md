@@ -64,7 +64,19 @@ shell command strings as a drawing or event protocol.
 
 ## Candidate work
 
-`geometry` and compiled feature discovery are implemented. These areas require
+The [btop rendering review](btop-review.md) maps concrete implementation patterns
+to these candidates, identifies existing correctness gaps, and proposes a patch
+sequence without committing to new APIs.
+
+`geometry`, compiled feature discovery and custom borders are implemented.
+The initial drawing changes also correct wide-character buffers and guard
+numeric color parsing and pair allocation. Custom borders preserve the original
+form and expose eight glyphs without adding title or layout policy. The
+`custom_borders` and `wide_borders` feature names distinguish ASCII support from
+the optional wide curses path. A configuration patch checks `wborder_set` in
+the disposable build tree and is included in patch exports.
+
+The remaining areas require
 independent use cases, standalone examples, measurements where relevant, and
 compatibility tests before an API is chosen:
 

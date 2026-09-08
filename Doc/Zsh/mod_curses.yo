@@ -21,7 +21,7 @@ xitem(tt(zcurses) tt(position) var(targetwin) var(array))
 xitem(tt(zcurses) tt(geometry) var(array))
 xitem(tt(zcurses) tt(char) var(targetwin) var(character) )
 xitem(tt(zcurses) tt(string) var(targetwin) var(string) )
-xitem(tt(zcurses) tt(border) var(targetwin) var(border) )
+xitem(tt(zcurses) tt(border) var(targetwin) [ var(left) var(right) var(top) var(bottom) var(top_left) var(top_right) var(bottom_left) var(bottom_right) ] )
 xitem(tt(zcurses) tt(attr) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) ] [...])
 xitem(tt(zcurses) tt(bg) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) | tt(@)var(char) ] [...])
 xitem(tt(zcurses) tt(scroll) var(targetwin) [ tt(on) | tt(off) | [tt(+)|tt(-)]var(lines) ])
@@ -112,6 +112,26 @@ that the border is not subsequently handled specially:  in other words,
 the border is simply a set of characters output at the edge of the
 window.  Hence it can be overwritten, can scroll off the window, etc.
 
+With no character arguments, tt(border) draws the standard curses border.
+Alternatively, supply all eight characters in the order shown above.  An empty
+argument selects the corresponding curses default; a space selects a space
+instead of a border glyph, subject to curses' normal background-character
+substitution.
+Each nonempty argument must be a single printable character occupying one
+terminal column according to the current locale's system character width.
+Control characters, combining marks, multiple characters and double-width
+characters are rejected.  Custom borders require at least two rows and columns.
+The current cursor position, window attributes and interior cells are preserved;
+the border becomes visible on the next tt(refresh).
+
+The tt(custom_borders) entry in tt(zcurses_features) identifies this extended
+form.  Printable ASCII characters are always supported.  Other characters
+require the tt(wide_borders) compiled feature, a suitable locale and the
+tt(MULTIBYTE) option.  The return status is 0 on success, 1 on invalid arguments
+or a curses error, and 2 when a non-ASCII character is requested on a build
+without wide border support.  Argument validation happens before drawing;
+a curses error during drawing does not guarantee that the window is unchanged.
+
 The subcommand tt(attr) will set var(targetwin)'s attributes or
 foreground/background color pair for any successive character output.
 Each var(attribute) given on the line may be prepended by a tt(+) to set
@@ -127,8 +147,13 @@ or background color with which the terminal started.  The color pair
 tt(default/default) is always available. To use more than the 8 named
 colors (red, green, etc.) construct the var(fg_col)tt(/)var(bg_col)
 pairs where var(fg_col) and var(bg_col) are decimal integers, e.g
-tt(128/200).  The maximum color value is 254 if the terminal supports
-256 colors.
+tt(128/200).  Numeric colors must consist entirely of decimal digits and must
+be less than tt(ZCURSES_COLORS) and fit in the C type tt(short).  For example,
+indices 0 through 255 are available when the terminal supports 256 colors.
+Pair allocation also respects the range of tt(short), even if the library
+advertises more pairs.  Exhaustion fails without recycling existing pairs;
+already allocated pairs remain usable.  Pairs are cached by their spelling,
+so equivalent named and numeric specifications can use separate entries.
 
 tt(bg) overrides the color and other attributes of all characters in the
 window.  Its usual use is to set the background initially, but it will
@@ -219,8 +244,9 @@ that period returns status 1.
 The subcommand tt(querychar) queries the character at the current cursor
 position.  The return values are stored in the array named var(param) if
 supplied, else in the array tt(reply).  The first value is the character
-(which may be a multibyte character if the system supports them); the
-second is the color pair in the usual var(fg_col)tt(/)var(bg_col)
+(which may be a multibyte character if the system supports them).  Only the
+first character is returned for a cell with combining marks.  The second
+value is the color pair in the usual var(fg_col)tt(/)var(bg_col)
 notation, or tt(0) if color is not supported.  Any attributes other than
 color that apply to the character, as set with the subcommand tt(attr),
 appear as additional elements.
@@ -254,12 +280,15 @@ Its contents are unchanged by tt(init), tt(end), or terminal availability.
 
 The following feature names are defined:
 startsitem()
+sitem(tt(custom_borders))(The eight-character form of tt(border), including
+printable ASCII borders.)
 sitem(tt(default_colors))(Support for the color name tt(default) through
 tt(use_default_colors).)
 sitem(tt(geometry))(Support for the tt(geometry) subcommand's terminal size
 query through tt(TIOCGWINSZ).)
 sitem(tt(mouse))(Support for ncurses mouse input and the tt(mouse) subcommand.)
 sitem(tt(resize))(Support for the tt(resize) subcommand through tt(resize_term).)
+sitem(tt(wide_borders))(Non-ASCII border characters through wide curses.)
 endsitem()
 
 A listed feature indicates compiled support, not that an operation will
