@@ -118,7 +118,9 @@ class FeatureTests(unittest.TestCase):
 #undef HAVE_RESIZE_TERM
 #undef NCURSES_MOUSE_VERSION
 #undef HAVE_USE_DEFAULT_COLORS
-#undef HAVE_WBORDER_SET''', 1)
+#undef HAVE_WBORDER_SET
+#undef HAVE_WADDCHNSTR
+#undef HAVE_WADD_WCHNSTR''', 1)
         with tempfile.TemporaryDirectory(prefix='features-disabled-', dir=ROOT / '.build') as tmp:
             modules = self.variant(tmp, source)
             self.assertEqual(self.run_shell('''

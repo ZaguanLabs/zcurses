@@ -89,12 +89,12 @@ to these candidates, identifies existing correctness gaps, and proposes a patch
 sequence without committing to new APIs.
 
 `geometry`, compiled feature discovery, custom borders and runtime color
-information are implemented.
+information and styled-span batching are implemented.
 The initial drawing changes also correct wide-character buffers and guard
 numeric color parsing and pair allocation. Custom borders preserve the original
 form and expose eight glyphs without adding title or layout policy. The
 `custom_borders` and `wide_borders` feature names distinguish ASCII support from
-the optional wide curses path. A configuration patch checks `wborder_set` in
+the optional wide curses path. A configuration patch checks optional curses drawing functions in
 the disposable build tree and is included in patch exports.
 
 The remaining areas require
@@ -104,7 +104,7 @@ compatibility tests before an API is chosen:
 | Area | Questions to resolve |
 | --- | --- |
 | Cursor visibility and window operations | Define ownership and restoration; test repeated resize and overlay dismissal |
-| Drawing helpers | Measure shell-call overhead separately from terminal output; specify clipping and partial-error behavior |
+| Drawing helpers | Styled spans are implemented; measure application workloads before adding further helpers |
 | Extended colors and capabilities | Audit wider color paths end to end; keep negotiated state separate from compiled features and cached runtime information |
 | Structured input | Define coexistence with curses decoding, deadlines, bounded buffers and lossless paste handling |
 | Unicode | Test combining marks, wide characters, emoji sequences and ambiguous-width policies |
@@ -131,3 +131,20 @@ per independent feature, including manual changes. Before submission, adapt test
 to Zsh's native harness and review/rebase the patch against the maintainers'
 current source. The standalone tests and patch export support that work; they do
 not imply upstream acceptance.
+
+## Phased rendering work
+
+Phase one adds `spans`: complete styles and bounded single-row drawing through
+curses character arrays. It preserves cursor, attributes and background; wide
+curses paths temporarily neutralize window/background state because array writes
+can merge that state into supplied cells. Validation precedes color allocation
+and drawing. Failed allocation can retain newly allocated pairs; a library write
+error can partially draw. See the [API](../README.md#styled-span-batching) and
+[benchmark](../benchmarks/README.md).
+
+The next phase is an opt-in truecolor design: detect direct-color support, audit
+integer color IDs and pair handling through allocation, attributes, backgrounds
+and readback, and define fallback without mixing raw ANSI writes into curses'
+retained screen. General Unicode measurement/clipping follows separately, with
+an explicit distinction between system column widths and grapheme boundaries.
+Neither phase changes existing command semantics implicitly.

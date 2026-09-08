@@ -42,6 +42,7 @@ check zcurses init
   # Leave a drawing change pending: discovery must not present it.
   check zcurses string sample pending
   check zcurses border sample '|' '|' '-' '-' '+' '+' '+' '+'
+  check zcurses spans sample 1 1 bold batch '' ed
   typeset -A runtime_colors
   check zcurses colorinfo runtime_colors
   check_features

@@ -38,7 +38,7 @@ check zcurses init
          $info[color_pairs] == unknown ]] || fail 'failed start state'
     fi
     [[ $info[default_colors] == 0 ]] || fail 'default colors unavailable'
-    for key in color_limit pair_limit bg_pair_limit query_pair_limit pairs_used pairs_free; do
+    for key in color_limit pair_limit bg_pair_limit query_pair_limit spans_pair_limit pairs_used pairs_free; do
       [[ $info[$key] == 0 ]] || fail "failed start budget: $key"
     done
   else

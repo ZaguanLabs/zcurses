@@ -22,6 +22,7 @@ xitem(tt(zcurses) tt(geometry) var(array))
 xitem(tt(zcurses) tt(colorinfo) var(association))
 xitem(tt(zcurses) tt(char) var(targetwin) var(character) )
 xitem(tt(zcurses) tt(string) var(targetwin) var(string) )
+xitem(tt(zcurses) tt(spans) var(targetwin) var(row) var(column) var(style) var(text) [ var(style) var(text) ... ] )
 xitem(tt(zcurses) tt(border) var(targetwin) [ var(left) var(right) var(top) var(bottom) var(top_left) var(top_right) var(bottom_left) var(bottom_right) ] )
 xitem(tt(zcurses) tt(attr) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) ] [...])
 xitem(tt(zcurses) tt(bg) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) | tt(@)var(char) ] [...])
@@ -136,6 +137,9 @@ than tt(pair_limit).  Narrow curses paths have an additional packed-attribute
 limit and the existing maximum of 255.)
 sitem(tt(query_pair_limit))(The highest pair ID representable by tt(querychar),
 no greater than tt(pair_limit).  Narrow readback has a packed-attribute limit.)
+sitem(tt(spans_pair_limit))(The highest pair ID representable by tt(spans),
+no greater than tt(pair_limit).  The ASCII path has an additional packed-attribute
+limit.  This is 0 when span drawing is unavailable.)
 sitem(tt(pairs_used))(The number of allocated nonzero pair IDs in this session.)
 sitem(tt(pairs_free))(tt(pair_limit) minus tt(pairs_used).)
 endsitem()
@@ -164,6 +168,45 @@ endsitem()
 
 Outputting characters and strings are achieved by tt(char) and tt(string)
 respectively.
+
+The subcommand tt(spans) draws one row of styled text in a single call.
+At least one var(style)/var(text) pair is required.  The zero-based var(row) and
+var(column) must be unsigned decimal integers within the window.  Each style
+is empty or a comma-separated list of attribute names from tt(zcurses_attrs)
+and at most one var(foreground)tt(/)var(background) color pair, using the same
+color names or decimal indices as tt(attr).  Empty tokens, whitespace in tokens,
+and tt(+)/tt(-) attribute changes are rejected.  Arguments are never evaluated.
+
+Each span has a complete style: omitted attributes are off and an omitted color
+uses reserved pair 0.  Window attributes, background attributes and background
+character substitution do not affect the supplied text.  Explicit
+tt(default/default) uses the existing color cache behavior.  Empty text is valid;
+its style is checked but allocates no colors.  Drawing preserves the window's
+cursor, attributes, color pair and background, does not read input, and becomes
+visible only on tt(refresh).  It neither wraps nor scrolls, including at the
+bottom-right cell.  Normal curses repair of an overwritten wide character can
+clear adjoining cells belonging to that character.
+
+Text must be printable and fit in the remaining columns; it is not clipped.
+Controls, tabs, newlines, NULs, invalid encoding and unrepresentable characters
+are rejected.  With the tt(wide_spans) feature, text is decoded using the current
+locale and the tt(MULTIBYTE) option, and measured with the system character-width
+function.  Non-ASCII text requires tt(MULTIBYTE).  Zero-width characters must
+follow a spacing character within the same span and fit within curses' complex
+character capacity; silent truncation of combining sequences is rejected.
+This does not implement Unicode grapheme segmentation or guarantee emoji
+sequence rendering.  Without tt(wide_spans), only printable ASCII is supported.
+
+The status is 0 on success, 1 for invalid input, insufficient row space,
+allocation failure or a curses error, and 2 when span drawing is unavailable or
+non-ASCII text requires an unavailable wide implementation.  The compiled
+features tt(styled_spans) and tt(wide_spans) allow callers to select a fallback.
+All input is validated before color allocation and drawing.  Pairs share the
+existing cache and are not recycled.  A later allocation failure retains earlier
+successful allocations but changes no cells.  A curses write error can leave
+partial drawing.  The tt(spans_pair_limit) field of tt(colorinfo) describes the
+additional pair-ID limit of the ASCII implementation; an unrepresentable pair
+is rejected instead of truncated.
 
 To draw a border around window var(targetwin), use tt(border).  Note
 that the border is not subsequently handled specially:  in other words,
@@ -348,6 +391,8 @@ query through tt(TIOCGWINSZ).)
 sitem(tt(mouse))(Support for ncurses mouse input and the tt(mouse) subcommand.)
 sitem(tt(resize))(Support for the tt(resize) subcommand through tt(resize_term).)
 sitem(tt(wide_borders))(Non-ASCII border characters through wide curses.)
+sitem(tt(styled_spans))(Single-row styled text batching.)
+sitem(tt(wide_spans))(Wide characters and representable combining sequences in spans.)
 endsitem()
 
 A listed feature indicates compiled support, not that an operation will

@@ -23,6 +23,10 @@ the library or module pair limit is reached.
 capabilities, usable limits and remaining pair capacity. It works headlessly
 before initialization, reporting unavailable values as `unknown`.
 
+**`zcurses spans window row column style text ...`** draws a row of differently
+styled text in one module call, preserving cursor and window state. See the
+[API](#styled-span-batching) and [reproducible benchmark](benchmarks/README.md).
+
 ## Build and test
 
 Prerequisites:
@@ -30,7 +34,7 @@ Prerequisites:
 - Zsh to run the build script, GNU Make, a C compiler, and standard Unix build
   tools (including a POSIX shell, Awk, and Sed).
 - Autoconf (including Autoheader), M4, and Patch to regenerate Zsh's configuration
-  with the wide-border function check.
+  with the optional drawing function checks.
 - Curses development headers and libraries, such as ncurses, and a terminfo
   database containing `xterm-256color` and `vt100` for the tests.
 - Python 3.9 or newer and an installed UTF-8 locale for the PTY tests. The drawing
@@ -139,6 +143,8 @@ unknown, so the application chooses its fallback policy.
 | `custom_borders` | Eight-character borders, including printable ASCII |
 | `wide_borders` | Unicode borders through `setcchar` and `wborder_set` |
 | `colorinfo` | Runtime color capabilities and allocation information |
+| `styled_spans` | Single-row styled text batching |
+| `wide_spans` | Wide characters and representable combining sequences in spans |
 
 Read the array as a set: order is unspecified, and future names should be ignored
 unless understood. A listed feature can still fail at runtime, for example when
@@ -260,6 +266,7 @@ fields below are `unknown`. During a session:
 | `pair_limit` | Available nonzero pair slots: `max(0, min(color_pairs - 1, SHRT_MAX))`; also the highest allocatable pair ID |
 | `bg_pair_limit` | Highest pair ID representable by `bg`, accounting for its narrower packed-color path where applicable |
 | `query_pair_limit` | Highest pair ID representable by `querychar`, accounting for its narrower readback path where applicable |
+| `spans_pair_limit` | Highest pair ID representable by `spans`, accounting for its packed ASCII path; zero if unavailable |
 | `pairs_used` | Nonzero pair IDs allocated in this session |
 | `pairs_free` | `pair_limit - pairs_used` |
 
@@ -314,3 +321,56 @@ submission also needs tests adapted to Zsh's test harness and review against the
 maintainers' current tree. This project is not part of the official Zsh distribution.
 
 The original copyright notices and [Zsh licence](LICENCE) are retained.
+
+## Styled-span batching
+
+```zsh
+zcurses spans panel 1 2 \
+  'bold,cyan/black' 'CPU ' \
+  'green/black' '23%' \
+  '' '  ready'
+zcurses refresh panel
+```
+
+Supply at least one `style text` pair. Row and column are zero-based, unsigned
+decimal coordinates within the window. A style is empty or a comma-separated
+list of existing attribute names (`blink`, `bold`, `dim`, `reverse`, `standout`,
+`underline`) and at most one existing `foreground/background` color pair.
+Tokens cannot be empty or contain whitespace; `+`/`-` attribute changes are not
+accepted. Arguments are data and are never evaluated as shell code.
+
+Each style is complete: omitted attributes are off, and an omitted color uses
+reserved pair 0. Window/background attributes and background-character
+substitution do not affect spans. `default/default` follows the existing color
+cache rules; an empty style needs no color support or allocation. Empty texts
+are valid, still have their styles validated, and do not allocate colors.
+
+The command preserves the cursor, current attributes, color pair and background.
+It neither wraps nor scrolls, even at the bottom-right cell, and does not refresh
+or read input. `refresh` remains the application's responsibility. As with other
+curses writes, replacing part of an existing wide character can clear its other
+cells to avoid leaving an orphaned half-character.
+
+Text must fit in the remaining columns of that row; it is never clipped. Tabs,
+newlines, other controls, NULs, invalid encoding, and unrepresentable text are
+rejected. The `wide_spans` path uses the current locale's system `wcwidth`, with
+the `MULTIBYTE` option required for non-ASCII text. A spacing character can have
+following zero-width characters within the same span, up to the curses complex
+character capacity. A span cannot begin with a zero-width character. This is
+curses character handling, not Unicode grapheme segmentation or a guarantee of
+emoji/ZWJ rendering. Builds without `wide_spans` accept printable ASCII only.
+
+Status is 0 on success, 1 for invalid arguments, text that does not fit, color
+allocation failure or a curses error, and 2 if span drawing is not compiled in
+or non-ASCII text needs the unavailable wide path. Check `styled_spans` and
+`wide_spans` in `zcurses_features` before selecting an application fallback.
+
+All arguments and text are validated before color allocation or cell changes.
+Pairs share the existing session cache and are never recycled. A later
+allocation failure leaves earlier successful allocations in the cache, but
+leaves window cells unchanged. A curses write error can leave partial drawing;
+applications can redraw after failure. `colorinfo[spans_pair_limit]` reports the
+highest usable pair ID: the normal `pair_limit` on the wide path, further limited
+by packed curses attributes on the ASCII path, or zero when spans are unavailable.
+Before initialization and after `end` this value is `unknown`. The narrow path
+rejects a pair that exceeds its limit instead of truncating the ID.
