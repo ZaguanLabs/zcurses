@@ -89,6 +89,41 @@ New terminal protocols must be opt-in, with explicit input ownership, bounded
 reply handling, and cleanup. Preserve the existing `input` API. Never evaluate
 shell command strings as a drawing or event protocol.
 
+## Exploration roadmap
+
+The [checklist](roadmap.md) records twelve candidate directions and their
+individual milestones. The first implementation adds structured input records
+and reusable styled rows; modern protocol negotiation and broader drawing
+batches remain separate work.
+
+Structured input shares the existing curses decoder and window timeout. Targets
+are checked before reading. Because Zsh can own SIGWINCH, terminal size polling
+provides resize records independently of curses key notifications. Polling does
+not consume input or resize/refresh windows. Curses reads retain their existing
+possible refresh behavior by default. Opt-in `event ... norefresh` uses a private
+one-cell input pad on ncurses, preserving drawing-window state and deferring
+presentation until an explicit refresh. The selected window's timeout is copied
+onto the pad for each read; there is still only one curses input queue. The pad
+is lazy, session-owned and released on end/unload. Other curses implementations
+return unsupported until their input behavior can provide the same guarantee.
+Mouse bookkeeping uses actual bit flags and resets activation on session cleanup.
+
+This choice follows ncurses' [pad contract](https://invisible-island.net/ncurses/man/curs_pad.3x.html)
+and its explicit exclusion of pads from automatic refresh in the
+[input implementation](https://github.com/mirror/ncurses/blob/master/ncurses/base/lib_getch.c).
+PTY barriers verify that dirty prepared rows and child windows stay hidden while
+polling and reading queued keys, then appear on explicit refresh. Legacy input
+still refreshes. Tests also cover per-window waits, failure before consumption,
+mouse/resize decoding, narrow input, end/reinit and unload/reload.
+
+Prepared rows share the span compiler and state-preserving row writer. They
+store immutable decoded cells, widths and already allocated color pairs in a
+session-scoped namespace, with explicit release and a 16 MiB accounted-storage
+limit. Locale/option changes are rejected during reuse, and end/unload releases
+all rows. This caches drawing data, not another screen or application layout.
+The README and native manual define the detailed contracts. The event inspector
+and prepared-row benchmark are the first standalone demonstrations.
+
 ## Candidate work
 
 The [btop rendering review](btop-review.md) maps concrete implementation patterns
@@ -96,7 +131,7 @@ to these candidates, identifies existing correctness gaps, and proposes a patch
 sequence without committing to new APIs.
 
 `geometry`, compiled feature discovery, custom borders and runtime color
-information, styled-span batching, opt-in truecolor and cell-aware clipping
+information, styled-span batching, opt-in truecolor and cell-aware clipping, structured input records and prepared styled rows
 are implemented.
 The initial drawing changes also correct wide-character buffers and guard
 numeric color parsing and pair allocation. Custom borders preserve the original
@@ -114,7 +149,7 @@ compatibility tests before an API is chosen:
 | Cursor visibility and window operations | Define ownership and restoration; test repeated resize and overlay dismissal |
 | Drawing helpers | Styled spans are implemented; measure application workloads before adding further helpers |
 | Extended colors and capabilities | RGB values are implemented; wider pair IDs or additional encodings require a separate end-to-end audit |
-| Structured input | Define coexistence with curses decoding, deadlines, bounded buffers and lossless paste handling |
+| Structured input | Initial records are implemented; define modern protocol ownership, deadlines, bounded buffers and lossless paste handling |
 | Unicode | Cell-aware measurement/clipping is implemented; full grapheme segmentation remains outside the current contract |
 | Terminal protocols | Require a concrete benefit, opt-in negotiation, input ownership and terminal/multiplexer tests |
 
@@ -191,3 +226,19 @@ Primary references: [ncurses color functions](https://invisible-island.net/ncurs
 and [ncurses' direct-color entries](https://github.com/mirror/ncurses/blob/master/misc/terminfo.src).
 The implementation follows the library's distinction between integer RGB values
 and bounded pair identifiers, and checks the declared per-channel encoding.
+
+
+## Text positions
+
+`textpos` bridges source byte offsets and displayed columns using the shared
+printable-text decoder and `textinfo` clipping units. It scans the whole input
+before assigning output, retaining one matching range rather than a full map.
+Byte counts exclude Zsh's internal Meta escaping. Either column of a wide cell
+and all bytes of its following combining characters select the same range.
+An exact end offset returns an empty range for insertion; offsets beyond it fail.
+
+The query is independent of curses initialization and storage limits. It makes
+no grapheme or emoji-shaping claim. Callers retain original text and own scrolling,
+selection policy and conversion from screen coordinates. The standalone
+`examples/hit-test.zsh` shows this composition with prepared headings, styled
+spans and structured keyboard/mouse events, redrawing only after a relevant event.

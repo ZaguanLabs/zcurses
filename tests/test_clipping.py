@@ -11,23 +11,26 @@ ROOT, ZSH = test_features.ROOT, test_features.ZSH
 
 
 class ClippingTests(unittest.TestCase):
-    def headless(self, mode='wide', modules=None):
+    def headless(self, mode='wide', modules=None, fixture='textinfo.zsh', marker='TEXTINFO PASS'):
         locales = subprocess.check_output(['locale', '-a'], text=True).splitlines()
         utf8 = os.environ.get('ZDRAW_TEST_LOCALE') or next(
             (x for x in locales if 'utf8' in x.lower().replace('-', '')), None)
         self.assertIsNotNone(utf8, 'A UTF-8 locale is required')
         env = {**os.environ, 'LC_ALL': utf8}
         env.pop('TERM', None)
-        result = subprocess.run([ZSH, '-df', str(ROOT / 'tests/textinfo.zsh'),
+        result = subprocess.run([ZSH, '-df', str(ROOT / 'tests' / fixture),
                                  str(modules or ROOT / '.build/modules'), mode],
                                 env=env, start_new_session=True, stdin=subprocess.DEVNULL,
                                 capture_output=True, text=True, timeout=10)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, 'TEXTINFO PASS\n')
+        self.assertEqual(result.stdout, marker + '\n')
         self.assertEqual(result.stderr, '')
 
     def test_headless_measurement_and_clipping(self):
         self.headless()
+
+    def test_text_positions(self):
+        self.headless(fixture='textpos.zsh', marker='TEXTPOS PASS')
 
     def test_clipped_styled_rows(self):
         output = drawing_session(self, 'wide', fixture='clipping.zsh', marker=b'CLIPPING PASS')
@@ -45,6 +48,8 @@ class ClippingTests(unittest.TestCase):
                 modules = test_features.FeatureTests().variant(
                     tmp, source.replace('#include <stdio.h>', '#include <stdio.h>\n' + definitions, 1))
                 self.headless('ascii' if mode == 'ascii' else 'wide', modules)
+                self.headless('ascii' if mode == 'ascii' else 'wide', modules,
+                              'textpos.zsh', 'TEXTPOS PASS')
                 drawing_session(self, mode, modules, fixture='clipping.zsh', marker=b'CLIPPING PASS')
 
 

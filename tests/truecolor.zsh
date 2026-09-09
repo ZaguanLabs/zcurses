@@ -30,6 +30,7 @@ check zdraw init
   reject zdraw attr sample '#112233/#445566'
   reject zdraw bg sample '#112233/#445566'
   reject zdraw spans sample 0 0 '#112233/#445566' X
+  reject zdraw prepare disabled '#112233/#445566' X
   check zdraw colorinfo info
   (( info[pairs_used] == 0 )) || fail 'disabled RGB allocated pairs'
   if [[ $mode == unsupported || $mode == unavailable ]]; then
@@ -119,11 +120,15 @@ check zdraw init
       check zdraw refresh sample
       check zdraw colorinfo info
       typeset -i used=$info[pairs_used]
+      check zdraw prepare retained '#112233/#445566' PREPARED
       check zdraw truecolor off
       # Both first use and a cache hit must obey off.
       reject zdraw attr sample '#112233/#445566'
       reject zdraw bg sample '#204060/#102030'
       reject zdraw spans sample 2 1 '#112233/#445566' Q
+      reject zdraw prepare disabled '#112233/#445566' Q
+      check zdraw draw sample 4 1 retained
+      cell 4 1 P '#112233/#445566'
       check zdraw colorinfo info
       (( info[pairs_used] == used && info[truecolor_enabled] == 0 )) || fail 'disable changed pairs'
       check zdraw move sample 4 1
@@ -142,6 +147,9 @@ check zdraw init
         check zdraw attr sample '#345678/#456789'
         check zdraw spans sample 1 1 '#56789a/#6789ab' HIGH
         cell 1 1 H '#56789a/#6789ab'
+        check zdraw prepare high '#56789a/#6789ab' PREPARED
+        check zdraw draw sample 3 1 high
+        cell 3 1 P '#56789a/#6789ab'
         check zdraw move sample 2 1
         check zdraw string sample SAVED
         cell 2 1 S '#345678/#456789'

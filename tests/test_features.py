@@ -153,6 +153,7 @@ class FeatureTests(unittest.TestCase):
 #undef TIOCGWINSZ
 #undef HAVE_RESIZE_TERM
 #undef NCURSES_MOUSE_VERSION
+#undef NCURSES_VERSION
 #undef HAVE_USE_DEFAULT_COLORS
 #undef HAVE_WBORDER_SET
 #undef HAVE_INIT_EXTENDED_PAIR
@@ -163,8 +164,10 @@ class FeatureTests(unittest.TestCase):
             self.assertEqual(self.run_shell('''
                 zmodload zdraw || exit 1
                 zmodload -F -e zdraw +p:zdraw_features || exit 2
-                (( ${#zdraw_features} == 3 + (${zdraw_features[(Ie)wide_text]} > 0) &&
+                (( ${#zdraw_features} == 5 + (${zdraw_features[(Ie)resize_events]} > 0) + (${zdraw_features[(Ie)wide_text]} > 0) + (${zdraw_features[(Ie)wide_events]} > 0) &&
                    ${zdraw_features[(Ie)textinfo]} &&
+                   ${zdraw_features[(Ie)text_positions]} &&
+                   ${zdraw_features[(Ie)structured_events]} &&
                    ${zdraw_features[(Ie)custom_borders]} &&
                    ${zdraw_features[(Ie)colorinfo]} )) || exit 3
                 (( ! ${zdraw_colors[(Ie)default]} )) || exit 4

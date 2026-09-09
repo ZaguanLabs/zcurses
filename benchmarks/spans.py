@@ -67,16 +67,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--trials', type=int, default=7)
     parser.add_argument('--frames', type=int, default=500)
+    parser.add_argument('--prepared', action='store_true', help='also measure reuse of two prepared rows')
     args = parser.parse_args()
     if args.trials < 1 or args.frames < 1:
         parser.error('trials and frames must be positive')
+    backends = ('legacy', 'spans', 'prepared') if args.prepared else ('legacy', 'spans')
     results = {}
     for scenario in ('draw', 'refresh'):
-        samples = {backend: [] for backend in ('legacy', 'spans')}
+        samples = {backend: [] for backend in backends}
         sizes = {backend: set() for backend in samples}
         for run in range(args.trials):
             # Alternate order to reduce drift from load or temperature.
-            for backend in (('legacy', 'spans') if run % 2 == 0 else ('spans', 'legacy')):
+            for backend in (backends if run % 2 == 0 else tuple(reversed(backends))):
                 elapsed, size = trial(backend, scenario, args.frames)
                 samples[backend].append(elapsed * 1000 / args.frames)
                 sizes[backend].add(size)
@@ -89,6 +91,9 @@ def main():
         }
         results[scenario]['median_speedup'] = (
             statistics.median(samples['legacy']) / statistics.median(samples['spans']))
+        if args.prepared:
+            results[scenario]['prepared_speedup_over_spans'] = (
+                statistics.median(samples['spans']) / statistics.median(samples['prepared']))
     print(json.dumps({'frames': args.frames, 'trials': args.trials,
                       'rows': 20, 'spans_per_row': 8, 'columns_drawn': 64,
                       'TERM': 'xterm-256color', 'locale': 'C', 'results': results}, indent=2))

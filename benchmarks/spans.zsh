@@ -36,12 +36,27 @@ spans() {
     zdraw spans sample "$row" 0 "${batch[@]}"
   done
 }
+prepared() {
+  local -i row
+  local name=prepared_even
+  (( frame % 2 )) && name=prepared_odd
+  for (( row=0; row<20; row++ )); do
+    zdraw draw sample "$row" 0 "$name"
+  done
+}
 typeset -F 9 SECONDS elapsed
 zdraw init
 {
   zdraw addwin sample 20 70 0 0
   # Allocate before timing. In particular, make pair 0 reusable by attr.
   zdraw attr sample red/black blue/black default/default
+  if [[ $backend == prepared ]]; then
+    (( ${zdraw_features[(Ie)prepared_rows]} ))
+    zdraw prepare prepared_even "${batch[@]}"
+    batch[2]=X2345678
+    zdraw prepare prepared_odd "${batch[@]}"
+    batch[2]=12345678
+  fi
   for (( frame=0; frame<25; frame++ )); do
     "$backend"
   done

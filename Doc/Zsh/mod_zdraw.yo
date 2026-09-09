@@ -25,10 +25,16 @@ xitem(tt(zdraw) tt(position) var(targetwin) var(array))
 xitem(tt(zdraw) tt(geometry) var(array))
 xitem(tt(zdraw) tt(colorinfo) var(association))
 xitem(tt(zdraw) tt(textinfo) var(association) var(text) [ var(columns) ])
+xitem(tt(zdraw) tt(textpos) var(association) var(text) tt(column)|tt(byte) var(offset))
 xitem(tt(zdraw) tt(truecolor) tt(on)|tt(off))
 xitem(tt(zdraw) tt(char) var(targetwin) var(character) )
 xitem(tt(zdraw) tt(string) var(targetwin) var(string) )
 xitem(tt(zdraw) tt(spans) var(targetwin) var(row) var(column) var(style) var(text) [ var(style) var(text) ... ] )
+xitem(tt(zdraw) tt(prepare) var(name) var(style) var(text) [ var(style) var(text) ... ] )
+xitem(tt(zdraw) tt(draw) var(targetwin) var(row) var(column) var(name) [ var(columns) ] )
+xitem(tt(zdraw) tt(rowinfo) var(name) var(association) )
+xitem(tt(zdraw) tt(unprepare) var(name) )
+xitem(tt(zdraw) tt(event) var(targetwin) var(association) [ tt(mouse) ] [ tt(norefresh) ] )
 xitem(tt(zdraw) tt(spansclip) var(targetwin) var(row) var(column) var(columns) var(style) var(text) [ var(style) var(text) ... ] )
 xitem(tt(zdraw) tt(border) var(targetwin) [ var(left) var(right) var(top) var(bottom) var(top_left) var(top_right) var(bottom_left) var(bottom_right) ] )
 xitem(tt(zdraw) tt(attr) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) ] [...])
@@ -39,7 +45,7 @@ xitem(tt(zdraw) tt(mouse) [ tt(delay) var(num) | [tt(+)|tt(-)]tt(motion) ])
 xitem(tt(zdraw) tt(timeout) var(targetwin) var(intval))
 xitem(tt(zdraw) tt(querychar) var(targetwin) [ var(param) ])
 item(tt(zdraw) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
-Manipulate curses windows.  Except for tt(geometry), tt(colorinfo) and tt(textinfo), uses of
+Manipulate curses windows.  Except for tt(geometry), tt(colorinfo), tt(textinfo) and tt(textpos), uses of
 this command should be
 bracketed by `tt(zdraw init)' to initialise use of curses, and
 `tt(zdraw end)' to end it; omitting `tt(zdraw end)' can cause
@@ -209,6 +215,44 @@ Measurement is independent of wide curses support and does not enforce curses'
 complex-character storage limit.  The query does not initialize curses, allocate
 colors, read input, change terminal modes or emit terminal output.
 
+The subcommand tt(textpos) takes an association, text, the literal tt(column) or
+ tt(byte), and a nonnegative decimal offset. It returns the complete clipping
+unit containing that position, using the same width and validation rules as
+ tt(textinfo). Either column of a double-width character selects the whole unit.
+Any byte in a multibyte character or its following zero-width characters selects
+that same unit. All offsets are zero-based and range ends are exclusive. Byte
+offsets count the original encoded bytes, not shell character indices or internal
+escapes. The ordinary writable association is replaced or created with:
+startsitem()
+sitem(tt(text))(The complete selected clipping unit, preserving original bytes.)
+sitem(tt(prefix), tt(remainder))(Text before and after the unit. Concatenating
+ tt(prefix), tt(text) and tt(remainder) reconstructs the entire input.)
+sitem(tt(byte_start), tt(byte_end))(Source byte range.)
+sitem(tt(column_start), tt(column_end))(Displayed column range.)
+sitem(tt(total_bytes), tt(total_width))(Entire input byte length and column width.)
+sitem(tt(at_end))(1 for the end boundary, otherwise 0.)
+endsitem()
+
+An offset equal to the chosen total selects an empty range at the end, with
+all input in tt(prefix). Offset zero is therefore valid for empty text. Offsets
+past the end fail. Offsets, byte length and width must fit in tt(INT_MAX).
+Decimal offsets are parsed literally, without shell evaluation. All input is
+validated before assignment, including the suffix after a hit. Invalid input
+leaves an existing result unchanged and does not create an absent target.
+Return status is 0 on success, 1 on invalid input or assignment failure, and 2
+for non-ASCII text on a build without tt(wide_text).
+
+Check tt(text_positions) for compiled support. This query requires no initialized
+session or terminal and has no terminal or input side effects. It scans the
+input once per query and returns one range without constructing a full map.
+Results depend on the current locale and tt(MULTIBYTE) option. Recompute after
+changing those or the text. These units are not Unicode grapheme clusters: a
+zero-width joiner stays with its preceding base and the next positive-width
+character starts another unit. Terminal emoji shaping and curses storage limits
+are not modeled. To hit-test clipped text, query the prefix from tt(textinfo)
+and subtract the drawing origin from the mouse's screen coordinates.
+
+
 The subcommand tt(truecolor) accepts exactly tt(on) or tt(off).  It enables or
 disables tt(#RRGGBB) color arguments in tt(attr), tt(bg) and tt(spans).
 RGB is disabled initially.  Repeating tt(init) preserves the setting;
@@ -337,6 +381,159 @@ preceding character but do not change its tt(wcwidth) result.  Ambiguous-width
 characters follow the system locale's policy.  Terminal shaping and font policy
 may differ from this model.  No Unicode tables, segmentation dependency or
 terminal-width probing are added, and grapheme-safe rendering is not promised.
+
+The subcommand tt(prepare) creates an immutable, session-scoped styled row:
+
+example(zdraw prepare heading 'bold,cyan/black' 'CPU ' 'green/black' '23%'
+zdraw draw stdscr 0 0 heading
+zdraw draw stdscr 1 0 heading 6
+zdraw rowinfo heading row
+zdraw unprepare heading)
+
+The name must be an identifier without subscripts, in the module's own
+namespace. Duplicate names fail without replacing the original row. Preparation
+requires an initialized session but does not depend on a window's dimensions.
+It copies decoded cells; changing the original shell strings does not change
+those cells. Empty rows are valid and still have their styles checked.
+
+Preparation uses the same text and complete-style validation as tt(spans),
+including printable characters, the wide/narrow distinction, combining storage
+limits and color syntax. Validation precedes color allocation. Nonempty spans
+allocate their colors from the session cache, including cells which a later
+clipped draw might omit. A failed allocation can leave earlier successful pairs
+cached, but creates no named object and changes no window cells. Preparation
+performs no drawing or input.
+
+The subcommand tt(draw) takes a window, row, column and prepared name, followed
+by an optional nonnegative decimal column budget. Without a budget the entire
+row must fit. With a budget it draws the longest prefix fitting both the budget
+and the available columns to the right. Base characters and their stored marks
+stay together; double-width cells are never split. This is cell-width clipping,
+not full Unicode grapheme segmentation. Even a zero budget or empty row requires
+coordinates inside the window. Unused cells are left alone, subject to curses'
+repair of overwritten wide characters.
+
+Drawing reuses the prepared cells without reparsing or allocating color pairs.
+It does not wrap, scroll, consume input or refresh, and preserves the cursor,
+window attributes, color pair and background. A curses write failure may leave
+partial drawing. Prepared cells require their original tt(LC_CTYPE) locale name
+and tt(MULTIBYTE) option setting, even for ASCII rows. Restore those settings or
+prepare another row before drawing. Existing prepared RGB cells remain usable
+after tt(truecolor off), like existing window styles; preparing new RGB cells
+still requires tt(truecolor on).
+
+The subcommand tt(rowinfo) takes a prepared name and an ordinary writable
+associative parameter. An absent target is created and an existing association
+is replaced. Readonly/special parameters, non-associations and subscripts are
+rejected. An unknown row leaves the target unchanged. The fields are:
+
+startsitem()
+sitem(tt(width))(Row width in terminal columns.)
+sitem(tt(cells))(Number of stored spacing-character groups, not columns.)
+sitem(tt(bytes))(Accounted storage of this row.)
+sitem(tt(session_bytes))(Total accounted storage of all prepared rows.)
+sitem(tt(session_limit))(The session storage limit, 16 MiB.)
+sitem(tt(locale))(The tt(LC_CTYPE) name used for preparation.)
+sitem(tt(multibyte))(The preparation-time tt(MULTIBYTE) setting, 0 or 1.)
+endsitem()
+
+Accounting includes row records, names, locale names, cell arrays and widths.
+It excludes hash-table/allocator overhead, transient compilation buffers and
+shared color pairs. Preparation checks a conservative capacity bound based on
+column width before allocating colors. A wide row may therefore be rejected
+even when its eventual stored-cell count would fit.
+
+The subcommand tt(unprepare) frees a named row without changing drawn cells or
+reclaiming shared colors. tt(end) and module unload release all prepared rows.
+Repeated tt(init) in an existing session keeps them. All four operations require
+initialization. Status 0 denotes success, 1 invalid arguments, unknown/duplicate
+name, locale mismatch, storage/color failure or curses failure, and 2 unavailable
+compiled drawing support (including non-ASCII preparation on a narrow build).
+Check the tt(prepared_rows) entry in tt(zdraw_features).
+
+The subcommand tt(event) takes a window, an associative parameter and optional
+literals tt(mouse) and tt(norefresh), in either order, once each. It assigns one
+structured input record. The target
+must be an ordinary writable association or an absent parameter; readonly,
+special, scalar, indexed-array and subscripted targets are rejected before input
+is read or a size change is acknowledged. Successful assignment replaces the
+association, removing fields from earlier events. There is no implicit target.
+
+startsitem()
+sitem(tt(type))(tt(character), tt(key), tt(resize) or tt(mouse).)
+sitem(tt(source))(tt(curses) for decoded input; tt(terminal) for a detected
+terminal-size change.)
+sitem(tt(text))(One decoded character or raw byte; empty for non-character events.
+Control characters and NUL are possible: this field is not necessarily printable.)
+sitem(tt(key))(Empty for characters, otherwise the curses key name without
+its tt(KEY_) prefix, such as tt(UP), tt(F5), tt(RESIZE) or tt(MOUSE).
+An unrecognized key is represented by its decimal code.)
+sitem(tt(code))(Numeric character or library-specific curses key value;
+tt(unknown) for a synthesized terminal-size event.)
+sitem(tt(encoding))(tt(multibyte) for wide curses input, tt(byte) for narrow
+input, or tt(none) for a synthesized size event.)
+sitem(tt(modifiers))(tt(unknown) except for mouse events, where it is a
+space-separated set of tt(SHIFT), tt(CTRL) and tt(ALT), empty when none were reported.)
+sitem(tt(rows), tt(columns))(Present only for resize records.)
+sitem(tt(id), tt(x), tt(y), tt(z), tt(buttons))(Present only for mouse records.
+Coordinates tt(x) and tt(y) are zero-based screen coordinates, not relative to
+the input window. tt(id) and tt(z) are library-reported values. tt(buttons) is a
+space-separated set such as tt(PRESSED1), tt(RELEASED1) or tt(CLICKED1), and may
+be empty for motion.)
+endsitem()
+
+Wide input uses the current locale and reports a numeric wide-character value;
+narrow input returns raw bytes 0--255. Curses key numbers vary by library.
+Character records do not identify unmodified physical keys. This first event
+interface does not distinguish paste, focus, keyboard modifiers or
+press/repeat/release events, and negotiates no modern keyboard protocol.
+
+The existing tt(input) and new tt(event) share the same curses queue and decoder.
+Applications choose which call consumes each item. There is no background reader;
+do not read the terminal concurrently through shell tt(read), ZLE or another
+process. tt(event) enables keypad decoding and uses the window's tt(timeout).
+Zero polls. A finite positive timeout allows applications to observe resizes
+without keyboard input. Escape decoding and inherited EINTR retries can extend
+the wait; it is not a strict overall deadline. Curses may refresh a modified
+window during input, just as with the inherited tt(input) operation. Complete
+and present a frame before reading, or use tt(norefresh).
+
+With tt(norefresh), input uses a private one-cell ncurses pad. The call does not
+refresh drawing windows or present pending drawing. It preserves the selected
+window's cursor and dirty state, sharing the same input queue, decoder and
+window timeout. Use tt(refresh) to present a completed frame explicitly.
+Keypad/mouse setup can still emit control sequences; this is not a guarantee of
+zero terminal output. The pad is created lazily, is absent from tt(zdraw_windows)
+and is released by tt(end) or module unload. No additional protocol is enabled.
+This path is currently available only with ncurses; check tt(norefresh_events)
+in tt(zdraw_features). Other curses builds return status 2 before reading input
+or acknowledging a resize.
+
+When supported, the controlling terminal's dimensions are checked before a
+read and after a failed read. A change from the last acknowledged size returns
+a tt(source=terminal) resize record with tt(key=RESIZE) and tt(code=unknown).
+It consumes no input, changes no windows and does not refresh. The starting
+comparison dimensions are those at initialization. Changes between observations
+can coalesce, and zero sizes or failed queries are ignored. A decoded curses
+resize key instead reports tt(source=curses) and curses' current dimensions.
+Applications may receive both kinds and should handle repeated sizes safely.
+No signal handler is installed; an indefinite read need not wake on a resize.
+
+The optional tt(mouse) flag requests curses' existing mouse mask for that read.
+Supply it on each read that wants reporting. A curses read without it disables
+mouse reporting; a synthetic size record does not change input modes.
+The tt(mouse) subcommand configures the mask as before. Mouse enable/mask flags
+use distinct bits and reset at tt(end), so reporting can be disabled and then
+re-enabled in a subsequent session. Applications own hit-testing and shortcuts.
+
+Status 0 means a record was assigned; status 1 covers invalid arguments,
+failed reads (including timeout/interruption), missing mouse data or assignment
+failure, or input-pad allocation failure. Status 2 means a requested flag
+(tt(mouse) or tt(norefresh)) lacks compiled support.
+Failed reads leave the target unchanged and do not create an absent target.
+Assignment failure after a successful read cannot restore consumed input.
+Check tt(structured_events), tt(wide_events) and tt(resize_events) in
+ tt(zdraw_features); compiled resize support does not guarantee runtime delivery.
 
 To draw a border around window var(targetwin), use tt(border).  Note
 that the border is not subsequently handled specially:  in other words,
@@ -522,9 +719,16 @@ sitem(tt(mouse))(Support for ncurses mouse input and the tt(mouse) subcommand.)
 sitem(tt(resize))(Support for the tt(resize) subcommand through tt(resize_term).)
 sitem(tt(wide_borders))(Non-ASCII border characters through wide curses.)
 sitem(tt(truecolor))(Optional ncurses extended-color functions and terminfo queries for RGB.)
+sitem(tt(structured_events))(Associative input records through the curses decoder.)
+sitem(tt(norefresh_events))(Opt-in event input without refreshing drawing windows,
+currently with ncurses.)
+sitem(tt(wide_events))(Locale-based wide-character input rather than raw bytes.)
+sitem(tt(resize_events))(Terminal-size query or curses resize notification support.)
+sitem(tt(prepared_rows))(Immutable session-scoped styled rows with clipping and inspection.)
 sitem(tt(styled_spans))(Single-row styled text batching.)
 sitem(tt(clipped_spans))(Styled-span drawing with one column budget.)
 sitem(tt(textinfo))(Headless text measurement and prefix clipping.)
+sitem(tt(text_positions))(Headless mapping between byte offsets and displayed columns.)
 sitem(tt(wide_text))(Locale-based multibyte measurement and clipping, independent
 of wide curses support.)
 sitem(tt(wide_spans))(Wide characters and representable combining sequences in spans.)

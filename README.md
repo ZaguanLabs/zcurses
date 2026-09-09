@@ -7,7 +7,8 @@ fixes and extensions remain candidates for contribution to Zsh.
 It has no dependency on another application or a contributor's local setup.
 
 Applications own their layouts, themes and event-loop policy; `zdraw` supplies
-terminal primitives.
+terminal primitives. The [exploration checklist](docs/roadmap.md) tracks candidate
+additions and completed milestones.
 
 **`zdraw geometry array`** queries the controlling terminal's current rows
 and columns without a subprocess or screen update. The read-only
@@ -36,7 +37,14 @@ and the standalone [gradient example](examples/truecolor.zsh).
 **Cell-aware clipping** adds headless `textinfo` measurement and `spansclip`
 drawing with a shared column budget. It uses system character widths and adds
 no Unicode database or grapheme segmentation. See the [contract](#cell-aware-clipping)
-and [headless example](examples/clipping.zsh).
+and [headless example](examples/clipping.zsh). `textpos` maps source byte offsets
+and displayed columns to complete clipping units; see
+[text hit-testing](#text-positions-and-hit-testing).
+
+**Structured input** returns character, key, resize and optional mouse records
+through an association. **Prepared styled rows** decode reusable drawing data
+once, with explicit release and session cleanup. See [input](#structured-input),
+[prepared rows](#prepared-styled-rows) and the [event inspector](examples/events.zsh).
 
 ## Build and test
 
@@ -178,10 +186,16 @@ unknown, so the application chooses its fallback policy.
 | `wide_borders` | Unicode borders through `setcchar` and `wborder_set` |
 | `colorinfo` | Runtime color capabilities and allocation information |
 | `truecolor` | Optional ncurses extended-color APIs and terminfo queries for RGB |
+| `structured_events` | Associative input records using the curses decoder |
+| `norefresh_events` | Opt-in event input without refreshing drawing windows (ncurses) |
+| `wide_events` | Locale-based wide-character input; otherwise events contain raw bytes |
+| `resize_events` | Terminal size queries or curses resize key notifications |
+| `prepared_rows` | Immutable session-scoped styled rows, with clipping and inspection |
 | `styled_spans` | Single-row styled text batching |
 | `wide_spans` | Wide characters and representable combining sequences in spans |
 | `clipped_spans` | Styled-span drawing with one shared column budget |
 | `textinfo` | Headless text measurement and prefix clipping; printable ASCII always supported |
+| `text_positions` | Headless mapping between source byte offsets and displayed columns |
 | `wide_text` | Locale-based multibyte measurement/clipping, independent of wide curses support |
 
 Read the array as a set: order is unspecified, and future names should be ignored
@@ -474,6 +488,66 @@ independent of `wide_spans`: being able to measure text does not establish that
 the linked curses library can draw it. Measurement does not enforce curses'
 complex-character storage limit; styled drawing does.
 
+### Text positions and hit-testing
+
+```zsh
+typeset -A hit
+zdraw textpos hit $'e\u0301界b' column 2
+# hit[text] = 界; columns [1, 3); original UTF-8 bytes [3, 6)
+zdraw textpos hit $'e\u0301界b' byte 4
+# The same group, even though byte 4 is inside its UTF-8 encoding.
+```
+
+`zdraw textpos association text column|byte offset` maps a position to the
+complete clipping unit containing it. Its unit and validation rules are the
+same as `textinfo`: one positive-width character followed by its zero-width
+characters. Either column of a double-width character selects the entire unit;
+any byte of a base or its following marks selects that same unit.
+
+All offsets are **zero-based**, and range ends are **exclusive**. Byte offsets
+count the original encoded bytes, not Zsh character indices or internal escapes.
+The ordinary writable association is replaced, or created if absent, with:
+
+| Key | Meaning |
+| --- | --- |
+| `text` | The complete selected unit, preserving its original bytes |
+| `prefix`, `remainder` | Text before and after the unit; `prefix + text + remainder` reconstructs the input |
+| `byte_start`, `byte_end` | Source byte range of the unit |
+| `column_start`, `column_end` | Displayed column range of the unit |
+| `total_bytes`, `total_width` | Length and width of the entire input |
+| `at_end` | `1` at the end boundary; `0` for a selected unit |
+
+An offset exactly equal to the chosen total returns an empty range at the end,
+with all input in `prefix`. Thus offset zero is valid for empty text. An offset
+past the end fails; it is not clamped. Offsets, total bytes and total width must
+fit in `INT_MAX`. Decimal offsets are parsed literally, without shell evaluation.
+
+The entire input is checked before assignment, including text after the hit.
+Status 0 means success, 1 means invalid text/arguments or assignment failure,
+and 2 means non-ASCII text on a build without `wide_text`. Invalid input leaves
+the target unchanged. Like `textinfo`, this query works without initialization
+or a terminal, reads no input and emits no terminal output. It scans the input
+once per query and returns one range, without constructing a full position map.
+
+These are the module's clipping units, **not Unicode grapheme clusters**. A
+zero-width joiner stays with its preceding base; the next positive-width
+character starts a new unit. The query does not model terminal emoji shaping,
+normalize text or enforce curses' combining-character storage limit. Results
+use the current locale and `MULTIBYTE` setting; recompute after changing those
+or the text. To hit-test a clipped display, query the prefix returned by
+`textinfo`, subtracting the drawing origin from the mouse's screen coordinates.
+
+The [hit-testing example](examples/hit-test.zsh) combines prepared drawing,
+structured events and this query. Arrow keys move the selected column; optional
+mouse input selects a complete unit:
+
+```sh
+.build/zsh/Src/zsh -df examples/hit-test.zsh
+.build/zsh/Src/zsh -df examples/hit-test.zsh --mouse
+```
+
+### Clipped styled spans
+
 For drawing a composite stream of complete style/text runs:
 
 ```zsh
@@ -588,3 +662,194 @@ The subcommand and capability checks do not consume input, emit terminal replies
 refresh pending drawing, or alter input ownership. Input stays with the existing
 `zdraw input` API. There is no additional negotiation or reply parser. All
 screen output remains within curses and its retained-screen refresh machinery.
+
+## Structured input
+
+```zsh
+typeset -A event
+zdraw timeout stdscr 100
+if zdraw event stdscr event; then
+  case $event[type] in
+    character) text=$event[text] ;;
+    key)       key=$event[key] ;;
+    resize)    rows=$event[rows] columns=$event[columns] ;;
+  esac
+fi
+```
+
+`zdraw event window association [mouse] [norefresh]` requires an initialized session and
+returns one record through an ordinary writable associative parameter. It creates
+an absent parameter and replaces an existing association, so fields from a
+previous event do not linger. Invalid targets (including readonly, special,
+scalar/array and subscripted parameters) are rejected before reading input or
+acknowledging a pending size change. No implicit `REPLY` parameter is used.
+
+| Field | Meaning |
+| --- | --- |
+| `type` | `character`, `key`, `resize` or `mouse` |
+| `source` | `curses` for decoded input; `terminal` for a detected size change |
+| `text` | One decoded character, or one raw byte on a narrow input build; empty for other events |
+| `key` | Empty for characters; curses name without `KEY_` for named keys (such as `UP`, `F5`, `RESIZE`, `MOUSE`); decimal code for an unrecognized key |
+| `code` | Numeric decoded character or curses key code; `unknown` for a synthesized terminal-size event |
+| `encoding` | `multibyte` with wide curses input, `byte` otherwise; `none` for a synthesized size event |
+| `modifiers` | `unknown` for characters/keys/resizes; a space-separated set of `SHIFT`, `CTRL`, `ALT` for a mouse event, empty if none were reported |
+| `rows`, `columns` | Present only on resize; see the source distinction below |
+| `id`, `x`, `y`, `z`, `buttons` | Present only on mouse events |
+
+A `character` record can contain a control character or NUL; it does not claim
+that the value is printable or came from an unmodified physical key. Wide input
+uses the current locale and returns the numeric wide-character value in `code`;
+narrow input returns bytes 0–255. Curses key codes are library-specific, not a
+portable enumeration. Legacy decoding cannot reliably distinguish modifiers,
+physical keys, paste, press/repeat/release or focus changes. Those are later
+[roadmap milestones](docs/roadmap.md).
+
+**Ownership and timing:** `event` and the existing `input` share one curses
+input queue and decoder. Applications choose which call consumes the next item;
+there is no background reader or additional protocol parser. Do not concurrently
+read the terminal through `read`, ZLE or a subprocess. `event` enables keypad
+decoding and inherits `zdraw timeout window milliseconds`. Zero polls; a finite
+positive timeout is useful for observing size changes without keypresses.
+Curses escape-sequence timing and inherited EINTR retries can extend a wait;
+this is not a strict overall deadline. By default, curses may refresh a modified
+window during a read, as with legacy input.
+
+With `norefresh`, the call reads through a private one-cell ncurses pad and
+**does not refresh drawing windows or present pending drawing**. It still uses
+the same input queue, decoder and selected window's timeout; it leaves that
+window's cursor and dirty state alone. Present the completed frame explicitly
+with `zdraw refresh`. Keypad/mouse setup can emit terminal control sequences:
+this is a presentation guarantee, not a promise of zero terminal output.
+The pad is allocated lazily, is absent from `zdraw_windows`, and is released by
+`end` or module unload. No additional terminal protocol or reader is enabled.
+
+Check `norefresh_events` before requesting the flag. This path is currently
+enabled only for ncurses, whose pad input behavior supports the guarantee;
+other curses builds return status 2 before consuming input or acknowledging a
+resize. The two flags may appear in either order, once each. For example:
+
+```zsh
+zdraw event stdscr event norefresh mouse
+```
+
+Terminal dimensions are checked before reading and after a failed read. A change
+from the last acknowledged size returns `source=terminal`, `key=RESIZE` and
+`code=unknown`, without consuming input, resizing windows or refreshing. Changes
+between observations can coalesce; dimensions of zero or an unavailable query
+are ignored. The initial comparison size comes from session initialization.
+A decoded curses `KEY_RESIZE` returns `source=curses` and curses' current screen
+dimensions instead. Applications can receive both kinds of notification and
+should handle resizing idempotently. `event` installs no signal handler; a size
+change during an indefinite read need not wake it immediately.
+
+The optional literal `mouse` requests the existing curses mouse mask. It must
+be supplied on each read that wants mouse reporting; an actual curses read
+without it disables reporting. A synthetic resize record does not alter the
+input modes. `zdraw mouse` configures the mask as before. Mouse `x` and `y` are
+zero-based screen coordinates, not coordinates relative to the input window;
+`id` and `z` are library-reported values. `buttons` is a space-separated list
+such as `PRESSED1`, `RELEASED1` or `CLICKED1`; it may contain multiple states or
+be empty for motion. No hit-testing or shortcut policy is added.
+Mouse enable/mask flags now use distinct bits and reset at `end`, correcting
+legacy bookkeeping so reporting disables and re-enables across sessions.
+
+Status 0 means a record was assigned. Status 1 covers invalid arguments, a
+failed read (including timeout/interruption), unavailable mouse data or failed
+assignment, or input-pad allocation failure. Status 2 means a requested flag
+(`mouse` or `norefresh`) lacks compiled support.
+Failed reads leave the target unchanged; input already consumed cannot be
+restored if subsequent record assignment fails. An absent target is not created
+on an empty poll. Check `structured_events`, `wide_events` and `resize_events`
+in `zdraw_features`; the last reports compiled geometry-query or curses resize
+notification support, not a guarantee of runtime notification delivery.
+
+Run the [event inspector](examples/events.zsh), which also reuses a prepared
+heading, in the matching built shell and a UTF-8 locale:
+
+```sh
+.build/zsh/Src/zsh -df examples/events.zsh
+# Opt in to mouse input:
+.build/zsh/Src/zsh -df examples/events.zsh --mouse
+```
+
+Press `q` to exit. Unicode display needs the wide drawing path. The example uses
+`always` for session cleanup; module unload also invokes the existing cleanup.
+
+## Prepared styled rows
+
+```zsh
+# Within an initialized session:
+zdraw prepare heading 'bold,cyan/black' 'CPU ' 'green/black' '23%'
+zdraw draw stdscr 0 0 heading
+zdraw draw stdscr 1 0 heading 6  # clip to six columns
+
+typeset -A row
+zdraw rowinfo heading row
+zdraw unprepare heading
+zdraw refresh
+```
+
+The `prepared_rows` feature adds:
+
+```text
+zdraw prepare name style text [style text ...]
+zdraw draw window row column name [columns]
+zdraw rowinfo name association
+zdraw unprepare name
+```
+
+`prepare` validates and decodes a complete row, allocates its nonempty spans'
+color pairs and copies the resulting cells into an immutable named object.
+Names must be identifiers without subscripts and belong to a module namespace,
+not shell parameters. A duplicate name is rejected; release it before reusing
+it. Changing the original shell strings does not change a prepared row.
+Preparation requires an initialized session and is independent of any window's
+size. Empty rows are allowed and still have their styles validated.
+
+Text, complete styles, combining-character storage, color validation and status
+2 for unsupported non-ASCII drawing follow `spans`. They share the same compiler
+and the same window-state-preserving writer. All text and styles are checked
+before allocating colors. A failed later allocation can leave earlier color
+pairs cached, but creates no named row and changes no cells. Preparation does
+not read input or emit drawing output.
+
+`draw` writes the prepared cells without reparsing styles/text or allocating
+colors. Without `columns`, the whole row must fit. With a budget, it draws the
+longest prefix fitting that budget and the window's right edge. A base and its
+stored combining marks stay together; a double-width cell is never split. This
+is still the existing cell-width contract, not full grapheme segmentation.
+Unused cells are unchanged, subject to curses' repair of overwritten wide
+characters. Coordinates must be in the window even for an empty row or zero
+budget. Drawing neither wraps, scrolls, reads input nor refreshes; it preserves
+the cursor, window attributes, color pair and background. A curses write error
+can leave partial drawing.
+
+Prepared cells are bound to the session, the `LC_CTYPE` locale name and the
+`MULTIBYTE` option at preparation. `draw` rejects a changed locale/option even
+for an ASCII row; restore the original setting or prepare another row. Cells
+hold already allocated color-pair IDs. Like existing window styles, prepared
+RGB cells remain drawable after `truecolor off`; preparing new RGB rows still
+requires `truecolor on`. Preparation allocates colors for the complete row,
+including cells that a later clipped draw might omit.
+
+`rowinfo` reports `width` (terminal columns), `cells` (stored spacing-character
+groups, not columns), `bytes`, `session_bytes`, `session_limit`, `locale` and
+`multibyte`. Its target follows `colorinfo`'s ordinary-association rules and is
+unchanged for an unknown row. The session allows 16 MiB of accounted prepared
+row storage, including object records, names, locale names, cells and widths.
+Hash-table/allocator overhead, transient compilation buffers and the shared
+color cache are not included. Preparation checks a conservative capacity bound
+based on column width before allocating colors; a wide row can therefore be
+rejected even if its eventual stored-cell count would use fewer bytes.
+
+`unprepare` frees the named row without changing drawn cells or reclaiming its
+color pairs. `end` and module unload free every prepared row; a subsequent
+session starts empty. Repeated `init` within the same session keeps rows.
+All four commands require initialization. Status 0 is success, 1 is invalid
+input, unknown/duplicate name, locale mismatch, storage/color failure or curses
+failure, and 2 is unavailable compiled drawing support (including non-ASCII text
+on the narrow preparation path).
+
+Run `python3 benchmarks/spans.py --prepared` to compare repeated drawing with
+legacy calls and ordinary spans. See [the benchmark notes](benchmarks/README.md)
+for the reuse workload and measured results.

@@ -44,3 +44,34 @@ Drawing-only trial ranges were 0.666–0.694 ms for the legacy path and
 numbers describe this fixed ASCII frame, not arbitrary applications or Unicode
 text. Batching reduces shell/module calls. It retains curses' existing screen
 diff and emitted the same number of terminal bytes in this experiment.
+
+## Prepared-row reuse
+
+Include the prepared backend with:
+
+```sh
+python3 benchmarks/spans.py --prepared --trials 7 --frames 500
+```
+
+This runs all three backends and preserves the original two-backend default.
+The prepared backend constructs two immutable rows before timing, differing in
+one character. Each timed frame reuses the appropriate row twenty times. It
+produces the same alternating content as the legacy and ordinary-span paths,
+including the same warmup result. Preparation cost and memory are outside the
+timed interval: this measures repeated reuse, not continually creating new rows.
+
+A local Linux run on 2026-09-09 using Zsh 5.9.2, GCC `-O2`, wide curses and the
+same 24x80 ASCII fixture produced these seven-trial medians (500 frames each):
+
+| Workload | Ordinary spans ms/frame | Prepared ms/frame | Speedup over spans | Bytes/session, all three paths |
+| --- | ---: | ---: | ---: | ---: |
+| Drawing only | 0.126 | 0.054 | 2.32x | 4,383 |
+| Drawing and refresh | 0.170 | 0.107 | 1.59x | 85,221 |
+
+The [recorded measurements](prepared-2026-09-09.json) include trial ranges and
+the legacy path. These are workload-specific results, not terminal paint times
+or promises for arbitrary Unicode and frequently changing content. The prepared
+backend skips repeated style parsing/text decoding and allocates no new colors
+while drawing; curses still performs the physical-screen diff. Future work
+should measure preparation amortization and representative changing workloads
+before adding broader drawing batches.

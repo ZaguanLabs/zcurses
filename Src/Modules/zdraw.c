@@ -83,6 +83,7 @@ struct zc_win {
     WINDOW *win;
     char *name;
     int flags;
+    int timeout;
     LinkList children;
     ZCWin parent;
 };
@@ -109,6 +110,11 @@ struct zdraw_subcommand {
 static struct ttyinfo saved_tty_state;
 static struct ttyinfo curses_tty_state;
 static LinkList zdraw_windows;
+#ifdef NCURSES_VERSION
+/* A pad never participates in automatic input refresh in ncurses. Keep it
+ * private: it shares the screen's input queue, not its drawing surfaces. */
+static WINDOW *zdraw_input_pad;
+#endif
 static HashTable zdraw_colorpairs = NULL;
 #ifdef NCURSES_MOUSE_VERSION
 /*
@@ -135,10 +141,11 @@ static int zc_has_colors, zc_color_started, zc_default_colors;
 static int zc_can_change_color;
 static int zc_truecolor, zc_truecolor_supported;
 static int zc_rgb_min = -1;
+static int zdraw_event_rows, zdraw_event_cols;
 
 enum {
-    ZCF_MOUSE_ACTIVE,
-    ZCF_MOUSE_MASK_CHANGED
+    ZCF_MOUSE_ACTIVE = 1 << 0,
+    ZCF_MOUSE_MASK_CHANGED = 1 << 1
 };
 
 static const struct zdraw_namenumberpair zdraw_attributes[] = {
@@ -575,7 +582,9 @@ zccmd_init(UNUSED(const char *nam), UNUSED(char **args))
 	    zfree(w, sizeof(struct zc_win));
 	    return 1;
 	}
+	getmaxyx(w->win, zdraw_event_rows, zdraw_event_cols);
 	w->flags = ZCWF_PERMANENT;
+        w->timeout = -1;
 	zinsertlinknode(zdraw_windows, lastnode(zdraw_windows), (void *)w);
 	zc_has_colors = has_colors() != 0;
 	zc_can_change_color = can_change_color() != 0;
@@ -653,6 +662,7 @@ zccmd_addwin(const char *nam, char **args)
 	return 1;
 
     w->name = ztrdup(args[0]);
+    w->timeout = -1;
     if (args[5]) {
 	LinkNode node;
 	ZCWin worig;
@@ -1040,75 +1050,99 @@ zdraw_span_style(char *style, struct zdraw_span *span)
 }
 #endif
 
-/* One row, one curses array write, and no cursor or window-style changes.
- * Preflight all input before allocating colors or touching window cells. */
-static int
-zdraw_drawspans(const char *nam, char **args, int clip)
-{
 #if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
-    LinkNode node;
-    WINDOW *win;
+#ifdef ZDRAW_WIDE_SPANS
+typedef cchar_t ZDrawCell;
+#else
+typedef chtype ZDrawCell;
+#endif
+
+struct zdraw_row {
+    ZDrawCell *cells;
+    int *widths;
+    int count, width;
+};
+
+struct zdraw_prepared {
+    struct hashnode node;
+    struct zdraw_row row;
+    char *locale;
+    int multibyte;
+    size_t bytes;
+};
+
+/* Session-scoped cells contain session-scoped color-pair IDs. */
+#define ZDRAW_PREPARED_LIMIT ((size_t)16 * 1024 * 1024)
+static HashTable zdraw_prepared_rows;
+static size_t zdraw_prepared_bytes;
+
+static void
+zdraw_free_prepared(HashNode node)
+{
+    struct zdraw_prepared *p = (struct zdraw_prepared *)node;
+    zsfree(p->node.nam);
+    zsfree(p->locale);
+    zfree(p->row.cells, (size_t)p->row.count * sizeof(*p->row.cells));
+    zfree(p->row.widths, (size_t)p->row.count * sizeof(*p->row.widths));
+    zdraw_prepared_bytes -= p->bytes;
+    zfree(p, sizeof(*p));
+}
+
+static const char *
+zdraw_ctype_locale(void)
+{
+#ifdef HAVE_SETLOCALE
+    const char *locale = setlocale(LC_CTYPE, NULL);
+    return locale ? locale : "";
+#else
+    return "";
+#endif
+}
+
+/* Shared preflight for transient spans and persistent prepared rows. */
+static int
+zdraw_compile_spans(const char *nam, char **args, int cols, int clip,
+                     struct zdraw_row *row)
+{
     struct zdraw_span *spans, *span;
     Colorpairnode pair;
-    int nargs = 0, nspans, row, col, rows, cols, y, x;
-    int i, j, count = 0, width = 0, result, cw;
-    int first_arg = clip ? 4 : 3, budget = 0, retaining = 1;
+    int nargs = arrlen(args), nspans = nargs / 2;
+    int i, j, count = 0, width = 0, result, cw, retaining = 1;
     convchar_t wc;
     short cp;
     char *str;
+    ZDrawCell *cells;
+    int *widths;
 #ifdef ZDRAW_WIDE_SPANS
-    cchar_t *cells, saved_bg, neutral_bg, discarded;
+    cchar_t discarded;
     int keep_group;
-    attr_t saved_attrs;
-    short saved_pair;
     wchar_t **groups, *out, *group;
     size_t len;
-#else
-    chtype *cells;
 #endif
-
-    while (args[nargs])
-	nargs++;
-    if ((nargs - first_arg) % 2 ||
-	zdraw_nonnegative(args[1], &row) ||
-	zdraw_nonnegative(args[2], &col) ||
-	(clip && zdraw_nonnegative(args[3], &budget))) {
-	zwarnnam(nam, "spans: expected decimal coordinates/budget and style/text pairs");
-	return 1;
+    if (nargs < 2 || nargs % 2) {
+        zwarnnam(nam, "spans: expected style/text pairs");
+        return 1;
     }
-    node = zdraw_validate_window(args[0], ZDRAW_USED);
-    if (!node) {
-	zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
-	return 1;
-    }
-    win = ((ZCWin)getdata(node))->win;
-    getmaxyx(win, rows, cols);
-    if (row >= rows || col >= cols) {
-	zwarnnam(nam, "spans: coordinates outside window");
-	return 1;
-    }
-    cols -= col;
-    if (clip && budget < cols)
-	cols = budget;
-    nspans = (nargs - first_arg) / 2;
     if ((size_t)nspans > (size_t)-1 / sizeof(*spans) ||
-	(size_t)cols > (size_t)-1 / sizeof(*cells))
-	return 1;
+        (size_t)cols > (size_t)-1 / sizeof(*cells) ||
+        (size_t)cols > (size_t)-1 / sizeof(*widths))
+        return 1;
     spans = zhalloc((size_t)nspans * sizeof(*spans));
     cells = zhalloc((size_t)(cols ? cols : 1) * sizeof(*cells));
+    widths = zhalloc((size_t)(cols ? cols : 1) * sizeof(*widths));
 #ifdef ZDRAW_WIDE_SPANS
     if ((size_t)cols > (size_t)-1 / sizeof(*groups))
-	return 1;
+        return 1;
     groups = zhalloc((size_t)(cols ? cols : 1) * sizeof(*groups));
 #endif
     for (i = 0; i < nspans; i++) {
 	span = spans + i;
-	if (zdraw_span_style(args[first_arg + 2*i], span)) {
-	    zwarnnam(nam, "spans: invalid style: %s", args[first_arg + 2*i]);
+	if (zdraw_span_style(args[2*i], span)) {
+	    zwarnnam(nam, "spans: invalid style: %s", args[2*i]);
 	    return 1;
 	}
 	span->first = count;
-	str = args[first_arg + 1 + 2*i];
+	str = args[1 + 2*i];
 #ifdef ZDRAW_WIDE_SPANS
 	/* Room for decoded characters and a terminator after each group. */
 	len = strlen(str);
@@ -1137,6 +1171,7 @@ zdraw_drawspans(const char *nam, char **args, int clip)
 		group = out;
 		keep_group = retaining;
 		if (keep_group) {
+		    widths[count] = cw;
 		    groups[count++] = group;
 		    width += cw;
 		}
@@ -1162,6 +1197,7 @@ zdraw_drawspans(const char *nam, char **args, int clip)
 		retaining = 0;
 	    }
 	    if (retaining) {
+		widths[count] = 1;
 		cells[count++] = (chtype)wc | span->attrs;
 		width++;
 	    }
@@ -1197,6 +1233,26 @@ zdraw_drawspans(const char *nam, char **args, int clip)
 #endif
 	}
     }
+    row->cells = cells;
+    row->widths = widths;
+    row->count = count;
+    row->width = width;
+    return 0;
+badtext:
+    zwarnnam(nam, "spans: text must be printable, representable and fit on the row");
+    return 1;
+}
+
+/* A single write, preserving cursor, background and current window style. */
+static int
+zdraw_write_row(WINDOW *win, int row, int col, ZDrawCell *cells, int count)
+{
+    int y, x, result;
+#ifdef ZDRAW_WIDE_SPANS
+    cchar_t saved_bg, neutral_bg;
+    attr_t saved_attrs;
+    short saved_pair;
+#endif
     if (!count)
 	return 0;
     getyx(win, y, x);
@@ -1224,14 +1280,194 @@ zdraw_drawspans(const char *nam, char **args, int clip)
     if (wmove(win, y, x) == ERR)
 	return 1;
     return result == ERR;
+}
 
-badtext:
-    zwarnnam(nam, "spans: text must be printable, representable and fit on the row");
-    return 1;
+static int
+zdraw_row_target(const char *nam, char **args, WINDOW **win,
+                  int *row, int *col, int *cols)
+{
+    LinkNode node;
+    int rows;
+    if (zdraw_nonnegative(args[1], row) || zdraw_nonnegative(args[2], col)) {
+        zwarnnam(nam, "expected nonnegative decimal coordinates");
+        return 1;
+    }
+    node = zdraw_validate_window(args[0], ZDRAW_USED);
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
+        return 1;
+    }
+    *win = ((ZCWin)getdata(node))->win;
+    getmaxyx(*win, rows, *cols);
+    if (*row >= rows || *col >= *cols) {
+        zwarnnam(nam, "coordinates outside window");
+        return 1;
+    }
+    *cols -= *col;
+    return 0;
+}
+#endif
+
+static int
+zdraw_drawspans(const char *nam, char **args, int clip)
+{
+#if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
+    WINDOW *win;
+    struct zdraw_row data;
+    int row, col, cols, budget, result;
+    if (zdraw_row_target(nam, args, &win, &row, &col, &cols))
+        return 1;
+    if (clip) {
+        if (zdraw_nonnegative(args[3], &budget)) {
+            zwarnnam(nam, "spans: expected nonnegative decimal budget");
+            return 1;
+        }
+        if (budget < cols)
+            cols = budget;
+    }
+    result = zdraw_compile_spans(nam, args + (clip ? 4 : 3), cols, clip, &data);
+    if (result)
+        return result;
+    return zdraw_write_row(win, row, col, data.cells, data.count);
 #else
     (void)nam;
     (void)args;
     (void)clip;
+    return 2;
+#endif
+}
+
+static int
+zccmd_prepare(const char *nam, char **args)
+{
+#if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
+    struct zdraw_prepared *p;
+    struct zdraw_row data;
+    int nargs = arrlen(args), i, width = 0, cw, result, wide = 0;
+    convchar_t wc;
+    char *str;
+    const char *locale = zdraw_ctype_locale();
+    size_t bytes;
+    if (!isident(args[0]) || strchr(args[0], '[') || nargs % 2 != 1) {
+        zwarnnam(nam, "prepare expects an identifier and style/text pairs");
+        return 1;
+    }
+    if (zdraw_prepared_rows && gethashnode2(zdraw_prepared_rows, args[0])) {
+        zwarnnam(nam, "prepared row already exists: %s", args[0]);
+        return 1;
+    }
+#ifdef ZDRAW_WIDE_SPANS
+    wide = 1;
+#endif
+    /* Determine capacity without assuming a maximum system character width. */
+    for (i = 2; i < nargs; i += 2) {
+        str = args[i];
+        MB_METACHARINIT();
+        while (*str) {
+            result = zdraw_text_next(&str, wide, &wc, &cw);
+            if (result || width > INT_MAX - cw) {
+                zwarnnam(nam, "prepare requires printable, representable text");
+                return result == 2 ? 2 : 1;
+            }
+            width += cw;
+        }
+    }
+    bytes = sizeof(*p) + strlen(args[0]) + 1 + strlen(locale) + 1;
+    if (bytes > ZDRAW_PREPARED_LIMIT - zdraw_prepared_bytes ||
+        (size_t)width > (ZDRAW_PREPARED_LIMIT - zdraw_prepared_bytes - bytes) /
+                       (sizeof(ZDrawCell) + sizeof(int))) {
+        zwarnnam(nam, "prepared rows exceed the session storage limit");
+        return 1;
+    }
+    result = zdraw_compile_spans(nam, args + 1, width, 0, &data);
+    if (result)
+        return result;
+    if (!zdraw_prepared_rows) {
+        zdraw_prepared_rows = newhashtable(8, "zdraw_prepared_rows", NULL);
+        zdraw_prepared_rows->hash = hasher;
+        zdraw_prepared_rows->emptytable = emptyhashtable;
+        zdraw_prepared_rows->cmpnodes = strcmp;
+        zdraw_prepared_rows->addnode = addhashnode;
+        zdraw_prepared_rows->getnode = gethashnode2;
+        zdraw_prepared_rows->getnode2 = gethashnode2;
+        zdraw_prepared_rows->removenode = removehashnode;
+        zdraw_prepared_rows->freenode = zdraw_free_prepared;
+    }
+    p = (struct zdraw_prepared *)zshcalloc(sizeof(*p));
+    p->row = data;
+    p->row.cells = data.count ? zalloc((size_t)data.count * sizeof(*data.cells)) : NULL;
+    p->row.widths = data.count ? zalloc((size_t)data.count * sizeof(*data.widths)) : NULL;
+    if (data.count) {
+        memcpy(p->row.cells, data.cells, (size_t)data.count * sizeof(*data.cells));
+        memcpy(p->row.widths, data.widths, (size_t)data.count * sizeof(*data.widths));
+    }
+    p->locale = ztrdup(locale);
+    p->multibyte = isset(MULTIBYTE);
+    p->bytes = bytes + (size_t)data.count * (sizeof(*data.cells) + sizeof(*data.widths));
+    zdraw_prepared_bytes += p->bytes;
+    addhashnode(zdraw_prepared_rows, ztrdup(args[0]), p);
+    return 0;
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
+}
+
+static int
+zccmd_draw(const char *nam, char **args)
+{
+#if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
+    struct zdraw_prepared *p;
+    WINDOW *win;
+    int row, col, cols, budget, count = 0, width = 0;
+    if (zdraw_row_target(nam, args, &win, &row, &col, &cols))
+        return 1;
+    p = zdraw_prepared_rows ?
+        (struct zdraw_prepared *)gethashnode2(zdraw_prepared_rows, args[3]) : NULL;
+    if (!p) {
+        zwarnnam(nam, "unknown prepared row: %s", args[3]);
+        return 1;
+    }
+    if (strcmp(p->locale, zdraw_ctype_locale()) || p->multibyte != isset(MULTIBYTE)) {
+        zwarnnam(nam, "prepared row requires its original LC_CTYPE and MULTIBYTE setting");
+        return 1;
+    }
+    if (args[4]) {
+        if (zdraw_nonnegative(args[4], &budget)) {
+            zwarnnam(nam, "draw expects a nonnegative decimal column budget");
+            return 1;
+        }
+        if (budget < cols)
+            cols = budget;
+    } else if (p->row.width > cols) {
+        zwarnnam(nam, "prepared row does not fit");
+        return 1;
+    }
+    while (count < p->row.count && p->row.widths[count] <= cols - width)
+        width += p->row.widths[count++];
+    return zdraw_write_row(win, row, col, p->row.cells, count);
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
+}
+
+static int
+zccmd_unprepare(const char *nam, char **args)
+{
+#if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
+    HashNode node = zdraw_prepared_rows ? removehashnode(zdraw_prepared_rows, args[0]) : NULL;
+    if (!node) {
+        zwarnnam(nam, "unknown prepared row: %s", args[0]);
+        return 1;
+    }
+    zdraw_free_prepared(node);
+    return 0;
+#else
+    (void)nam;
+    (void)args;
     return 2;
 #endif
 }
@@ -1340,6 +1576,18 @@ zccmd_endwin(UNUSED(const char *nam), UNUSED(char **args))
     LinkNode stdscr_win = zdraw_getwindowbyname("stdscr");
 
     if (stdscr_win) {
+#ifdef NCURSES_VERSION
+        if (zdraw_input_pad) {
+            delwin(zdraw_input_pad);
+            zdraw_input_pad = NULL;
+        }
+#endif
+#if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
+        if (zdraw_prepared_rows) {
+            deletehashtable(zdraw_prepared_rows);
+            zdraw_prepared_rows = NULL;
+        }
+#endif
 	endwin();
 	/* Restore TTY as it was before zdraw -i */
 	settyinfo(&saved_tty_state);
@@ -1356,6 +1604,10 @@ zccmd_endwin(UNUSED(const char *nam), UNUSED(char **args))
 	    zdraw_colorpairs = NULL;
 	}
 	next_cp = 0;
+#ifdef NCURSES_MOUSE_VERSION
+        zdraw_flags = 0;
+#endif
+        zdraw_event_rows = zdraw_event_cols = 0;
 	zc_color_phase = 0;
 	zc_has_colors = zc_color_started = zc_default_colors = 0;
 	zc_can_change_color = 0;
@@ -1584,14 +1836,18 @@ zccmd_scroll(const char *nam, char **args)
 }
 
 
+/* Both interfaces consume the same curses queue and preserve its decoding
+ * and timeout behavior. This helper never assigns shell parameters. */
+struct zdraw_input {
+    char *text;
+    int key;
+    zlong code;
+};
+
 static int
-zccmd_input(const char *nam, char **args)
+zdraw_read_input(const char *nam, WINDOW *win, int nargs, struct zdraw_input *input)
 {
-    LinkNode node;
-    ZCWin w;
-    char *var;
     int keypadnum = -1;
-    int nargs = arrlen(args);
 #ifdef HAVE_WGET_WCH
     int ret;
     wint_t wi;
@@ -1600,16 +1856,7 @@ zccmd_input(const char *nam, char **args)
     int ci;
     char instr[3];
 #endif
-
-    node = zdraw_validate_window(args[0], ZDRAW_USED);
-    if (node == NULL) {
-	zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
-	return 1;
-    }
-
-    w = (ZCWin)getdata(node);
-
-    keypad(w->win, nargs >= 3);
+    keypad(win, nargs >= 3);
 
     if (nargs >= 4) {
 #ifdef NCURSES_MOUSE_VERSION
@@ -1659,13 +1906,14 @@ zccmd_input(const char *nam, char **args)
     errno = 0;
 
 #ifdef HAVE_WGET_WCH
-    while ((ret = wget_wch(w->win, &wi)) == ERR) {
+    while ((ret = wget_wch(win, &wi)) == ERR) {
 	if (errno != EINTR || errflag || retflag || breaks || exit_pending)
 	    break;
         errno = 0;
     }
     switch (ret) {
     case OK:
+        input->code = (zlong)wi;
 	ret = wctomb(instr, (wchar_t)wi);
 	if (ret <= 0) {
 	    return 1;
@@ -1684,11 +1932,12 @@ zccmd_input(const char *nam, char **args)
 	return 1;
     }
 #else
-    while ((ci = wgetch(w->win)) == ERR) {
+    while ((ci = wgetch(win)) == ERR) {
 	if (errno != EINTR || errflag || retflag || breaks || exit_pending)
 	    return 1;
         errno = 0;
     }
+    input->code = ci;
     if (ci >= 256) {
 	keypadnum = ci;
 	*instr = '\0';
@@ -1703,6 +1952,29 @@ zccmd_input(const char *nam, char **args)
 	}
     }
 #endif
+    input->text = dupstring(instr);
+    input->key = keypadnum;
+    if (keypadnum >= 0)
+        input->code = keypadnum;
+    return 0;
+}
+
+static int
+zccmd_input(const char *nam, char **args)
+{
+    LinkNode node;
+    struct zdraw_input input;
+    char *var, *instr;
+    int nargs = arrlen(args), keypadnum;
+    node = zdraw_validate_window(args[0], ZDRAW_USED);
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
+        return 1;
+    }
+    if (zdraw_read_input(nam, ((ZCWin)getdata(node))->win, nargs, &input))
+        return 1;
+    instr = input.text;
+    keypadnum = input.key;
     if (args[1])
 	var = args[1];
     else
@@ -1839,6 +2111,7 @@ zccmd_timeout(const char *nam, char **args)
     }
 #endif
     wtimeout(w->win, to);
+    w->timeout = to;
     return 0;
 }
 
@@ -2052,36 +2325,46 @@ zccmd_touch(const char *nam, char **args)
 
 /* Query the terminal, not curses' cached window dimensions. */
 static int
-zccmd_geometry(UNUSED(const char *nam), char **args)
+zdraw_terminal_size(int *rows, int *cols)
 {
 #ifdef TIOCGWINSZ
     struct winsize size;
-    char **array, digits[32];
     int fd = SHTTY, closefd = 0, ret;
-
-    /* Non-interactive shells may not have opened their terminal yet. */
     if (fd == -1) {
-	fd = open("/dev/tty", O_RDWR | O_NOCTTY);
-	if (fd == -1)
-	    return 1;
-	closefd = 1;
+        fd = open("/dev/tty", O_RDWR | O_NOCTTY);
+        if (fd == -1)
+            return 1;
+        closefd = 1;
     }
     ret = ioctl(fd, TIOCGWINSZ, (char *)&size);
     if (closefd)
-	close(fd);
+        close(fd);
     if (ret == -1 || !size.ws_row || !size.ws_col)
-	return 1;
+        return 1;
+    *rows = size.ws_row;
+    *cols = size.ws_col;
+    return 0;
+#else
+    (void)rows;
+    (void)cols;
+    return 2;
+#endif
+}
 
+static int
+zccmd_geometry(UNUSED(const char *nam), char **args)
+{
+    int rows, cols, result = zdraw_terminal_size(&rows, &cols);
+    char **array, digits[32];
+    if (result)
+        return result;
     array = (char **)zalloc(3 * sizeof(char *));
-    sprintf(digits, "%u", (unsigned int)size.ws_row);
+    sprintf(digits, "%d", rows);
     array[0] = ztrdup(digits);
-    sprintf(digits, "%u", (unsigned int)size.ws_col);
+    sprintf(digits, "%d", cols);
     array[1] = ztrdup(digits);
     array[2] = NULL;
     return !setaparam(args[0], array) || (errflag & ERRFLAG_ERROR);
-#else
-    return 2;
-#endif
 }
 
 /* A negative value denotes unavailable information, not a negative count. */
@@ -2097,6 +2380,240 @@ zdraw_colorinfo_value(LinkList list, const char *key, zlong value)
 	convbase(digits, value, 10);
 	addlinknode(list, dupstring(digits));
     }
+}
+
+static int
+zdraw_association(const char *nam, char *name)
+{
+    Param pm;
+    if (!isident(name) || strchr(name, '[')) {
+        zwarnnam(nam, "expected an associative parameter name");
+        return 1;
+    }
+    pm = (Param)gethashnode2(paramtab, name);
+    if (pm && ((pm->node.flags & (PM_READONLY|PM_SPECIAL)) ||
+               PM_TYPE(pm->node.flags) != PM_HASHED)) {
+        zwarnnam(nam, "expected an ordinary writable associative parameter: %s", name);
+        return 1;
+    }
+    return 0;
+}
+
+static int
+zccmd_rowinfo(const char *nam, char **args)
+{
+#if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
+    struct zdraw_prepared *p;
+    LinkList info;
+    if (zdraw_association(nam, args[1]))
+        return 1;
+    p = zdraw_prepared_rows ?
+        (struct zdraw_prepared *)gethashnode2(zdraw_prepared_rows, args[0]) : NULL;
+    if (!p) {
+        zwarnnam(nam, "unknown prepared row: %s", args[0]);
+        return 1;
+    }
+    info = newlinklist();
+    zdraw_colorinfo_value(info, "width", p->row.width);
+    zdraw_colorinfo_value(info, "cells", p->row.count);
+    zdraw_colorinfo_value(info, "bytes", (zlong)p->bytes);
+    zdraw_colorinfo_value(info, "session_bytes", (zlong)zdraw_prepared_bytes);
+    zdraw_colorinfo_value(info, "session_limit", (zlong)ZDRAW_PREPARED_LIMIT);
+    zdraw_colorinfo_value(info, "multibyte", p->multibyte);
+    addlinknode(info, "locale");
+    addlinknode(info, p->locale);
+    return !sethparam(args[1], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
+}
+
+/* Signed event values (mouse coordinates can be outside a window). */
+static void
+zdraw_event_number(LinkList info, const char *key, zlong value)
+{
+    char digits[DIGBUFSIZE];
+    convbase(digits, value, 10);
+    addlinknode(info, dupstring(key));
+    addlinknode(info, dupstring(digits));
+}
+
+/* Zsh may own SIGWINCH, so curses KEY_RESIZE alone is insufficient.
+ * A geometry record does not read input, resize windows or refresh. */
+static int
+zdraw_pending_resize(char *target)
+{
+    LinkList info;
+    int rows, cols, result;
+    if (zdraw_terminal_size(&rows, &cols) ||
+        (rows == zdraw_event_rows && cols == zdraw_event_cols))
+        return -1;
+    info = newlinklist();
+    addlinknode(info, "type");
+    addlinknode(info, "resize");
+    addlinknode(info, "key");
+    addlinknode(info, "RESIZE");
+    addlinknode(info, "text");
+    addlinknode(info, "");
+    addlinknode(info, "code");
+    addlinknode(info, "unknown");
+    addlinknode(info, "modifiers");
+    addlinknode(info, "unknown");
+    addlinknode(info, "encoding");
+    addlinknode(info, "none");
+    addlinknode(info, "source");
+    addlinknode(info, "terminal");
+    zdraw_event_number(info, "rows", rows);
+    zdraw_event_number(info, "columns", cols);
+    result = !sethparam(target, zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+    if (!result) {
+        zdraw_event_rows = rows;
+        zdraw_event_cols = cols;
+    }
+    return result;
+}
+
+static int
+zccmd_event(const char *nam, char **args)
+{
+    LinkNode node;
+    LinkList info;
+    ZCWin w;
+    WINDOW *input_window;
+    struct zdraw_input input;
+    const struct zdraw_namenumberpair *key;
+    char digits[DIGBUFSIZE], *keyname = "", *type = "character";
+    int mouse = 0, norefresh = 0, result, i;
+    if (zdraw_association(nam, args[1]))
+        return 1;
+    for (i = 2; args[i]; i++) {
+        if (!strcmp(args[i], "mouse") && !mouse)
+            mouse = 1;
+        else if (!strcmp(args[i], "norefresh") && !norefresh)
+            norefresh = 1;
+        else {
+            zwarnnam(nam, "event expects distinct mouse and/or norefresh flags");
+            return 1;
+        }
+    }
+#ifndef NCURSES_VERSION
+    if (norefresh)
+        return 2;
+#endif
+#ifndef NCURSES_MOUSE_VERSION
+    if (mouse)
+        return 2;
+#endif
+    node = zdraw_validate_window(args[0], ZDRAW_USED);
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
+        return 1;
+    }
+    result = zdraw_pending_resize(args[1]);
+    if (result >= 0)
+        return result;
+    w = (ZCWin)getdata(node);
+    input_window = w->win;
+#ifdef NCURSES_VERSION
+    if (norefresh) {
+        if (!zdraw_input_pad)
+            zdraw_input_pad = newpad(1, 1);
+        if (!zdraw_input_pad) {
+            zwarnnam(nam, "failed to create input pad");
+            return 1;
+        }
+        wtimeout(zdraw_input_pad, w->timeout);
+        input_window = zdraw_input_pad;
+    }
+#endif
+    if (zdraw_read_input(nam, input_window, mouse ? 4 : 3, &input)) {
+        result = zdraw_pending_resize(args[1]);
+        return result >= 0 ? result : 1;
+    }
+    info = newlinklist();
+    addlinknode(info, "source");
+    addlinknode(info, "curses");
+    if (input.key >= 0) {
+        type = "key";
+        for (key = keypad_names; key->name; key++) {
+            if (key->number == input.key) {
+                keyname = dupstring(key->name);
+                break;
+            }
+        }
+        if (!*keyname) {
+            if (input.key >= KEY_F(0) && input.key <= KEY_F(63))
+                sprintf(digits, "F%d", input.key - KEY_F(0));
+            else
+                sprintf(digits, "%d", input.key);
+            keyname = dupstring(digits);
+        }
+#ifdef KEY_RESIZE
+        if (input.key == KEY_RESIZE) {
+            int rows, cols;
+            type = "resize";
+            getmaxyx(stdscr, rows, cols);
+            zdraw_event_number(info, "rows", rows);
+            zdraw_event_number(info, "columns", cols);
+        }
+#endif
+    }
+#ifdef NCURSES_MOUSE_VERSION
+    if (mouse && input.key == KEY_MOUSE) {
+        MEVENT event;
+        const struct zdraw_mouse_event *entry;
+        char *button_names[sizeof(zdraw_mouse_map) / sizeof(*zdraw_mouse_map)];
+        char *modifiers[4];
+        int n = 0;
+        if (getmouse(&event) == ERR)
+            return 1;
+        type = "mouse";
+        zdraw_event_number(info, "id", event.id);
+        zdraw_event_number(info, "x", event.x);
+        zdraw_event_number(info, "y", event.y);
+        zdraw_event_number(info, "z", event.z);
+        for (entry = zdraw_mouse_map; entry->button; entry++) {
+            if (event.bstate & entry->event) {
+                sprintf(digits, "%s%d", zdraw_mouse_event_list[entry->what].name,
+                        entry->button);
+                button_names[n++] = dupstring(digits);
+            }
+        }
+        button_names[n] = NULL;
+        addlinknode(info, "buttons");
+        addlinknode(info, zjoin(button_names, ' ', 1));
+        n = 0;
+        if (event.bstate & BUTTON_SHIFT)
+            modifiers[n++] = "SHIFT";
+        if (event.bstate & BUTTON_CTRL)
+            modifiers[n++] = "CTRL";
+        if (event.bstate & BUTTON_ALT)
+            modifiers[n++] = "ALT";
+        modifiers[n] = NULL;
+        addlinknode(info, "modifiers");
+        addlinknode(info, zjoin(modifiers, ' ', 1));
+    } else
+#endif
+    {
+        addlinknode(info, "modifiers");
+        addlinknode(info, "unknown");
+    }
+    addlinknode(info, "type");
+    addlinknode(info, type);
+    addlinknode(info, "text");
+    addlinknode(info, input.text);
+    addlinknode(info, "key");
+    addlinknode(info, keyname);
+    zdraw_event_number(info, "code", input.code);
+    addlinknode(info, "encoding");
+#ifdef HAVE_WGET_WCH
+    addlinknode(info, "multibyte");
+#else
+    addlinknode(info, "byte");
+#endif
+    return !sethparam(args[1], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
 }
 
 static int
@@ -2238,6 +2755,116 @@ zccmd_textinfo(const char *nam, char **args)
     return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
 }
 
+/* Point queries need only one retained range, regardless of input length.
+ * Boundaries group a spacing character with following zero-width characters,
+ * exactly as textinfo clips; these are not Unicode grapheme boundaries. */
+static int
+zccmd_textpos(const char *nam, char **args)
+{
+    LinkList info;
+    char *str = args[1], *group = str, *before, *p;
+    char *hit = NULL, *end = NULL, *prefix, *text;
+    int offset, by_byte, wide = 0, cw, result;
+    int bytes = 0, width = 0, group_byte = 0, group_col = 0;
+    int hit_byte = 0, end_byte = 0, hit_col = 0, end_col = 0;
+    int have_base = 0, at_end = 0;
+    size_t len;
+    convchar_t wc;
+
+    if (zdraw_association(nam, args[0]))
+        return 1;
+    if (!strcmp(args[2], "byte"))
+        by_byte = 1;
+    else if (!strcmp(args[2], "column"))
+        by_byte = 0;
+    else {
+        zwarnnam(nam, "textpos expects byte or column");
+        return 1;
+    }
+    if (zdraw_nonnegative(args[3], &offset)) {
+        zwarnnam(nam, "textpos expects a nonnegative decimal offset");
+        return 1;
+    }
+#ifdef MULTIBYTE_SUPPORT
+    wide = 1;
+#endif
+    MB_METACHARINIT();
+    for (;;) {
+        before = str;
+        cw = 0;
+        if (*str) {
+            result = zdraw_text_next(&str, wide, &wc, &cw);
+            if (result || (!cw && !have_base) || width > INT_MAX - cw) {
+                zwarnnam(nam, "textpos requires printable text with a spacing character before zero-width characters");
+                return result == 2 ? 2 : 1;
+            }
+        }
+        /* Finish the preceding group before counting the next base. Validate
+         * the rest of the text even after finding the requested position. */
+        if (cw || !*before) {
+            if (have_base && offset >= (by_byte ? group_byte : group_col) &&
+                offset < (by_byte ? bytes : width)) {
+                hit = group;
+                end = before;
+                hit_byte = group_byte;
+                end_byte = bytes;
+                hit_col = group_col;
+                end_col = width;
+            }
+            group = before;
+            group_byte = bytes;
+            group_col = width;
+            have_base = 1;
+        }
+        if (!*before)
+            break;
+        /* Count original bytes, not the extra Meta escapes in Zsh strings. */
+        for (p = before; p < str; p++) {
+            if (bytes == INT_MAX) {
+                zwarnnam(nam, "textpos text exceeds the byte offset limit");
+                return 1;
+            }
+            if (*p == Meta)
+                p++;
+            bytes++;
+        }
+        width += cw;
+    }
+    if (offset == (by_byte ? bytes : width)) {
+        hit = end = str;
+        hit_byte = end_byte = bytes;
+        hit_col = end_col = width;
+        at_end = 1;
+    }
+    if (!hit) {
+        zwarnnam(nam, "textpos offset is past the end of the text");
+        return 1;
+    }
+    len = hit - args[1];
+    prefix = zhalloc(len + 1);
+    memcpy(prefix, args[1], len);
+    prefix[len] = '\0';
+    len = end - hit;
+    text = zhalloc(len + 1);
+    memcpy(text, hit, len);
+    text[len] = '\0';
+    info = newlinklist();
+    addlinknode(info, "prefix");
+    addlinknode(info, prefix);
+    addlinknode(info, "text");
+    addlinknode(info, text);
+    addlinknode(info, "remainder");
+    addlinknode(info, end);
+    zdraw_colorinfo_value(info, "byte_start", hit_byte);
+    zdraw_colorinfo_value(info, "byte_end", end_byte);
+    zdraw_colorinfo_value(info, "column_start", hit_col);
+    zdraw_colorinfo_value(info, "column_end", end_col);
+    zdraw_colorinfo_value(info, "total_bytes", bytes);
+    zdraw_colorinfo_value(info, "total_width", width);
+    zdraw_colorinfo_value(info, "at_end", at_end);
+    return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
 static int
 zccmd_resize(const char *nam, char **args)
 {
@@ -2330,10 +2957,15 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"geometry", zccmd_geometry, 1, 1},
 	{"colorinfo", zccmd_colorinfo, 1, 1},
 	{"textinfo", zccmd_textinfo, 2, 3},
+        {"textpos", zccmd_textpos, 4, 4},
 	{"truecolor", zccmd_truecolor, 1, 1},
 	{"char", zccmd_char, 2, 2},
 	{"string", zccmd_string, 2, 2},
 	{"spans", zccmd_spans, 5, -1},
+        {"prepare", zccmd_prepare, 3, -1},
+        {"draw", zccmd_draw, 4, 5},
+        {"unprepare", zccmd_unprepare, 1, 1},
+        {"rowinfo", zccmd_rowinfo, 2, 2},
 	{"spansclip", zccmd_spansclip, 6, -1},
 	{"border", zccmd_border, 1, 9},
 	{"end", zccmd_endwin, 0, 0},
@@ -2341,6 +2973,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"bg", zccmd_bg, 2, -1},
 	{"scroll", zccmd_scroll, 2, 2},
 	{"input", zccmd_input, 1, 4},
+        {"event", zccmd_event, 2, 4},
 	{"timeout", zccmd_timeout, 2, 2},
 	{"mouse", zccmd_mouse, 0, -1},
 	{"querychar", zccmd_querychar, 1, 2},
@@ -2373,7 +3006,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 
     if (zcsc->cmd != zccmd_init && zcsc->cmd != zccmd_endwin &&
 	zcsc->cmd != zccmd_geometry && zcsc->cmd != zccmd_colorinfo &&
-	zcsc->cmd != zccmd_textinfo &&
+	zcsc->cmd != zccmd_textinfo && zcsc->cmd != zccmd_textpos &&
 	!zdraw_getwindowbyname("stdscr")) {
 	zwarnnam(nam, "command `%s' can't be used before `zdraw init'",
 		 zcsc->name);
@@ -2402,6 +3035,17 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 	"colorinfo",
 	"custom_borders",
 	"textinfo",
+        "text_positions",
+        "structured_events",
+#ifdef NCURSES_VERSION
+        "norefresh_events",
+#endif
+#if defined(TIOCGWINSZ) || defined(KEY_RESIZE)
+        "resize_events",
+#endif
+#ifdef HAVE_WGET_WCH
+        "wide_events",
+#endif
 #ifdef MULTIBYTE_SUPPORT
 	"wide_text",
 #endif
@@ -2410,6 +3054,7 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 #endif
 #if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
 	"styled_spans",
+        "prepared_rows",
 	"clipped_spans",
 #endif
 #ifdef ZDRAW_WIDE_SPANS

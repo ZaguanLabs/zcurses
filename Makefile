@@ -14,8 +14,14 @@ test: build
 	"$(ZSH_BIN)" -dfn tests/spans.zsh
 	"$(ZSH_BIN)" -dfn tests/truecolor.zsh
 	"$(ZSH_BIN)" -dfn tests/textinfo.zsh
+	"$(ZSH_BIN)" -dfn tests/textpos.zsh
+	"$(ZSH_BIN)" -dfn tests/events.zsh
+	"$(ZSH_BIN)" -dfn tests/presentation.zsh
+	"$(ZSH_BIN)" -dfn tests/prepared.zsh
 	"$(ZSH_BIN)" -dfn tests/clipping.zsh
 	"$(ZSH_BIN)" -dfn benchmarks/spans.zsh
+	"$(ZSH_BIN)" -dfn examples/events.zsh
+	"$(ZSH_BIN)" -dfn examples/hit-test.zsh
 	"$(ZSH_BIN)" -dfn examples/borders.zsh
 	"$(ZSH_BIN)" -dfn examples/colors.zsh
 	"$(ZSH_BIN)" -dfn examples/truecolor.zsh
