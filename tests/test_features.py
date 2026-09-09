@@ -157,6 +157,7 @@ class FeatureTests(unittest.TestCase):
 #undef HAVE_USE_DEFAULT_COLORS
 #undef HAVE_WBORDER_SET
 #undef HAVE_INIT_EXTENDED_PAIR
+#undef HAVE_PNOUTREFRESH
 #undef HAVE_WCHGAT
 #undef HAVE_COPYWIN
 #undef HAVE_WADDCHNSTR
@@ -166,7 +167,7 @@ class FeatureTests(unittest.TestCase):
             self.assertEqual(self.run_shell('''
                 zmodload zdraw || exit 1
                 zmodload -F -e zdraw +p:zdraw_features || exit 2
-                (( ${#zdraw_features} == 7 + (${zdraw_features[(Ie)wide_cell_inspection]} > 0) + (${zdraw_features[(Ie)resize_events]} > 0) + (${zdraw_features[(Ie)wide_text]} > 0) + (${zdraw_features[(Ie)wide_events]} > 0) &&
+                (( ${#zdraw_features} == 8 + (${zdraw_features[(Ie)wide_cell_inspection]} > 0) + (${zdraw_features[(Ie)resize_events]} > 0) + (${zdraw_features[(Ie)wide_text]} > 0) + (${zdraw_features[(Ie)wide_events]} > 0) &&
                    ${zdraw_features[(Ie)textinfo]} &&
                    ${zdraw_features[(Ie)text_positions]} &&
                    ${zdraw_features[(Ie)structured_events]} &&

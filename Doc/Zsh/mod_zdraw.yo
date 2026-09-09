@@ -16,6 +16,10 @@ cindex(windows, curses)
 xitem(tt(zdraw) tt(init))
 xitem(tt(zdraw) tt(end))
 xitem(tt(zdraw) tt(addwin) var(targetwin) var(nlines) var(ncols) var(begin_y) var(begin_x) [ var(parentwin) ] )
+xitem(tt(zdraw) tt(addpad) var(name) var(rows) var(columns))
+xitem(tt(zdraw) tt(viewport) var(pad) var(pad_row) var(pad_column) var(screen_row) var(screen_column) var(rows) var(columns))
+xitem(tt(zdraw) tt(stage) var(targetwin) [ var(targetwin) ... ])
+xitem(tt(zdraw) tt(present))
 xitem(tt(zdraw) tt(delwin) var(targetwin) )
 xitem(tt(zdraw) tt(refresh) [ var(targetwin) ... ] )
 xitem(tt(zdraw) tt(touch) var(targetwin) ...)
@@ -72,12 +76,12 @@ Note that the coordinates of subwindows are relative to the screen, not
 the parent, as with other windows.
 
 Use the subcommand tt(delwin) to delete a window created with
-tt(addwin).  Note that tt(end) does em(not) implicitly delete windows,
-and that tt(delwin) does not erase the screen image of the window.
+tt(addwin) or tt(addpad). The tt(end) subcommand releases registered windows
+and pads. Deleting a window does not erase its existing screen image.
 
 The window corresponding to the full visible screen is called
 tt(stdscr); it always exists after `tt(zdraw init)' and cannot
-be delete with tt(delwin).
+be deleted with tt(delwin).
 
 The subcommand tt(refresh) will refresh window var(targetwin); this is
 necessary to make any pending changes (such as characters you have
@@ -88,6 +92,68 @@ If multiple windows are given, the screen is updated once at the end.
 The subcommand tt(touch) marks the var(targetwin)s listed as changed.
 This is necessary before tt(refresh)ing windows if a window that
 was in front of another window (which may be tt(stdscr)) is deleted.
+
+The subcommand tt(addpad) creates a blank offscreen surface in the window
+namespace. Pads appear in tt(zdraw_windows) and can exceed the terminal size.
+Dimensions are positive literal decimal integers, at most 32767 each. A pad is
+limited to 262144 cells; live public pads share a limit of 1048576 cells.
+Failed validation or allocation does not register a handle or consume budget.
+These are cell limits, not exact memory quotas; ordinary windows, prepared rows,
+snapshots and private temporary pads have separate storage. Pads retain all
+allocated cells and do not provide automatic dataset virtualization.
+
+Drawing and inspection commands accept pads in their own coordinates, including
+prepared rows, tt(fill), tt(copy), tt(restyle) and tt(snapshot). Existing limits
+of those operations remain in force. In the six-field tt(position) array, a
+pad's screen-origin fields are -1, -1; cursor and dimensions describe the pad.
+Pads reject tt(input), tt(event), tt(timeout), ordinary tt(refresh), and tt(stage).
+Use an ordinary window for input. tt(addwin) rejects pad parents; subpads are
+not exposed. Pad dimensions remain fixed across terminal tt(resize).
+
+The subcommand tt(viewport) stages a rectangular pad view at screen coordinates.
+Coordinates are zero-based nonnegative decimal integers and dimensions are
+positive decimal integers. Both rectangles must fit completely in the pad and
+current curses screen. There is no clipping, expansion or negative-coordinate
+normalization. Handle terminal resize events and update curses' screen dimensions
+before selecting a new viewport. The module stores no viewport mapping for
+automatic redisplay. Staging does not modify the retained pad cells or cursor.
+
+The subcommand tt(stage) stages complete ordinary windows in argument order,
+validating the whole list first. Both tt(stage) and tt(viewport) mark contributing
+rows for copying, so unchanged surfaces can cover earlier contributions.
+Later contributions determine overlapping composed cells, subject to curses'
+wide-character behavior. Multiple views of one pad can contribute to a frame.
+Moving a view does not erase its old location; stage a background there.
+
+The subcommand tt(present) updates the terminal from the composed virtual screen
+without staging another surface. Neither tt(stage) nor tt(viewport) presents
+by itself. Their dirty markers and virtual-screen state change, but retained
+text, drawing styles, backgrounds and logical cursors do not. Physical cursor
+placement follows curses' composition rules. Frames are not implicitly reset;
+repeated tt(present) calls use the current virtual screen and curses screen diff.
+
+Inherited tt(refresh) remains available for ordinary windows and also presents
+queued contributions. Bare tt(refresh) adds tt(stdscr) first and can cover a
+viewport. Default input may refresh its window; use tt(event) with tt(norefresh)
+when supported for explicit presentation. No synchronized-output protocol or
+atomic terminal-paint guarantee is implied.
+
+Use tt(delwin) to release a pad and its budget. Deletion does not erase or cancel
+previously staged cells. Failed pad deletion retains its handle and budget for
+retry. tt(end) and module unload release pads through normal window cleanup.
+No extra input owner or terminal protocol is introduced.
+
+Align viewport edges to complete wide characters where possible. Native curses
+clipping and overlap behavior applies; there is no glyph reconstruction or
+portable repair guarantee for split wide characters.
+
+Check tt(offscreen_pads) for compiled tt(newpad) and tt(pnoutrefresh) support,
+and tt(staged_refresh) for tt(stage) and tt(present). All four commands require
+tt(init). Status is 0 on success and 1 for invalid input, limits, allocation or
+library errors. tt(addpad) and tt(viewport) return 2 without compiled pad support.
+Validation failures leave queued cells unchanged. Library staging failures can
+leave partial queued contributions; presentation failure can leave partial
+terminal output. No rollback is provided.
 
 The subcommand tt(move) moves the cursor position in var(targetwin) to
 new coordinates var(new_y) and var(new_x).  Note that the 
@@ -895,6 +961,8 @@ Its contents are unchanged by tt(init), tt(end), or terminal availability.
 
 The following feature names are defined:
 startsitem()
+sitem(tt(offscreen_pads))(Bounded offscreen pads and viewport staging.)
+sitem(tt(staged_refresh))(Stage ordinary windows and explicitly present composed frames.)
 sitem(tt(region_restyle))(Replace rectangle styles while retaining character data.)
 sitem(tt(region_copy))(Bounded opaque copies of retained rectangles.)
 sitem(tt(region_fill))(Styled rectangle fills using single-column tiles.)
@@ -974,8 +1042,8 @@ are listed, only tt(F0); curses reserves space for tt(F0) up to tt(F63).
 )
 vindex(zdraw_windows)
 item(tt(zdraw_windows))(
-Readonly array.  The current list of windows, i.e. all windows that
-have been created with `tt(zdraw addwin)' and not removed with
-`tt(zdraw delwin)'.
+Readonly array. The current registered surfaces: tt(stdscr), ordinary windows
+created with tt(addwin), and offscreen pads created with tt(addpad), until
+deleted or released by tt(end).
 )
 enditem()

@@ -341,3 +341,35 @@ Wide edges follow curses' occupied-column semantics and should align to complete
 characters. Partial updates and allocated pairs survive errors; no transaction or
 style-history stack is implied. Application selection state and restoration
 styles live in the Zsh example, outside the C module.
+
+## Offscreen pads and frame composition
+
+Public pads use the existing `ZCWin` registry with a pad flag and owned cell
+count. Allocation checks literal positive dimensions, a per-dimension cap,
+per-pad cells and aggregate public-pad cells before calling optional `newpad`.
+Only successful creation registers a handle and consumes budget. Deletion
+releases budget on success; failed pad deletion retains ownership for retry.
+End/unload free pads with the other registered windows. Private input/copy pads
+remain outside this public-pad accounting. There are no subpads in this milestone.
+
+`viewport` validates pad/screen rectangles using subtraction before converting
+their extents to inclusive curses coordinates. It touches only the source row
+range and calls `pnoutrefresh`. `stage` validates its entire ordinary-window list,
+touches each window and calls `wnoutrefresh` in order. Explicit touching makes
+unchanged surfaces usable when recomposing overlaps. `present` only calls
+`doupdate`. Nothing resets the virtual screen or remembers application viewport
+mappings. Wide-cell overlap and clipping belong to the curses implementation.
+
+Pads share drawing and inspection operations but are rejected as input targets,
+ordinary refresh/stage targets and addwin parents. Input rejection occurs before
+resize delivery or queue consumption. Position queries report no screen origin.
+Terminal resize leaves pad dimensions fixed. Existing window refresh/input
+behavior remains available, including its ability to present queued work;
+applications requiring explicit presentation use no-refresh input where supported.
+
+Tests inspect retained pad cells and, in a test-only variant, curses' virtual
+screen to verify layering, multiple views and restaging unchanged content. PTY
+barriers independently verify that staging is silent, rejected pad input leaves
+queued characters untouched, and only explicit presentation reveals queued
+content. Budget and failure variants cover allocation, deletion, viewport,
+staging and final update paths. The Zsh example owns scrolling and overlay policy.

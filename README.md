@@ -197,6 +197,8 @@ unknown, so the application chooses its fallback policy.
 | `region_fill` | Styled rectangle fills using single-column tiles |
 | `region_copy` | Bounded opaque copies of retained rectangles |
 | `region_restyle` | Replace rectangle styles while retaining character data |
+| `offscreen_pads` | Bounded offscreen surfaces and viewport staging |
+| `staged_refresh` | Stage ordinary windows and explicitly present a composed frame |
 | `styled_spans` | Single-row styled text batching |
 | `wide_spans` | Wide characters and representable combining sequences in spans |
 | `clipped_spans` | Styled-span drawing with one shared column budget |
@@ -668,6 +670,104 @@ The subcommand and capability checks do not consume input, emit terminal replies
 refresh pending drawing, or alter input ownership. Input stays with the existing
 `zdraw input` API. There is no additional negotiation or reply parser. All
 screen output remains within curses and its retained-screen refresh machinery.
+
+## Offscreen pads and composed frames
+
+```zsh
+zdraw addpad document 200 120
+zdraw spans document 50 10 bold 'A retained document row'
+
+# Compose back to front, then display once.
+zdraw stage stdscr
+zdraw viewport document 50 10 2 4 12 60
+# Optional ordinary windows can be staged above the viewport:
+# zdraw stage popup
+zdraw present
+```
+
+`zdraw addpad name rows columns` creates a blank offscreen curses surface. It
+shares the ordinary window namespace and appears in `zdraw_windows`. A pad can
+be larger than the terminal. Dimensions must be positive literal decimal
+integers, at most **32,767 each**, with at most **262,144 cells per pad** and
+**1,048,576 cells across live public pads**. Invalid arguments, duplicate names
+and failed allocations do not register a handle or consume this budget.
+
+These are cell limits, not an exact memory quota: curses' per-cell and per-row
+storage varies. They exclude ordinary windows, prepared rows, snapshot results
+and temporary copy/input pads. A pad retains every allocated cell; it does not
+virtualize an unlimited dataset. Applications choose what to materialize.
+
+Existing drawing operations work in pad coordinates: `move`, `char`, `string`,
+`spans`, `spansclip`, prepared `draw`, `fill`, `restyle`, `copy`, `attr`, `bg`,
+`border`, `clear` and `scroll`. `cellinfo`, `querychar` and `snapshot` inspect
+retained pad cells. Their existing limits still apply: a pad larger than the
+snapshot cell limit cannot be captured whole. `position` retains its six-field
+array format; the screen-origin fields are **-1, -1** for a pad. The cursor and
+dimensions are real pad coordinates and dimensions.
+
+`zdraw viewport pad pad_row pad_column screen_row screen_column rows columns`
+stages a rectangular view into curses' virtual screen. Coordinates are zero-based
+nonnegative literal decimals, dimensions are positive, and both rectangles must
+fit completely. Bounds use the current curses screen dimensions; handle resize
+events and call `resize ... nosave` before choosing the next viewport. There is
+no automatic clipping, expansion or negative-coordinate normalization.
+
+`zdraw stage window [window ...]` stages complete ordinary windows in order.
+The entire argument list is validated before any staging. Both `stage` and
+`viewport` mark their contributing rows for copying, so an unchanged surface
+can cover a previously staged overlay. Later contributions determine the
+composed cells in overlapping regions, subject to native wide-character rules.
+One pad may contribute multiple views to the same frame. Moving a viewport does
+not erase its previous location: stage the background or another surface there.
+
+`zdraw present` calls curses' final screen update without adding another window
+to the frame. Staging never presents by itself. It preserves retained text,
+styles, backgrounds and logical cursors, but changes curses' dirty markers and
+queued screen state. The physical cursor follows curses' composition rules.
+Repeated `present` calls use the retained virtual screen; there is no implicit
+frame reset. The curses screen diff still determines terminal output.
+
+The inherited `refresh` behavior remains available for ordinary windows.
+`refresh window ...` also displays any already-staged contributions; bare
+`refresh` adds `stdscr` first and can cover a queued viewport. Likewise, default
+input can refresh its target window. Use `event stdscr event norefresh` when
+available to preserve explicit presentation during input. `stage`/`present`
+do not provide synchronized-output protocols or atomic terminal paint.
+
+Pads reject `input`, `event`, `timeout`, ordinary `refresh` and `stage`; use an
+ordinary input window and `viewport` for presentation. `addwin ... parent`
+rejects a pad parent; subpads are not exposed in this milestone. Existing
+`resize` changes the terminal screen, not pad dimensions. Pads currently have
+fixed dimensions; allocate and populate a replacement when those need to change.
+No viewport mapping is saved by the module for automatic redisplay after resize.
+
+Delete a pad with `delwin`. This releases its budget but does not erase or
+cancel previously staged screen cells. A pad deletion failure retains its handle
+and budget so it can be retried. `end` and module unload release public pads
+through the existing cleanup path. No extra input reader or terminal protocol
+is introduced.
+
+Align viewport edges to complete wide characters where possible. Curses owns
+wide-cell clipping and overlap behavior; the module does not reconstruct glyph
+boundaries or promise portable repair of split characters. See the
+[curses pad contract](https://invisible-island.net/ncurses/man/curs_pad.3x.html).
+
+Check `offscreen_pads` for compiled `newpad` and `pnoutrefresh` support, and
+`staged_refresh` for `stage`/`present`. All four commands require `init`.
+Status 0 means success; 1 covers invalid input, limits, allocation or library
+errors; `addpad` and `viewport` return 2 when compiled pad support is absent.
+Validation failures do not change queued screen cells. A library failure during
+staging can leave partial queued contributions; a failed `present` can leave
+partial terminal output. Neither operation rolls back the frame.
+
+Run the [viewport example](examples/viewports.zsh) with the matching shell:
+
+```sh
+.build/zsh/Src/zsh -df examples/viewports.zsh
+```
+
+Arrows pan a retained document, space toggles an ordinary overlay, and `q`
+exits. Screen resizing recomposes the visible area without rebuilding the pad.
 
 ## Styled rectangle fills
 

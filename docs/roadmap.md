@@ -7,7 +7,7 @@ A completed first milestone does not complete the broader direction.
 
 Implemented first milestones (2026-09-09): [structured input](../README.md#structured-input)
 and [prepared styled rows](../README.md#prepared-styled-rows), followed by opt-in
-`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 44-test suite passes against the matching
+`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 47-test suite passes against the matching
 Zsh 5.9.2 shell, including optional builds. The new paths also pass ASan/UBSan checks
 with leak detection disabled. The native manual
 builds and the exported patch applies in a dry run. See the
@@ -66,11 +66,15 @@ References: [curses input](https://invisible-island.net/ncurses/man/curs_get_wch
 Offscreen surfaces and rectangular views support scrolling documents. Movable,
 stacked windows support temporary overlays without exposing layout policy in C.
 
-- [ ] Expose bounded offscreen pads and viewport refresh operations.
+- [x] Expose bounded offscreen pads and viewport staging, with explicit ordinary
+  window staging and final presentation. Verify budgets, lifecycle, shared drawing
+  operations, composition order and input ownership in PTYs.
 - [ ] Define window movement/resizing and wide-cell clipping behavior.
 - [ ] Explore optional panel-library support for stacking, hiding and showing.
 - [ ] Specify how panel updates and existing refresh operations coexist.
-- [ ] Build a movable, scrollable surface demonstration and overlap tests.
+- [x] Provide a [panning document and overlay example](../examples/viewports.zsh)
+  with terminal resizing and overlap tests. Ordinary window movement remains a
+  separate candidate above.
 
 A pad is not automatic virtualization: applications still own large datasets
 and choose how much content to render.

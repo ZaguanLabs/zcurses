@@ -62,6 +62,15 @@
 # define ZDRAW_WIDE_SPANS 1
 #endif
 
+#if defined(HAVE_NEWPAD) && defined(HAVE_PNOUTREFRESH)
+# define ZDRAW_PADS 1
+#endif
+
+#define ZDRAW_PAD_CELLS 262144
+#define ZDRAW_PAD_TOTAL_CELLS 1048576
+#define ZDRAW_PAD_DIMENSION 32767
+static size_t zdraw_pad_cells;
+
 /* RGB values need int, but pair IDs remain within the existing short limits. */
 #if defined(NCURSES_VERSION) && defined(NCURSES_EXT_COLORS) && \
     defined(HAVE_INIT_EXTENDED_PAIR) && defined(HAVE_EXTENDED_COLOR_CONTENT) && \
@@ -74,7 +83,9 @@ enum zc_win_flags {
     /* Window is permanent (probably "stdscr") */
     ZCWF_PERMANENT = 0x0001,
     /* Scrolling enabled */
-    ZCWF_SCROLL = 0x0002
+    ZCWF_SCROLL = 0x0002,
+    /* Offscreen surface with explicit viewport presentation. */
+    ZCWF_PAD = 0x0004
 };
 
 typedef struct zc_win *ZCWin;
@@ -84,6 +95,7 @@ struct zc_win {
     char *name;
     int flags;
     int timeout;
+    size_t pad_cells;
     LinkList children;
     ZCWin parent;
 };
@@ -324,6 +336,7 @@ zdraw_free_window(ZCWin w)
 	ret = 1;
     }
 
+    zdraw_pad_cells -= w->pad_cells;
     if (w->name)
 	zsfree(w->name);
 
@@ -676,6 +689,12 @@ zccmd_addwin(const char *nam, char **args)
 	}
 
 	worig = (ZCWin)getdata(node);
+        if (worig->flags & ZCWF_PAD) {
+            zwarnnam(nam, "addwin does not create subwindows of pads");
+            zsfree(w->name);
+            zfree(w, sizeof(struct zc_win));
+            return 1;
+        }
 
 	w->win = subwin(worig->win, nlines, ncols, begin_y, begin_x);
 	if (w->win) {
@@ -734,6 +753,9 @@ zccmd_delwin(const char *nam, char **args)
     }
 
     if (delwin(w->win)!=OK) {
+        /* New pad handles retain ownership and their budget on failure. */
+        if (w->flags & ZCWF_PAD)
+            return 1;
 	/*
 	 * Not sure what to do here, but we are probably stuffed,
 	 * so delete the window locally anyway.
@@ -759,9 +781,10 @@ zccmd_delwin(const char *nam, char **args)
 	 */
 	touchwin(w->parent->win);
     }
-    else
+    else if (!(w->flags & ZCWF_PAD))
 	touchwin(stdscr);
 
+    zdraw_pad_cells -= w->pad_cells;
     if (w->name)
 	zsfree(w->name);
 
@@ -964,6 +987,134 @@ zdraw_nonnegative(char *str, int *value)
     return 0;
 }
 
+
+static int
+zccmd_addpad(const char *nam, char **args)
+{
+#ifdef ZDRAW_PADS
+    ZCWin w;
+    WINDOW *pad;
+    int rows, cols;
+    size_t cells;
+    if (zdraw_validate_window(args[0], ZDRAW_UNUSED) == NULL && zc_errno) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
+        return 1;
+    }
+    if (zdraw_nonnegative(args[1], &rows) ||
+        zdraw_nonnegative(args[2], &cols) || !rows || !cols ||
+        rows > ZDRAW_PAD_DIMENSION || cols > ZDRAW_PAD_DIMENSION ||
+        rows > ZDRAW_PAD_CELLS / cols) {
+        zwarnnam(nam, "addpad expects positive dimensions within the pad limits");
+        return 1;
+    }
+    cells = (size_t)rows * cols;
+    if (cells > ZDRAW_PAD_TOTAL_CELLS - zdraw_pad_cells) {
+        zwarnnam(nam, "pads exceed the session cell limit");
+        return 1;
+    }
+    pad = newpad(rows, cols);
+    if (!pad) {
+        zwarnnam(nam, "failed to allocate pad: %s", args[0]);
+        return 1;
+    }
+    w = (ZCWin)zshcalloc(sizeof(struct zc_win));
+    w->win = pad;
+    w->name = ztrdup(args[0]);
+    w->timeout = -1;
+    w->flags = ZCWF_PAD;
+    w->pad_cells = cells;
+    zdraw_pad_cells += cells;
+    zinsertlinknode(zdraw_windows, (LinkNode)zdraw_windows, (void *)w);
+    return 0;
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
+}
+
+static int
+zccmd_viewport(const char *nam, char **args)
+{
+#ifdef ZDRAW_PADS
+    LinkNode node;
+    ZCWin w;
+    int pr, pc, sr, sc, rows, cols, maxrows, maxcols;
+    if (zdraw_nonnegative(args[1], &pr) ||
+        zdraw_nonnegative(args[2], &pc) ||
+        zdraw_nonnegative(args[3], &sr) ||
+        zdraw_nonnegative(args[4], &sc) ||
+        zdraw_nonnegative(args[5], &rows) ||
+        zdraw_nonnegative(args[6], &cols) || !rows || !cols) {
+        zwarnnam(nam, "viewport expects decimal coordinates and positive dimensions");
+        return 1;
+    }
+    node = zdraw_validate_window(args[0], ZDRAW_USED);
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
+        return 1;
+    }
+    w = (ZCWin)getdata(node);
+    if (!(w->flags & ZCWF_PAD)) {
+        zwarnnam(nam, "viewport requires a pad: %s", args[0]);
+        return 1;
+    }
+    getmaxyx(w->win, maxrows, maxcols);
+    if (pr >= maxrows || pc >= maxcols ||
+        rows > maxrows - pr || cols > maxcols - pc) {
+        zwarnnam(nam, "viewport does not fit inside the pad");
+        return 1;
+    }
+    getmaxyx(stdscr, maxrows, maxcols);
+    if (sr >= maxrows || sc >= maxcols ||
+        rows > maxrows - sr || cols > maxcols - sc) {
+        zwarnnam(nam, "viewport does not fit inside the screen");
+        return 1;
+    }
+    /* Fully contribute these rows even after another surface covered them.
+     * This changes dirty markers, never retained text or drawing state. */
+    if (touchline(w->win, pr, rows) == ERR)
+        return 1;
+    return pnoutrefresh(w->win, pr, pc, sr, sc,
+                        sr + rows - 1, sc + cols - 1) == ERR;
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
+}
+
+static int
+zccmd_stage(const char *nam, char **args)
+{
+    char **arg;
+    LinkNode node;
+    ZCWin w;
+    /* Validate the whole list before changing the virtual screen. */
+    for (arg = args; *arg; arg++) {
+        node = zdraw_validate_window(*arg, ZDRAW_USED);
+        if (!node) {
+            zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), *arg);
+            return 1;
+        }
+        if (((ZCWin)getdata(node))->flags & ZCWF_PAD) {
+            zwarnnam(nam, "use viewport to stage a pad: %s", *arg);
+            return 1;
+        }
+    }
+    for (arg = args; *arg; arg++) {
+        w = (ZCWin)getdata(zdraw_getwindowbyname(*arg));
+        if (touchwin(w->win) == ERR || wnoutrefresh(w->win) == ERR)
+            return 1;
+    }
+    return 0;
+}
+
+static int
+zccmd_present(UNUSED(const char *nam), UNUSED(char **args))
+{
+    return doupdate() == ERR;
+}
 
 /* Decode the same printable characters for measurement and styled drawing.
  * Use the system width consumed by curses, not Zsh's optional width table. */
@@ -2370,9 +2521,13 @@ zccmd_position(const char *nam, char **args)
     getyx(w->win, intarr[0], intarr[1]);
     if (intarr[0] == -1)
 	return 1;
-    getbegyx(w->win, intarr[2], intarr[3]);
-    if (intarr[2] == -1)
-	return 1;
+    if (w->flags & ZCWF_PAD) {
+        intarr[2] = intarr[3] = -1;
+    } else {
+        getbegyx(w->win, intarr[2], intarr[3]);
+        if (intarr[2] == -1)
+            return 1;
+    }
     getmaxyx(w->win, intarr[4], intarr[5]);
     if (intarr[4] == -1)
 	return 1;
@@ -3333,6 +3488,10 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
     static const struct zdraw_subcommand scs[] = {
 	{"init", zccmd_init, 0, 0},
 	{"addwin", zccmd_addwin, 5, 6},
+        {"addpad", zccmd_addpad, 3, 3},
+        {"viewport", zccmd_viewport, 7, 7},
+        {"stage", zccmd_stage, 1, -1},
+        {"present", zccmd_present, 0, 0},
 	{"delwin", zccmd_delwin, 1, 1},
 	{"refresh", zccmd_refresh, 0, -1},
 	{"move", zccmd_move, 3, 3},
@@ -3402,6 +3561,21 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	return 1;
     }
 
+    /* Pads have no input/presentation origin. Reject them before an input
+     * call can consume a resize event or read from the shared queue. */
+    if (zcsc->cmd == zccmd_input || zcsc->cmd == zccmd_event ||
+        zcsc->cmd == zccmd_timeout || zcsc->cmd == zccmd_refresh) {
+        char **arg;
+        for (arg = args + 1; *arg; arg++) {
+            LinkNode node = zdraw_getwindowbyname(*arg);
+            if (node && (((ZCWin)getdata(node))->flags & ZCWF_PAD)) {
+                zwarnnam(nam, "pads require viewport presentation and an ordinary input window: %s", *arg);
+                return 1;
+            }
+            if (zcsc->cmd != zccmd_refresh)
+                break;
+        }
+    }
     return zcsc->cmd(nam, args+1);
 }
 
@@ -3424,6 +3598,10 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 	"colorinfo",
         "cell_inspection",
         "window_snapshots",
+        "staged_refresh",
+#ifdef ZDRAW_PADS
+        "offscreen_pads",
+#endif
 #ifdef HAVE_WCHGAT
         "region_restyle",
 #endif

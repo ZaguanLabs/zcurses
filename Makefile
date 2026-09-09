@@ -16,6 +16,8 @@ test: build
 	"$(ZSH_BIN)" -dfn tests/fill.zsh
 	"$(ZSH_BIN)" -dfn tests/copy.zsh
 	"$(ZSH_BIN)" -dfn tests/restyle.zsh
+	"$(ZSH_BIN)" -dfn tests/pads.zsh
+	"$(ZSH_BIN)" -dfn tests/pad-presentation.zsh
 	"$(ZSH_BIN)" -dfn tests/spans.zsh
 	"$(ZSH_BIN)" -dfn tests/truecolor.zsh
 	"$(ZSH_BIN)" -dfn tests/textinfo.zsh
@@ -35,6 +37,7 @@ test: build
 	"$(ZSH_BIN)" -dfn examples/regions.zsh
 	"$(ZSH_BIN)" -dfn examples/copy.zsh
 	"$(ZSH_BIN)" -dfn examples/restyle.zsh
+	"$(ZSH_BIN)" -dfn examples/viewports.zsh
 	"$(ZSH_BIN)" -dfn examples/truecolor.zsh
 	"$(ZSH_BIN)" -dfn examples/clipping.zsh
 	ZDRAW_MAKE="$(MAKE)" "$(PYTHON)" -m unittest discover -s tests -v

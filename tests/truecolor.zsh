@@ -164,6 +164,13 @@ check zdraw init
         cell 3 10 X '#56789a/#6789ab'
         (( ${reply[(Ie)underline]} )) || fail 'high-pair restyle attributes'
         check zdraw prepare high '#56789a/#6789ab' PREPARED
+        check zdraw addpad rgbpad 2 8
+        check zdraw draw rgbpad 0 0 high
+        check zdraw move rgbpad 0 0
+        check zdraw cellinfo rgbpad saved
+        [[ $saved[color] == '#56789a/#6789ab' && $saved[pair] -gt 255 ]] || fail 'pad high RGB pair'
+        check zdraw viewport rgbpad 0 0 6 0 1 8
+        check zdraw delwin rgbpad
         check zdraw draw sample 3 1 high
         cell 3 1 P '#56789a/#6789ab'
         check zdraw copy sample 3 1 sample 4 10 1 3
