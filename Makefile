@@ -12,6 +12,7 @@ test: build
 	"$(ZSH_BIN)" -dfn tests/drawing.zsh
 	"$(ZSH_BIN)" -dfn tests/colorinfo.zsh
 	"$(ZSH_BIN)" -dfn tests/cellinfo.zsh
+	"$(ZSH_BIN)" -dfn tests/snapshot.zsh
 	"$(ZSH_BIN)" -dfn tests/spans.zsh
 	"$(ZSH_BIN)" -dfn tests/truecolor.zsh
 	"$(ZSH_BIN)" -dfn tests/textinfo.zsh
@@ -26,6 +27,7 @@ test: build
 	"$(ZSH_BIN)" -dfn examples/borders.zsh
 	"$(ZSH_BIN)" -dfn examples/colors.zsh
 	"$(ZSH_BIN)" -dfn examples/cell-inspection.zsh
+	"$(ZSH_BIN)" -dfn examples/snapshot-diff.zsh
 	"$(ZSH_BIN)" -dfn examples/truecolor.zsh
 	"$(ZSH_BIN)" -dfn examples/clipping.zsh
 	ZDRAW_MAKE="$(MAKE)" "$(PYTHON)" -m unittest discover -s tests -v

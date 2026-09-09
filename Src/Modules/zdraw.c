@@ -2433,11 +2433,9 @@ zccmd_rowinfo(const char *nam, char **args)
 /* Read the current cell without moving the cursor, touching the window or
  * changing conversion state used by the shell's multibyte input helpers. */
 static int
-zccmd_cellinfo(const char *nam, char **args)
+zdraw_cell_record(const char *nam, WINDOW *win, LinkList *record)
 {
-    LinkNode node;
     LinkList info, names;
-    WINDOW *win;
     Colorpairnode color;
     const struct zdraw_namenumberpair *entry;
     char *text, digits[DIGBUFSIZE];
@@ -2454,14 +2452,6 @@ zccmd_cellinfo(const char *nam, char **args)
     char raw;
 #endif
 
-    if (zdraw_association(nam, args[1]))
-        return 1;
-    node = zdraw_validate_window(args[0], ZDRAW_USED);
-    if (!node) {
-        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
-        return 1;
-    }
-    win = ((ZCWin)getdata(node))->win;
     getyx(win, row, column);
 #if defined(HAVE_WIN_WCH) && defined(HAVE_GETCCHAR)
     if (win_wch(win, &cell) == ERR)
@@ -2526,6 +2516,115 @@ zccmd_cellinfo(const char *nam, char **args)
     zdraw_colorinfo_value(info, "characters", characters);
     zdraw_colorinfo_value(info, "row", row);
     zdraw_colorinfo_value(info, "column", column);
+    *record = info;
+    return 0;
+}
+
+static int
+zccmd_cellinfo(const char *nam, char **args)
+{
+    LinkNode node;
+    LinkList info;
+    if (zdraw_association(nam, args[1]))
+        return 1;
+    node = zdraw_validate_window(args[0], ZDRAW_USED);
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
+        return 1;
+    }
+    if (zdraw_cell_record(nam, ((ZCWin)getdata(node))->win, &info))
+        return 1;
+    return !sethparam(args[1], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
+#define ZDRAW_SNAPSHOT_CELLS 65536
+#define ZDRAW_SNAPSHOT_BYTES ((size_t)16 * 1024 * 1024)
+
+static int
+zdraw_snapshot_pair(LinkList info, char *key, char *value, size_t *bytes)
+{
+    size_t k = strlen(key) + 1, v = strlen(value) + 1;
+    if (k > ZDRAW_SNAPSHOT_BYTES - *bytes ||
+        v > ZDRAW_SNAPSHOT_BYTES - *bytes - k)
+        return 1;
+    *bytes += k + v;
+    addlinknode(info, dupstring(key));
+    addlinknode(info, value);
+    return 0;
+}
+
+static int
+zccmd_snapshot(const char *nam, char **args)
+{
+    LinkNode node, field;
+    LinkList info, cell;
+    WINDOW *win, *copy;
+    int rows, cols, y, x, cursor_y, cursor_x, result = 0;
+    size_t bytes = 0;
+    char key[3 * DIGBUFSIZE + 32];
+
+    if (zdraw_association(nam, args[1]))
+        return 1;
+    node = zdraw_validate_window(args[0], ZDRAW_USED);
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
+        return 1;
+    }
+    win = ((ZCWin)getdata(node))->win;
+    getmaxyx(win, rows, cols);
+    getyx(win, cursor_y, cursor_x);
+    if (rows <= 0 || cols <= 0 || rows > ZDRAW_SNAPSHOT_CELLS / cols) {
+        zwarnnam(nam, "snapshot exceeds the cell limit");
+        return 1;
+    }
+    /* Even moving and restoring the live cursor can affect automatic input
+     * refresh. Inspect an independent copy, including for subwindows. */
+    copy = dupwin(win);
+    if (!copy) {
+        zwarnnam(nam, "failed to copy window for snapshot");
+        return 1;
+    }
+    info = newlinklist();
+    addlinknode(info, "format");
+    addlinknode(info, "zdraw-snapshot-1");
+    addlinknode(info, "layout");
+    addlinknode(info, "readback");
+    zdraw_colorinfo_value(info, "rows", rows);
+    zdraw_colorinfo_value(info, "columns", cols);
+    zdraw_colorinfo_value(info, "cursor_row", cursor_y);
+    zdraw_colorinfo_value(info, "cursor_column", cursor_x);
+    zdraw_colorinfo_value(info, "cell_count", (zlong)rows * cols);
+    zdraw_colorinfo_value(info, "cell_limit", ZDRAW_SNAPSHOT_CELLS);
+    zdraw_colorinfo_value(info, "byte_limit", (zlong)ZDRAW_SNAPSHOT_BYTES);
+    for (field = firstnode(info); field; incnode(field)) {
+        bytes += strlen((char *)getdata(field)) + 1;
+    }
+    if (bytes > ZDRAW_SNAPSHOT_BYTES)
+        result = 1;
+    for (y = 0; y < rows && !result; y++) {
+        for (x = 0; x < cols && !result; x++) {
+            if (wmove(copy, y, x) == ERR || zdraw_cell_record(nam, copy, &cell)) {
+                result = 1;
+                break;
+            }
+            for (field = firstnode(cell); field;) {
+                char *name = (char *)getdata(field), *value;
+                incnode(field);
+                value = (char *)getdata(field);
+                incnode(field);
+                sprintf(key, "%d,%d,%s", y, x, name);
+                if (zdraw_snapshot_pair(info, key, value, &bytes)) {
+                    zwarnnam(nam, "snapshot exceeds the key/value byte limit");
+                    result = 1;
+                    break;
+                }
+            }
+        }
+    }
+    if (delwin(copy) == ERR)
+        result = 1;
+    if (result)
+        return 1;
     return !sethparam(args[1], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
 }
 
@@ -3077,6 +3176,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"mouse", zccmd_mouse, 0, -1},
 	{"querychar", zccmd_querychar, 1, 2},
         {"cellinfo", zccmd_cellinfo, 2, 2},
+        {"snapshot", zccmd_snapshot, 2, 2},
 	{"touch", zccmd_touch, 1, -1},
 	{"resize", zccmd_resize, 2, 3},
 	{NULL, (zccmd_t)0, 0, 0}
@@ -3134,6 +3234,7 @@ zdraw_featuresgetfn(UNUSED(Param pm))
     static char *features[] = {
 	"colorinfo",
         "cell_inspection",
+        "window_snapshots",
 #if defined(HAVE_WIN_WCH) && defined(HAVE_GETCCHAR)
         "wide_cell_inspection",
 #endif

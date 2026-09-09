@@ -262,3 +262,23 @@ screen serialization to the snapshot design. It already lets prepared-row tests
 assert that combining marks survived drawing, which `querychar` cannot show.
 
 Reference: ncurses' [complex-character API](https://invisible-island.net/ncurses/man/curs_getcchar.3x.html).
+
+
+## Bounded window snapshots
+
+`snapshot` and `cellinfo` share a reader that returns a cell record without shell
+parameter assignment. A snapshot validates its target and dimensions, duplicates
+the window, traverses only that copy, and assembles a flat association. It deletes
+the copy before assigning the complete result. Copy/read/conversion/budget failures
+leave caller data unchanged; no hidden window is registered in `zdraw_windows`.
+Cell and key/value byte bounds limit captures without creating persistent objects.
+
+The versioned layout records what each coordinate returns through the public
+curses API. In particular, it retains repeated wide-character text at continuation
+columns rather than trying to identify leading cells from adjacent equal text or
+current-locale width guesses. This works for subwindows beginning inside a wide
+cell. Explicit continuation metadata and portable restore/serialization remain
+separate work. Snapshot comparisons can already catch lost combining marks,
+changed styles, stale cells and unexpected cursor positions.
+
+Reference: the public [window-copy API](https://invisible-island.net/ncurses/man/curs_window.3x.html).

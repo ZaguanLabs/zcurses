@@ -184,6 +184,7 @@ unknown, so the application chooses its fallback policy.
 | `default_colors` | The `default` color name through `use_default_colors` |
 | `custom_borders` | Eight-character borders, including printable ASCII |
 | `wide_borders` | Unicode borders through `setcchar` and `wborder_set` |
+| `window_snapshots` | Bounded capture of retained window cells into an association |
 | `cell_inspection` | Structured readback of the current retained cell |
 | `wide_cell_inspection` | Complete complex-character text, including stored combining marks |
 | `colorinfo` | Runtime color capabilities and allocation information |
@@ -718,8 +719,8 @@ A wide character can occupy multiple columns. On ncurses, reading an occupied
 continuation column returns the same stored text; `row`/`column` still identify
 the cursor location. This interface does **not** report the leading column or a
 continuation marker, and should not be treated as a cell-layout serialization
-format. Complete screen snapshots and explicit continuation metadata remain
-[roadmap work](docs/roadmap.md#9-inspectable-screens-and-replay).
+format. The snapshot operation below captures these readback values; explicit
+continuation metadata remains [roadmap work](docs/roadmap.md#9-inspectable-screens-and-replay).
 
 Status is 0 on assignment and 1 on invalid arguments, a failed library read,
 encoding conversion or assignment failure. Targets are validated before reading;
@@ -733,6 +734,66 @@ row, inspect several cells, and print quoted records after ending the session:
 
 ```sh
 .build/zsh/Src/zsh -df examples/cell-inspection.zsh
+```
+
+### Window snapshots
+
+```zsh
+typeset -A frame
+zdraw snapshot stdscr frame
+print -r -- "$frame[format]: $frame[rows] rows, $frame[columns] columns"
+print -r -- "${(qqqq)frame[0,0,text]}"
+```
+
+`zdraw snapshot window association` captures the whole retained window in one
+call. It uses an independent temporary copy, so the live window's cursor,
+drawing styles and touched/moved state stay unchanged. It does not refresh or
+consume input. Subwindows are supported; their coordinates remain relative to
+the subwindow. The temporary copy is released before result assignment, including
+on a failed read or conversion.
+
+The ordinary writable association is replaced, or created if absent. Its values
+are owned by the shell and survive later drawing, window deletion, `end`, and
+module unload. The metadata keys are:
+
+| Key | Meaning |
+| --- | --- |
+| `format` | `zdraw-snapshot-1` |
+| `layout` | `readback`: one complete `cellinfo` record for each window coordinate |
+| `rows`, `columns` | Captured window dimensions |
+| `cursor_row`, `cursor_column` | Live cursor position at capture time |
+| `cell_count` | `rows * columns` |
+| `cell_limit` | Maximum cells accepted by one capture: 65,536 |
+| `byte_limit` | Maximum accounted key/value bytes: 16 MiB |
+
+Every cell field is keyed as `row,column,field`, using zero-based decimal
+coordinates. For example, `frame[2,5,text]`, `frame[2,5,attributes]` and
+`frame[2,5,color]` describe the cell at row 2, column 5. All ten `cellinfo` fields
+are included, with identical meanings and encoding/color limitations. Readback
+on ncurses repeats a wide character's stored text at its occupied continuation
+columns; the snapshot does not infer leading cells or grapheme boundaries.
+Do not concatenate each coordinate's `text` to reconstruct a rendered row.
+
+This versioned record supports inspection and comparisons. It is not a terminal
+image, a restore command or a portable binary curses-window dump. To compare
+captures, check format/dimensions and selected fields. Pair IDs and raw attribute
+bits are library/session diagnostics; cache spellings are not normalized color
+identities. Association iteration order is unspecified. Text values should be
+quoted when printing diagnostics, as the example above does.
+
+Cell count is checked before duplicating the window. Key/value accounting includes
+metadata, internal string escaping and terminating NULs; it does not include
+allocator, association-node or temporary-window overhead. Oversized windows or
+results fail rather than returning a partial capture. An invalid target, failed
+copy/read/conversion, or exceeded budget returns status 1 and leaves an existing
+result unchanged; an absent target is not created. Status 0 means assignment
+succeeded. No persistent snapshot object is kept in the module.
+
+The [snapshot diff example](examples/snapshot-diff.zsh) changes one character's
+text and attributes and prints the differences after ending the session:
+
+```sh
+.build/zsh/Src/zsh -df examples/snapshot-diff.zsh
 ```
 
 ## Structured input

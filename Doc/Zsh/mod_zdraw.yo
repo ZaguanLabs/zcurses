@@ -45,6 +45,7 @@ xitem(tt(zdraw) tt(mouse) [ tt(delay) var(num) | [tt(+)|tt(-)]tt(motion) ])
 xitem(tt(zdraw) tt(timeout) var(targetwin) var(intval))
 xitem(tt(zdraw) tt(querychar) var(targetwin) [ var(param) ])
 xitem(tt(zdraw) tt(cellinfo) var(targetwin) var(association))
+xitem(tt(zdraw) tt(snapshot) var(targetwin) var(association))
 item(tt(zdraw) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
 Manipulate curses windows.  Except for tt(geometry), tt(colorinfo), tt(textinfo) and tt(textpos), uses of
 this command should be
@@ -716,6 +717,42 @@ scalars and subscripts are rejected before reading. Failures leave the target
 unchanged and do not create a missing parameter. The inherited tt(querychar)
 interface remains unchanged.
 
+The subcommand tt(snapshot) captures a whole retained window into an ordinary
+writable association, replacing it or creating it if absent. It requires an
+initialized session. The query reads an independent temporary copy and does not
+move the live cursor, touch or refresh the window, change its drawing styles,
+or consume input. Subwindows use their own relative coordinates. The copy is
+released before assignment, also on read or conversion failure. Result strings
+belong to the shell and survive drawing, window deletion, tt(end) and unload.
+
+Metadata keys are tt(format) with value tt(zdraw-snapshot-1), tt(layout) with
+value tt(readback), tt(rows), tt(columns), tt(cursor_row), tt(cursor_column),
+ tt(cell_count), tt(cell_limit) and tt(byte_limit). Dimensions and cursor values
+refer to the captured window. Limits are 65536 cells and 16 MiB of accounted
+key/value bytes. The latter includes metadata, internal string escaping and NUL
+terminators, but excludes allocator, association-node and temporary-window overhead.
+Cell count is checked before duplicating the window. Budget failures return no
+partial result.
+
+Each coordinate has all ten tt(cellinfo) fields under keys of the form
+ tt(row,column,field), with zero-based decimal coordinates. For example,
+ tt(frame[2,5,text]) is the cell text at row 2, column 5. Encoding and color
+limitations are identical to tt(cellinfo). On ncurses, wide-character text is
+repeated at occupied continuation columns; no leading-cell or grapheme metadata
+is inferred. Concatenating cell text is not a way to reconstruct a rendered row.
+
+The versioned record is for inspection and comparison, not terminal-image capture,
+restoration or a binary curses-window dump. Compare format, dimensions and the
+fields of interest. Pair IDs and raw attribute bits remain library/session
+specific, and cached color spellings are not normalized identities. Association
+iteration order is unspecified. Quote stored values when printing diagnostics.
+
+Check tt(window_snapshots) for compiled support. Status is 0 on assignment and
+1 on invalid arguments, failed copy/read/conversion, exceeded limits or failed
+assignment. Invalid targets are rejected before copying. Failures before
+assignment preserve an existing result and do not create an absent target. The module retains no
+persistent snapshot object.
+
 The subcommand tt(querychar) queries the character at the current cursor
 position.  The return values are stored in the array named var(param) if
 supplied, else in the array tt(reply).  The first value is the character
@@ -755,6 +792,7 @@ Its contents are unchanged by tt(init), tt(end), or terminal availability.
 
 The following feature names are defined:
 startsitem()
+sitem(tt(window_snapshots))(Bounded capture of retained window cells into an association.)
 sitem(tt(cell_inspection))(Structured readback of the current retained cell.)
 sitem(tt(wide_cell_inspection))(Complete stored complex-character text, including combining marks.)
 sitem(tt(colorinfo))(Runtime color information through tt(colorinfo).)
