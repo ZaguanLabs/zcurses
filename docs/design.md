@@ -300,3 +300,26 @@ new clipping rule. Library write errors can leave partial drawing and are not
 transactional. The example keeps movement and selection policy in Zsh.
 
 Reference: the [curses complex-cell array writer](https://invisible-island.net/ncurses/man/curs_add_wchstr.3x.html).
+
+## Retained rectangle copying
+
+`copy` stages the requested rectangle in a private `newpad` and uses opaque
+`copywin` for both transfers. Staging is unconditional because differently
+named parent/subwindows can alias storage. Coordinate and extent validation
+precedes allocation; subtraction checks avoid overflowing coordinate sums.
+The temporary rectangle is capped at 65,536 cells and is released after success
+or either copy failure. It is never registered or refreshed.
+
+The operation transports existing curses cells, without decoding strings,
+merging destination background styles or allocating color pairs. It preserves
+live cursors and drawing state. Invalid input and failed source staging cannot
+modify the destination; a destination failure can leave partial writes.
+Subwindow change-marker synchronization remains the caller's responsibility.
+
+The contract deliberately requires applications to align wide-character edges
+for portable results. `copywin` does not offer a portable repair guarantee for
+split glyphs. This milestone provides opaque copying; transparent blanks and
+attribute-only region updates remain separate experiments. Tests compare full
+snapshots for all overlap directions, shared windows, literal spaces, styles,
+combining marks and complete wide characters, with injected allocation/staging/
+write failures and builds lacking either optional function.

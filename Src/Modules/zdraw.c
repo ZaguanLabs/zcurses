@@ -1384,6 +1384,76 @@ zccmd_fill(const char *nam, char **args)
 #endif
 }
 
+/* Keep temporary storage proportional to the requested rectangle. */
+#define ZDRAW_COPY_CELLS 65536
+
+static int
+zccmd_copy(const char *nam, char **args)
+{
+#if defined(HAVE_COPYWIN) && defined(HAVE_NEWPAD)
+    LinkNode node;
+    WINDOW *source, *destination, *buffer;
+    int sr, sc, dr, dc, rows, cols, maxrows, maxcols, result;
+
+    if (zdraw_nonnegative(args[1], &sr) ||
+        zdraw_nonnegative(args[2], &sc) ||
+        zdraw_nonnegative(args[4], &dr) ||
+        zdraw_nonnegative(args[5], &dc) ||
+        zdraw_nonnegative(args[6], &rows) ||
+        zdraw_nonnegative(args[7], &cols) || !rows || !cols) {
+        zwarnnam(nam, "copy expects decimal coordinates and positive dimensions");
+        return 1;
+    }
+    node = zdraw_validate_window(args[0], ZDRAW_USED);
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
+        return 1;
+    }
+    source = ((ZCWin)getdata(node))->win;
+    node = zdraw_validate_window(args[3], ZDRAW_USED);
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[3]);
+        return 1;
+    }
+    destination = ((ZCWin)getdata(node))->win;
+    getmaxyx(source, maxrows, maxcols);
+    if (sr >= maxrows || sc >= maxcols ||
+        rows > maxrows - sr || cols > maxcols - sc) {
+        zwarnnam(nam, "copy rectangle does not fit inside the source");
+        return 1;
+    }
+    getmaxyx(destination, maxrows, maxcols);
+    if (dr >= maxrows || dc >= maxcols ||
+        rows > maxrows - dr || cols > maxcols - dc) {
+        zwarnnam(nam, "copy rectangle does not fit inside the destination");
+        return 1;
+    }
+    if (rows > ZDRAW_COPY_CELLS / cols) {
+        zwarnnam(nam, "copy rectangle exceeds the temporary cell limit");
+        return 1;
+    }
+    buffer = newpad(rows, cols);
+    if (!buffer) {
+        zwarnnam(nam, "could not allocate the copy rectangle");
+        return 1;
+    }
+    /* Stage even when names differ: subwindows can share backing storage.
+     * Opaque copies retain literal blanks and source styles without decoding
+     * text or allocating pairs. Never refresh this private pad. */
+    result = copywin(source, buffer, sr, sc, 0, 0, rows - 1, cols - 1, 0);
+    if (result != ERR)
+        result = copywin(buffer, destination, 0, 0,
+                         dr, dc, dr + rows - 1, dc + cols - 1, 0);
+    if (delwin(buffer) == ERR)
+        result = ERR;
+    return result == ERR;
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
+}
+
 static int
 zccmd_prepare(const char *nam, char **args)
 {
@@ -3208,6 +3278,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"string", zccmd_string, 2, 2},
 	{"spans", zccmd_spans, 5, -1},
         {"fill", zccmd_fill, 7, 7},
+        {"copy", zccmd_copy, 8, 8},
         {"prepare", zccmd_prepare, 3, -1},
         {"draw", zccmd_draw, 4, 5},
         {"unprepare", zccmd_unprepare, 1, 1},
@@ -3283,6 +3354,9 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 	"colorinfo",
         "cell_inspection",
         "window_snapshots",
+#if defined(HAVE_COPYWIN) && defined(HAVE_NEWPAD)
+        "region_copy",
+#endif
 #if defined(HAVE_WIN_WCH) && defined(HAVE_GETCCHAR)
         "wide_cell_inspection",
 #endif

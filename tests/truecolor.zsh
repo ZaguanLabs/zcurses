@@ -132,6 +132,8 @@ check zdraw init
       reject zdraw prepare disabled '#112233/#445566' Q
       check zdraw draw sample 4 1 retained
       cell 4 1 P '#112233/#445566'
+      check zdraw copy sample 4 1 sample 2 10 1 3
+      cell 2 10 P '#112233/#445566'
       check zdraw cellinfo sample saved
       [[ $saved[color] == '#112233/#445566' && $saved[color_source] == cache ]] || fail 'inspect RGB after opt-out'
       check zdraw colorinfo info
@@ -157,6 +159,8 @@ check zdraw init
         check zdraw prepare high '#56789a/#6789ab' PREPARED
         check zdraw draw sample 3 1 high
         cell 3 1 P '#56789a/#6789ab'
+        check zdraw copy sample 3 1 sample 4 10 1 3
+        cell 4 10 P '#56789a/#6789ab'
         check zdraw cellinfo sample saved
         [[ $saved[color] == '#56789a/#6789ab' && $saved[pair] -gt 255 ]] || fail 'inspect high RGB pair'
         check zdraw move sample 2 1

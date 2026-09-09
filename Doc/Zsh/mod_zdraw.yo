@@ -46,6 +46,7 @@ xitem(tt(zdraw) tt(timeout) var(targetwin) var(intval))
 xitem(tt(zdraw) tt(querychar) var(targetwin) [ var(param) ])
 xitem(tt(zdraw) tt(cellinfo) var(targetwin) var(association))
 xitem(tt(zdraw) tt(snapshot) var(targetwin) var(association))
+xitem(tt(zdraw) tt(copy) var(sourcewin) var(source_row) var(source_column) var(targetwin) var(row) var(column) var(rows) var(columns))
 xitem(tt(zdraw) tt(fill) var(targetwin) var(row) var(column) var(rows) var(columns) var(style) var(tile))
 item(tt(zdraw) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
 Manipulate curses windows.  Except for tt(geometry), tt(colorinfo), tt(textinfo) and tt(textpos), uses of
@@ -672,6 +673,38 @@ returned.  If var(intval) is positive, `tt(zdraw input)' waits
 var(intval) milliseconds for input and if there is none at the end of
 that period returns status 1.
 
+The subcommand tt(copy) copies an opaque rectangle of retained cells from
+var(sourcewin) to var(targetwin). Source and destination coordinates are
+zero-based, nonnegative decimal integers; dimensions are positive decimal
+integers. Both rectangles must fit completely. No automatic clipping, resizing
+or coordinate evaluation occurs. The area is limited to 65536 occupied columns
+summed across all rows per call.
+
+The source rectangle is staged in a private pad before any destination write.
+Overlapping copies use the original source cells, including copies between
+parent/subwindows that share storage. The pad is released before returning.
+Spaces overwrite destination cells. Stored attributes, color pairs and combining
+marks are copied without text conversion, background substitution or pair
+allocation; existing RGB pairs remain usable after tt(truecolor off).
+Cursors, current attributes and backgrounds are preserved. The command does
+not wrap, scroll, read input or refresh. Shared subwindow contents change as
+usual; tt(touch) another view before refreshing it if its curses change markers
+need synchronization.
+
+Opaque curses tt(copywin) calls copy occupied columns, not reconstructed
+character layouts. Align both source and destination horizontal edges to
+complete characters. Edges splitting wide characters inherit the linked
+library's behavior and can leave partial retained glyphs; portable repair and
+terminal appearance are not guaranteed. This includes subwindow edges that
+split parent glyphs. The original text and tt(textpos) can guide alignment.
+
+Check tt(region_copy) for compiled tt(copywin) and tt(newpad) support. Status is
+0 on successful copying and pad cleanup, 1 on invalid arguments, resource limits
+or library failure, and 2 when compiled support is unavailable. Validation,
+allocation and source-staging failures leave the destination untouched. A
+failed destination write can leave a partial copy; there is no rollback.
+A cleanup failure returns 1 even if the destination copy completed.
+
 The subcommand tt(fill) fills a rectangle by repeating one styled single-column
 cell. Arguments are the window, zero-based row and column, positive row and
 column counts, style, and tile text. Coordinates and dimensions are literal
@@ -825,6 +858,7 @@ Its contents are unchanged by tt(init), tt(end), or terminal availability.
 
 The following feature names are defined:
 startsitem()
+sitem(tt(region_copy))(Bounded opaque copies of retained rectangles.)
 sitem(tt(region_fill))(Styled rectangle fills using single-column tiles.)
 sitem(tt(window_snapshots))(Bounded capture of retained window cells into an association.)
 sitem(tt(cell_inspection))(Structured readback of the current retained cell.)

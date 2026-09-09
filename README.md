@@ -195,6 +195,7 @@ unknown, so the application chooses its fallback policy.
 | `resize_events` | Terminal size queries or curses resize key notifications |
 | `prepared_rows` | Immutable session-scoped styled rows, with clipping and inspection |
 | `region_fill` | Styled rectangle fills using single-column tiles |
+| `region_copy` | Bounded opaque copies of retained rectangles |
 | `styled_spans` | Single-row styled text batching |
 | `wide_spans` | Wide characters and representable combining sequences in spans |
 | `clipped_spans` | Styled-span drawing with one shared column budget |
@@ -721,6 +722,65 @@ keys move the filled rectangle, space changes its tile, and `q` quits:
 
 The [fill benchmark](benchmarks/README.md#rectangle-fills) compares a fill with
 ordinary and prepared row loops using equal content and explicit refresh.
+
+## Copying retained regions
+
+```zsh
+# Scroll a ten-row, forty-column area upward; draw the exposed line separately.
+zdraw copy stdscr 3 4 stdscr 2 4 9 40
+zdraw fill stdscr 11 4 1 40 '' ' '
+zdraw refresh stdscr
+```
+
+`zdraw copy source source_row source_column destination destination_row
+ destination_column rows columns` copies an **opaque** rectangle of retained
+cells. Spaces overwrite destination cells just like other characters. Stored
+attributes, color pairs and combining marks travel with the cells; the
+operation does not parse text, apply the destination background, allocate
+colors or require truecolor to remain enabled for existing RGB pairs.
+
+Coordinates are zero-based, nonnegative decimal integers; dimensions are
+positive decimal integers. Both rectangles must fit completely in their
+windows. There is no automatic clipping, resizing or coordinate evaluation.
+At most **65,536 occupied columns across all rows** may be copied per call.
+Larger copies must be divided by the application, which must also account for
+overlap between its separate calls.
+
+A private pad holds the requested source rectangle before the destination is
+changed. Self-overlap works in every direction, and differently named windows
+sharing parent/subwindow storage are handled the same way. The pad is released
+before returning; no reusable object or new public window is created. Cursors,
+current drawing attributes and backgrounds stay unchanged. The copy does not
+wrap, scroll, read input or refresh. Shared subwindow content changes normally;
+use the inherited `touch` operation on another view before refreshing that view
+when curses requires its change markers to be synchronized.
+
+This operation uses opaque curses `copywin` calls. **Align horizontal edges to
+complete characters in both source and destination.** It copies occupied
+columns without decoding or reconstructing wide-character layout. Edges that
+split an existing wide character inherit the linked library's behavior and can
+leave partial retained glyphs; no portable repair or terminal appearance is
+promised. This also applies to a subwindow whose own edge splits a parent glyph.
+Use `textpos` with original text when determining character-aligned boundaries.
+See the [curses copy contract](https://invisible-island.net/ncurses/man/curs_overlay.3x.html).
+
+Check `region_copy` for compiled `copywin` and `newpad` support. Status 0 means
+the copy and temporary-pad cleanup succeeded; 1 means invalid arguments,
+resource limits, allocation or library failure; 2 means compiled support is
+unavailable. Invalid arguments, allocation failure and source-staging failure
+leave destination cells untouched. A destination-write failure can leave a
+partial copy; there is no rollback. A cleanup failure also returns 1 even if
+the destination copy completed.
+
+Run the [scrolling example](examples/copy.zsh) with the matching shell:
+
+```sh
+.build/zsh/Src/zsh -df examples/copy.zsh
+```
+
+Up/down scroll retained rows; only the newly exposed row is drawn. Resizing
+rebuilds the view, and `q` exits. This illustrates reuse; it does not establish a
+performance advantage over prepared drawing for every workload.
 
 ## Inspecting rendered cells
 
