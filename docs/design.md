@@ -282,3 +282,21 @@ separate work. Snapshot comparisons can already catch lost combining marks,
 changed styles, stale cells and unexpected cursor positions.
 
 Reference: the public [window-copy API](https://invisible-island.net/ncurses/man/curs_window.3x.html).
+
+
+## Styled rectangle fills
+
+`fill` reuses the span compiler to validate one single-column tile, then repeats
+that compiled cell in a temporary row and sends it through the existing row
+writer for each rectangle row. Positive dimensions and complete in-window bounds
+are checked first. This removes shell row loops and repeated style/text decoding
+without adding retained surfaces, application layouts or a second renderer.
+
+Space/background behavior, color pairs and cursor/style restoration come from
+the same writer as spans and prepared rows. Existing wide characters intersected
+by a boundary retain curses' repair semantics, which can affect cells beyond the
+rectangle; snapshot tests compare against span writes rather than guessing a
+new clipping rule. Library write errors can leave partial drawing and are not
+transactional. The example keeps movement and selection policy in Zsh.
+
+Reference: the [curses complex-cell array writer](https://invisible-island.net/ncurses/man/curs_add_wchstr.3x.html).

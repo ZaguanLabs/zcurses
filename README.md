@@ -194,6 +194,7 @@ unknown, so the application chooses its fallback policy.
 | `wide_events` | Locale-based wide-character input; otherwise events contain raw bytes |
 | `resize_events` | Terminal size queries or curses resize key notifications |
 | `prepared_rows` | Immutable session-scoped styled rows, with clipping and inspection |
+| `region_fill` | Styled rectangle fills using single-column tiles |
 | `styled_spans` | Single-row styled text batching |
 | `wide_spans` | Wide characters and representable combining sequences in spans |
 | `clipped_spans` | Styled-span drawing with one shared column budget |
@@ -665,6 +666,61 @@ The subcommand and capability checks do not consume input, emit terminal replies
 refresh pending drawing, or alter input ownership. Input stays with the existing
 `zdraw input` API. There is no additional negotiation or reply parser. All
 screen output remains within curses and its retained-screen refresh machinery.
+
+## Styled rectangle fills
+
+```zsh
+# Literal styled spaces for a panel background:
+zdraw fill stdscr 2 4 6 24 blue/black ' '
+# Horizontal and vertical rules are one-row or one-column rectangles:
+zdraw fill stdscr 8 4 1 24 bold '-'
+zdraw fill stdscr 2 28 7 1 bold '|'
+```
+
+`zdraw fill window row column rows columns style tile` fills a rectangle by
+repeating one complete, single-column cell. The tile may include following
+combining marks on a wide drawing build. Empty text, multiple spacing characters,
+wide two-column characters, leading combining marks and controls are rejected.
+Style syntax, color allocation and combining-character storage limits are shared
+with `spans`. Printable ASCII tiles work with the narrow writer; non-ASCII tiles
+require `wide_spans`. RGB styles require the existing truecolor opt-in.
+
+Coordinates are zero-based and dimensions are **positive** decimal integers.
+Zero dimensions are rejected. The entire rectangle must fit inside the window;
+there is no clipping, implicit expansion or coordinate-expression evaluation.
+Geometry and the complete tile/style are validated before any drawing. Invalid
+geometry, text or styles do not allocate colors or change cells.
+
+The operation compiles the tile once, builds one repeated row, and reuses that
+row for each write. It preserves the cursor, current attributes and background,
+does not wrap or scroll, and leaves presentation to `refresh`. A space tile is a
+literal space, independent of the window's background character. Bottom-right
+cells can be filled normally. No prepared object is created or retained.
+
+Replacing part of an **existing wide character** follows the linked curses
+array writer's behavior, just as with `spans`. Repairs to that character can
+affect its occupied cells outside the rectangle. Align boundaries to complete
+characters when surrounding wide text must be preserved; use `textpos` with the
+original text to determine those boundaries. The rectangle's dimensions alone
+do not provide a strict mutation boundary for intersecting wide characters.
+Tests compare these cases directly with ordinary span writes.
+
+Status 0 means all rows were written. Status 1 covers invalid arguments, color
+allocation or a library write failure. Status 2 means the compiled writer is
+unavailable, or a non-ASCII tile requires wide support. A write failure can leave
+previous rows, and potentially part of the failing row, changed; the operation
+does not roll back drawing. The shared writer restores cursor/style state when
+its library operations permit that, including the tested write-error path.
+
+Run the [region example](examples/regions.zsh) with the matching shell. Arrow
+keys move the filled rectangle, space changes its tile, and `q` quits:
+
+```sh
+.build/zsh/Src/zsh -df examples/regions.zsh
+```
+
+The [fill benchmark](benchmarks/README.md#rectangle-fills) compares a fill with
+ordinary and prepared row loops using equal content and explicit refresh.
 
 ## Inspecting rendered cells
 

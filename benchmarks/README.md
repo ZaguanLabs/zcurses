@@ -75,3 +75,32 @@ backend skips repeated style parsing/text decoding and allocates no new colors
 while drawing; curses still performs the physical-screen diff. Future work
 should measure preparation amortization and representative changing workloads
 before adding broader drawing batches.
+
+
+## Rectangle fills
+
+Run the uniform-rectangle comparison with:
+
+```sh
+python3 benchmarks/fill.py --trials 7 --frames 500
+```
+
+Each frame replaces a 20x64 rectangle with a single styled ASCII tile, alternating
+between `X` and `Y`. The backends use twenty ordinary span calls, twenty prepared
+row draws, or one `fill`. All use the same style, content, warmup and explicit
+refresh schedule. Both prepared rows and their color pair are created before
+timing in every backend. Preparation and allocation cost is excluded.
+
+A local Linux run using the matching Zsh 5.9.2 shell, GCC `-O2`, wide curses,
+`TERM=xterm-256color` and `LC_ALL=C` gave these seven-trial medians (500 frames):
+
+| Workload | Row spans ms/frame | Prepared rows ms/frame | Fill ms/frame | Fill speedup over spans / prepared | Bytes/session, all backends |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Drawing only | 0.101 | 0.052 | 0.021 | 4.87x / 2.54x | 362 |
+| Drawing and refresh | 0.153 | 0.102 | 0.073 | 2.08x / 1.39x | 131,100 |
+
+The [recorded results](fill-baseline.json) include ranges. This is a uniform-fill
+workload suited to `fill`, not a replacement for multi-style text rows. It measures
+shell and curses execution, not terminal paint time. Every backend emitted the
+same number of terminal bytes in each scenario. Fill removes shell row loops and
+repeated tile/style compilation while retaining curses' normal screen diff.

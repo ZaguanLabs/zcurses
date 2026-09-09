@@ -7,7 +7,7 @@ A completed first milestone does not complete the broader direction.
 
 Implemented first milestones (2026-09-09): [structured input](../README.md#structured-input)
 and [prepared styled rows](../README.md#prepared-styled-rows), followed by opt-in
-`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 38-test suite passes against the matching
+`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 40-test suite passes against the matching
 Zsh 5.9.2 shell, including optional builds. The new paths also pass ASan/UBSan checks
 with leak detection disabled. The native manual
 builds and the exported patch applies in a dry run. See the
@@ -175,11 +175,16 @@ drift and needs its own justification.
 
 ## 10. Region drawing primitives
 
-- [ ] Fill rectangles and draw horizontal/vertical runs.
+- [x] Fill styled rectangles and horizontal/vertical runs with single-column
+  tiles, shared span validation and cursor/style preservation.
 - [ ] Copy regions with defined overlap and clipping behavior.
 - [ ] Change region attributes while preserving text, for selection/focus.
-- [ ] Define wide-character boundaries and any transparent-cell semantics.
-- [ ] Measure reduced shell loops and test preservation of surrounding cells.
+- [x] Define fill bounds and existing-wide-character overlap behavior through
+  the shared array writer; verify equivalence to ordinary span writes.
+- [ ] Define transparent-cell semantics for future region copying.
+- [x] Measure fill against ordinary/prepared row loops and verify surrounding
+  cells with snapshots. Record [workload-specific results](../benchmarks/README.md#rectangle-fills)
+  and provide a keyboard-driven region example.
 
 These operations understand cells and rectangles, not application layouts.
 

@@ -1338,6 +1338,53 @@ zdraw_drawspans(const char *nam, char **args, int clip)
 }
 
 static int
+zccmd_fill(const char *nam, char **args)
+{
+#if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
+    WINDOW *win;
+    struct zdraw_row tile;
+    ZDrawCell *cells;
+    int row, col, available, rows, cols, maxrows, maxcols, i, result;
+
+    if (zdraw_row_target(nam, args, &win, &row, &col, &available))
+        return 1;
+    if (zdraw_nonnegative(args[3], &rows) ||
+        zdraw_nonnegative(args[4], &cols) || !rows || !cols) {
+        zwarnnam(nam, "fill expects positive decimal dimensions");
+        return 1;
+    }
+    getmaxyx(win, maxrows, maxcols);
+    (void)maxcols;
+    if (rows > maxrows - row || cols > available ||
+        (size_t)cols > (size_t)-1 / sizeof(*cells)) {
+        zwarnnam(nam, "fill rectangle does not fit inside the window");
+        return 1;
+    }
+    /* A tile is exactly one single-column complex cell. The compiler checks
+     * its entire text and style before allocating a shared color pair. */
+    result = zdraw_compile_spans(nam, args + 5, 1, 0, &tile);
+    if (result)
+        return result;
+    if (tile.count != 1 || tile.width != 1) {
+        zwarnnam(nam, "fill expects one printable single-column cell");
+        return 1;
+    }
+    cells = (ZDrawCell *)zhalloc((size_t)cols * sizeof(*cells));
+    for (i = 0; i < cols; i++)
+        cells[i] = tile.cells[0];
+    for (i = 0; i < rows; i++) {
+        if (zdraw_write_row(win, row + i, col, cells, cols))
+            return 1;
+    }
+    return 0;
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
+}
+
+static int
 zccmd_prepare(const char *nam, char **args)
 {
 #if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
@@ -3160,6 +3207,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"char", zccmd_char, 2, 2},
 	{"string", zccmd_string, 2, 2},
 	{"spans", zccmd_spans, 5, -1},
+        {"fill", zccmd_fill, 7, 7},
         {"prepare", zccmd_prepare, 3, -1},
         {"draw", zccmd_draw, 4, 5},
         {"unprepare", zccmd_unprepare, 1, 1},
@@ -3259,6 +3307,7 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 #endif
 #if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
 	"styled_spans",
+        "region_fill",
         "prepared_rows",
 	"clipped_spans",
 #endif

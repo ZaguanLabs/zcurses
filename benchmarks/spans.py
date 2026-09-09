@@ -17,7 +17,7 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def trial(backend, scenario, frames):
+def trial(backend, scenario, frames, fixture='spans.zsh'):
     read_fd, write_fd = os.pipe()
     os.set_inheritable(write_fd, True)
     pid, terminal = pty.fork()
@@ -28,7 +28,7 @@ def trial(backend, scenario, frames):
         os.environ.pop('LINES', None)
         os.environ.pop('COLUMNS', None)
         shell = str(ROOT / '.build/zsh/Src/zsh')
-        os.execl(shell, shell, '-df', str(ROOT / 'benchmarks/spans.zsh'),
+        os.execl(shell, shell, '-df', str(ROOT / 'benchmarks' / fixture),
                  str(ROOT / '.build/modules'), backend, scenario, str(frames), str(write_fd))
     os.close(write_fd)
     screen, report = bytearray(), bytearray()

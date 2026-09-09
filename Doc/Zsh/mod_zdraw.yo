@@ -46,6 +46,7 @@ xitem(tt(zdraw) tt(timeout) var(targetwin) var(intval))
 xitem(tt(zdraw) tt(querychar) var(targetwin) [ var(param) ])
 xitem(tt(zdraw) tt(cellinfo) var(targetwin) var(association))
 xitem(tt(zdraw) tt(snapshot) var(targetwin) var(association))
+xitem(tt(zdraw) tt(fill) var(targetwin) var(row) var(column) var(rows) var(columns) var(style) var(tile))
 item(tt(zdraw) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
 Manipulate curses windows.  Except for tt(geometry), tt(colorinfo), tt(textinfo) and tt(textpos), uses of
 this command should be
@@ -671,6 +672,38 @@ returned.  If var(intval) is positive, `tt(zdraw input)' waits
 var(intval) milliseconds for input and if there is none at the end of
 that period returns status 1.
 
+The subcommand tt(fill) fills a rectangle by repeating one styled single-column
+cell. Arguments are the window, zero-based row and column, positive row and
+column counts, style, and tile text. Coordinates and dimensions are literal
+decimal integers. Zero dimensions and rectangles extending outside the window
+are rejected; there is no clipping or implicit expansion.
+
+A tile is one positive-width character occupying exactly one column, optionally
+followed by combining marks on a wide drawing build. Empty text, multiple spacing
+characters, two-column characters, leading combining marks and controls fail.
+Style syntax, color allocation and storage limits are shared with tt(spans).
+Printable ASCII works with the narrow writer; non-ASCII requires tt(wide_spans).
+RGB styles require truecolor opt-in. Geometry and the whole tile/style are
+validated before drawing. Invalid geometry, text or styles allocate no colors
+and change no cells.
+
+The tile is compiled once and one repeated row is reused for all writes. Cursor,
+current attributes and background are preserved; no wrapping, scrolling or
+refresh occurs. A space tile remains a literal space regardless of background.
+The bottom-right cell can be filled. No prepared object is retained.
+
+Overwriting part of an existing wide character follows the linked curses array
+writer, as with tt(spans). Repairs may affect the character's occupied cells
+outside the rectangle. Align boundaries to complete characters when surrounding
+wide text must be preserved; tt(textpos) can find those boundaries in source text.
+The rectangle is not a strict mutation boundary for intersecting wide characters.
+
+Check tt(region_fill) for compiled support. Status is 0 if all writes succeed,
+1 on invalid arguments, color allocation or library write failure, and 2 if the
+writer is unavailable or a non-ASCII tile needs wide support. A failed write may
+leave previous rows and part of the failing row changed; drawing is not rolled
+back. The shared writer restores cursor/style state where library calls permit.
+
 The subcommand tt(cellinfo) reads the retained cell at a window's current
 cursor into an ordinary writable associative parameter, creating it if absent
 and replacing it if present. It requires an initialized session. It does not
@@ -792,6 +825,7 @@ Its contents are unchanged by tt(init), tt(end), or terminal availability.
 
 The following feature names are defined:
 startsitem()
+sitem(tt(region_fill))(Styled rectangle fills using single-column tiles.)
 sitem(tt(window_snapshots))(Bounded capture of retained window cells into an association.)
 sitem(tt(cell_inspection))(Structured readback of the current retained cell.)
 sitem(tt(wide_cell_inspection))(Complete stored complex-character text, including combining marks.)

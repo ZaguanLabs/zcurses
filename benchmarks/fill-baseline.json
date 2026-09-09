@@ -1,0 +1,66 @@
+{
+  "frames": 500,
+  "trials": 7,
+  "rows": 20,
+  "columns": 64,
+  "TERM": "xterm-256color",
+  "locale": "C",
+  "results": {
+    "draw": {
+      "rows": {
+        "median_ms_per_frame": 0.100568,
+        "min_ms_per_frame": 0.09497,
+        "max_ms_per_frame": 0.110518,
+        "terminal_bytes_including_setup": [
+          362
+        ]
+      },
+      "prepared": {
+        "median_ms_per_frame": 0.052446,
+        "min_ms_per_frame": 0.049584,
+        "max_ms_per_frame": 0.053344,
+        "terminal_bytes_including_setup": [
+          362
+        ]
+      },
+      "fill": {
+        "median_ms_per_frame": 0.020638,
+        "min_ms_per_frame": 0.018702,
+        "max_ms_per_frame": 0.022548,
+        "terminal_bytes_including_setup": [
+          362
+        ]
+      },
+      "speedup_over_rows": 4.87295280550441,
+      "speedup_over_prepared": 2.541234615757341
+    },
+    "refresh": {
+      "rows": {
+        "median_ms_per_frame": 0.152772,
+        "min_ms_per_frame": 0.145428,
+        "max_ms_per_frame": 0.168846,
+        "terminal_bytes_including_setup": [
+          131100
+        ]
+      },
+      "prepared": {
+        "median_ms_per_frame": 0.102242,
+        "min_ms_per_frame": 0.095702,
+        "max_ms_per_frame": 0.112206,
+        "terminal_bytes_including_setup": [
+          131100
+        ]
+      },
+      "fill": {
+        "median_ms_per_frame": 0.073422,
+        "min_ms_per_frame": 0.066744,
+        "max_ms_per_frame": 0.082848,
+        "terminal_bytes_including_setup": [
+          131100
+        ]
+      },
+      "speedup_over_rows": 2.0807387431560023,
+      "speedup_over_prepared": 1.3925254011059356
+    }
+  }
+}
