@@ -47,6 +47,7 @@ xitem(tt(zdraw) tt(querychar) var(targetwin) [ var(param) ])
 xitem(tt(zdraw) tt(cellinfo) var(targetwin) var(association))
 xitem(tt(zdraw) tt(snapshot) var(targetwin) var(association))
 xitem(tt(zdraw) tt(copy) var(sourcewin) var(source_row) var(source_column) var(targetwin) var(row) var(column) var(rows) var(columns))
+xitem(tt(zdraw) tt(restyle) var(targetwin) var(row) var(column) var(rows) var(columns) var(style))
 xitem(tt(zdraw) tt(fill) var(targetwin) var(row) var(column) var(rows) var(columns) var(style) var(tile))
 item(tt(zdraw) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
 Manipulate curses windows.  Except for tt(geometry), tt(colorinfo), tt(textinfo) and tt(textpos), uses of
@@ -705,6 +706,42 @@ allocation and source-staging failures leave the destination untouched. A
 failed destination write can leave a partial copy; there is no rollback.
 A cleanup failure returns 1 even if the destination copy completed.
 
+The subcommand tt(restyle) replaces the stored colors and attributes of a
+rectangle without replacing its character data, spaces or combining marks.
+It takes a complete tt(spans)-style specification: comma-separated attributes
+and at most one foreground/background pair. An omitted color uses pair zero;
+an empty style clears all attributes and uses pair zero. This does not toggle
+attributes or remember earlier styles. The application owns any restoration
+style; tt(+bold) and tt(-bold) are invalid.
+
+Coordinates are zero-based, nonnegative decimal integers and dimensions are
+positive decimal integers. The whole rectangle must fit. Geometry and style
+validation precede color allocation or cell changes. RGB arguments require
+the existing tt(truecolor) opt-in, including existing pair-cache entries.
+
+One curses tt(wchgat) call is made per row. No text conversion, cell buffer,
+wrapping, scrolling or refresh occurs. Existing Unicode cells can be restyled
+independently of the caller's text decoding locale. Current drawing attributes
+and background remain unchanged. The live cursor is restored when library calls
+permit it. Shared subwindow cells change normally; tt(touch) other views when
+their change markers need synchronization before refresh.
+
+Align horizontal edges to complete characters in existing wide text. The linked
+library's occupied-column behavior applies; there is no partial-glyph repair
+or portable appearance guarantee. Complete replacement clears attributes outside
+the supported style vocabulary, including the alternate-character-set marker
+on legacy ACS borders. Their stored codes remain but their displayed meaning
+can change. Redraw such borders or use explicit Unicode characters as needed.
+
+Check tt(region_restyle) for compiled tt(wchgat) support; array writers and text
+readers are not required. Status is 0 if all rows and cursor restoration succeed,
+1 for invalid arguments, color allocation, movement or update failures, and 2
+if compiled support is unavailable. Failed updates can leave earlier rows or
+part of the failing row changed. Allocated pairs remain cached. Cursor restoration
+is attempted after an update failure; if restoration itself fails, the cursor
+may remain at the last operation's position. There is no rollback. Older ncurses
+ABIs that pack pair IDs reject values outside their packed representation.
+
 The subcommand tt(fill) fills a rectangle by repeating one styled single-column
 cell. Arguments are the window, zero-based row and column, positive row and
 column counts, style, and tile text. Coordinates and dimensions are literal
@@ -858,6 +895,7 @@ Its contents are unchanged by tt(init), tt(end), or terminal availability.
 
 The following feature names are defined:
 startsitem()
+sitem(tt(region_restyle))(Replace rectangle styles while retaining character data.)
 sitem(tt(region_copy))(Bounded opaque copies of retained rectangles.)
 sitem(tt(region_fill))(Styled rectangle fills using single-column tiles.)
 sitem(tt(window_snapshots))(Bounded capture of retained window cells into an association.)

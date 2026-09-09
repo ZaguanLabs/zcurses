@@ -7,7 +7,7 @@ A completed first milestone does not complete the broader direction.
 
 Implemented first milestones (2026-09-09): [structured input](../README.md#structured-input)
 and [prepared styled rows](../README.md#prepared-styled-rows), followed by opt-in
-`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 42-test suite passes against the matching
+`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 44-test suite passes against the matching
 Zsh 5.9.2 shell, including optional builds. The new paths also pass ASan/UBSan checks
 with leak detection disabled. The native manual
 builds and the exported patch applies in a dry run. See the
@@ -181,7 +181,10 @@ drift and needs its own justification.
   optional-function discovery and explicit native wide-edge limitations.
   Verify aliased subwindows, full cell/style preservation and failure paths;
   provide a [retained-row scrolling example](../examples/copy.zsh).
-- [ ] Change region attributes while preserving text, for selection/focus.
+- [x] Replace region styles while retaining character data, for selection/focus.
+  Share complete-style parsing, preserve current drawing state, define native
+  wide/ACS behavior, and test optional builds, RGB and update failures. Provide
+  a [moving-highlight example](../examples/restyle.zsh).
 - [x] Define fill bounds and existing-wide-character overlap behavior through
   the shared array writer; verify equivalence to ordinary span writes.
 - [ ] Define transparent-cell semantics for future region copying.

@@ -196,6 +196,7 @@ unknown, so the application chooses its fallback policy.
 | `prepared_rows` | Immutable session-scoped styled rows, with clipping and inspection |
 | `region_fill` | Styled rectangle fills using single-column tiles |
 | `region_copy` | Bounded opaque copies of retained rectangles |
+| `region_restyle` | Replace rectangle styles while retaining character data |
 | `styled_spans` | Single-row styled text batching |
 | `wide_spans` | Wide characters and representable combining sequences in spans |
 | `clipped_spans` | Styled-span drawing with one shared column budget |
@@ -781,6 +782,64 @@ Run the [scrolling example](examples/copy.zsh) with the matching shell:
 Up/down scroll retained rows; only the newly exposed row is drawn. Resizing
 rebuilds the view, and `q` exits. This illustrates reuse; it does not establish a
 performance advantage over prepared drawing for every workload.
+
+## Restyling retained text
+
+```zsh
+# Highlight an existing row without supplying its text again.
+zdraw restyle stdscr 3 2 1 30 bold,reverse
+# Restore a known base style when the selection moves.
+zdraw restyle stdscr 3 2 1 30 ''
+zdraw refresh stdscr
+```
+
+`zdraw restyle window row column rows columns style` replaces the stored colors
+and attributes of a rectangle, retaining its character data, including spaces
+and combining marks. It uses the same **complete style** syntax as `spans`:
+comma-separated attribute names and at most one foreground/background pair.
+An omitted color means pair zero, and an empty style clears all attributes and
+uses pair zero. This is replacement, not an attribute toggle or a saved-style
+stack. Applications own the styles they restore; `+bold` and `-bold` are invalid.
+
+Coordinates are zero-based, nonnegative decimal integers and dimensions are
+positive decimal integers. The entire rectangle must fit. Invalid geometry or
+style is rejected before color allocation or cell changes. RGB color arguments
+require the existing truecolor opt-in, including cache hits. Restyling with a
+new complete style replaces any existing RGB pair in the rectangle.
+
+`restyle` makes one curses `wchgat` call per row. It does not decode text, build
+a cell buffer, wrap, scroll or refresh. Existing Unicode cells can be restyled
+even when the current locale cannot decode their text. The window's current
+drawing attributes and background are untouched, and the live cursor is restored
+before returning when the library permits it. Parent/subwindows share modified
+cells as usual; `touch` another view before refreshing it when its change markers
+need synchronization.
+
+Align horizontal edges to complete characters in existing wide text. Updates
+follow the linked library's occupied-column behavior and do not repair partial
+wide glyphs or guarantee their terminal appearance. Complete style replacement
+also clears attributes outside the supported style vocabulary, including the
+**alternate-character-set marker** on legacy ACS borders. Stored codes remain,
+but their displayed meaning can change; redraw those borders or use explicit
+Unicode border characters when appropriate. See the
+[curses attribute contract](https://invisible-island.net/ncurses/man/curs_attr.3x.html).
+
+Check `region_restyle` for compiled `wchgat` support; array writers and text
+readers are not required. Status 0 means every row and cursor restoration
+succeeded; 1 covers invalid arguments, color allocation, movement or library
+errors; 2 means compiled support is unavailable. A failed update may leave
+previous rows or part of the failing row restyled. Successfully allocated pairs
+remain in the session cache. Cursor restoration is attempted after a failed
+update, but a restoration failure can leave it at the last operation's position.
+No drawing rollback is attempted. Older ncurses ABIs that pack color-pair IDs
+reject pairs that do not fit their packed representation.
+
+The [highlight example](examples/restyle.zsh) draws labels once and moves the
+selection by restyling the old and new rows. A resize rebuilds the labels:
+
+```sh
+.build/zsh/Src/zsh -df examples/restyle.zsh
+```
 
 ## Inspecting rendered cells
 

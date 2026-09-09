@@ -7,7 +7,7 @@
 +	       getcchar setcchar waddwstr wget_wch win_wch wborder_set use_default_colors \
 +	       waddchnstr wadd_wchnstr wgetbkgrnd wbkgrndset \
 +	       wattr_get wattr_set \
-+	       copywin newpad \
++	       copywin newpad wchgat \
 +	       init_extended_pair extended_color_content \
  	       nl_langinfo \
  	       erand48 open_memstream \

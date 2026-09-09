@@ -1008,7 +1008,7 @@ zdraw_span_cell(cchar_t *cell, const wchar_t *group, chtype attrs)
 }
 #endif
 
-#if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
+#if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR) || defined(HAVE_WCHGAT)
 /* A span has a complete style, independent of the window's current style. */
 struct zdraw_span {
     chtype attrs;
@@ -1377,6 +1377,75 @@ zccmd_fill(const char *nam, char **args)
             return 1;
     }
     return 0;
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
+}
+
+static int
+zccmd_restyle(const char *nam, char **args)
+{
+#ifdef HAVE_WCHGAT
+    LinkNode node;
+    WINDOW *win;
+    struct zdraw_span style;
+    Colorpairnode pair;
+    short cp = 0;
+    int row, col, rows, cols, maxrows, maxcols, y, x, i, result = 0;
+
+    if (zdraw_nonnegative(args[1], &row) ||
+        zdraw_nonnegative(args[2], &col) ||
+        zdraw_nonnegative(args[3], &rows) ||
+        zdraw_nonnegative(args[4], &cols) || !rows || !cols) {
+        zwarnnam(nam, "restyle expects decimal coordinates and positive dimensions");
+        return 1;
+    }
+    node = zdraw_validate_window(args[0], ZDRAW_USED);
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
+        return 1;
+    }
+    win = ((ZCWin)getdata(node))->win;
+    getmaxyx(win, maxrows, maxcols);
+    if (row >= maxrows || col >= maxcols ||
+        rows > maxrows - row || cols > maxcols - col) {
+        zwarnnam(nam, "restyle rectangle does not fit inside the window");
+        return 1;
+    }
+    if (zdraw_span_style(args[5], &style)) {
+        zwarnnam(nam, "restyle: invalid style: %s", args[5]);
+        return 1;
+    }
+    if (style.color) {
+        pair = zdraw_colorget(nam, style.color);
+        if (!pair) {
+            zwarnnam(nam, "restyle: cannot allocate color pair: %s", style.color);
+            return 1;
+        }
+        cp = pair->colorpair;
+    }
+#if defined(NCURSES_VERSION) && !defined(NCURSES_EXT_COLORS)
+    /* Older ncurses ABIs pack even the dedicated short pair argument. */
+    if (PAIR_NUMBER(COLOR_PAIR(cp)) != cp) {
+        zwarnnam(nam, "restyle: color pair exceeds packed-attribute limit");
+        return 1;
+    }
+#endif
+    getyx(win, y, x);
+    for (i = 0; i < rows; i++) {
+        if (wmove(win, row + i, col) == ERR ||
+            wchgat(win, cols, (attr_t)style.attrs, cp, NULL) == ERR) {
+            result = 1;
+            break;
+        }
+    }
+    /* wchgat leaves text, current attributes and background alone. Always
+     * attempt cursor restoration, including after a partial update failure. */
+    if (wmove(win, y, x) == ERR)
+        result = 1;
+    return result;
 #else
     (void)nam;
     (void)args;
@@ -3279,6 +3348,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"spans", zccmd_spans, 5, -1},
         {"fill", zccmd_fill, 7, 7},
         {"copy", zccmd_copy, 8, 8},
+        {"restyle", zccmd_restyle, 6, 6},
         {"prepare", zccmd_prepare, 3, -1},
         {"draw", zccmd_draw, 4, 5},
         {"unprepare", zccmd_unprepare, 1, 1},
@@ -3354,6 +3424,9 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 	"colorinfo",
         "cell_inspection",
         "window_snapshots",
+#ifdef HAVE_WCHGAT
+        "region_restyle",
+#endif
 #if defined(HAVE_COPYWIN) && defined(HAVE_NEWPAD)
         "region_copy",
 #endif

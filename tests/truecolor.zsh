@@ -122,6 +122,9 @@ check zdraw init
       typeset -i used=$info[pairs_used]
       check zdraw fill sample 3 10 2 3 '#112233/#445566' R
       cell 3 10 R '#112233/#445566'
+      check zdraw restyle sample 3 10 2 3 'bold,#112233/#445566'
+      cell 3 10 R '#112233/#445566'
+      (( ${reply[(Ie)bold]} )) || fail 'RGB restyle attributes'
       check zdraw prepare retained '#112233/#445566' PREPARED
       check zdraw truecolor off
       # Both first use and a cache hit must obey off.
@@ -129,6 +132,7 @@ check zdraw init
       reject zdraw bg sample '#204060/#102030'
       reject zdraw spans sample 2 1 '#112233/#445566' Q
       reject zdraw fill sample 2 1 1 1 '#112233/#445566' Q
+      reject zdraw restyle sample 2 1 1 1 '#112233/#445566'
       reject zdraw prepare disabled '#112233/#445566' Q
       check zdraw draw sample 4 1 retained
       cell 4 1 P '#112233/#445566'
@@ -156,6 +160,9 @@ check zdraw init
         cell 1 1 H '#56789a/#6789ab'
         check zdraw fill sample 3 10 2 3 '#56789a/#6789ab' X
         cell 3 10 X '#56789a/#6789ab'
+        check zdraw restyle sample 3 10 2 3 'underline,#56789a/#6789ab'
+        cell 3 10 X '#56789a/#6789ab'
+        (( ${reply[(Ie)underline]} )) || fail 'high-pair restyle attributes'
         check zdraw prepare high '#56789a/#6789ab' PREPARED
         check zdraw draw sample 3 1 high
         cell 3 1 P '#56789a/#6789ab'

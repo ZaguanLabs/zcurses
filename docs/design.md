@@ -323,3 +323,21 @@ attribute-only region updates remain separate experiments. Tests compare full
 snapshots for all overlap directions, shared windows, literal spaces, styles,
 combining marks and complete wide characters, with injected allocation/staging/
 write failures and builds lacking either optional function.
+
+## Retained rectangle restyling
+
+`restyle` shares the complete span-style parser independently of array-writer
+availability. It validates literal geometry and the whole style before allocating
+a single shared color pair, then calls optional `wchgat` once per row. The pair
+is passed separately from attribute bits, with a guard against truncation on
+older ncurses ABIs. No cell buffer, text conversion or second screen model is
+introduced. Current attributes/background remain unchanged; cursor restoration
+is attempted on success and after an update failure.
+
+Style replacement is absolute: absent attributes are cleared and absent color
+means pair zero. This includes clearing the ACS marker and unsupported attribute
+bits, so retained code points alone do not guarantee unchanged border appearance.
+Wide edges follow curses' occupied-column semantics and should align to complete
+characters. Partial updates and allocated pairs survive errors; no transaction or
+style-history stack is implied. Application selection state and restoration
+styles live in the Zsh example, outside the C module.
