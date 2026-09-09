@@ -16,6 +16,8 @@ cindex(windows, curses)
 xitem(tt(zdraw) tt(init))
 xitem(tt(zdraw) tt(end))
 xitem(tt(zdraw) tt(addwin) var(targetwin) var(nlines) var(ncols) var(begin_y) var(begin_x) [ var(parentwin) ] )
+xitem(tt(zdraw) tt(movewin) var(targetwin) var(row) var(column))
+xitem(tt(zdraw) tt(resizewin) var(targetwin) var(rows) var(columns) [ var(row) var(column) ])
 xitem(tt(zdraw) tt(addpad) var(name) var(rows) var(columns))
 xitem(tt(zdraw) tt(viewport) var(pad) var(pad_row) var(pad_column) var(screen_row) var(screen_column) var(rows) var(columns))
 xitem(tt(zdraw) tt(stage) var(targetwin) [ var(targetwin) ... ])
@@ -92,6 +94,56 @@ If multiple windows are given, the screen is updated once at the end.
 The subcommand tt(touch) marks the var(targetwin)s listed as changed.
 This is necessary before tt(refresh)ing windows if a window that
 was in front of another window (which may be tt(stdscr)) is deleted.
+
+The subcommand tt(movewin) moves an ordinary window's screen origin to
+zero-based nonnegative decimal coordinates, preserving its dimensions, retained
+cells, logical cursor and drawing/input settings. It differs from tt(move),
+which moves the cursor inside a surface. The whole window must fit in the
+current curses screen.
+
+The subcommand tt(resizewin) takes positive literal decimal dimensions and an
+optional pair of screen coordinates. Both optional coordinates must be supplied
+together; omitting them preserves the origin. The resulting rectangle must fit
+inside the current curses screen. Both old and requested window areas are
+limited to 262144 cells; requested dimensions are each limited to 32767.
+Use terminal tt(resize) with tt(nosave) to update screen dimensions first.
+
+Both operations accept only independent ordinary windows without children.
+They reject tt(stdscr), pads, subwindows and windows with subwindows. Shared
+storage relationships and pad resizing require separate handling.
+
+Resizing retains the upper-left overlap subject to native wide-edge repair.
+New cells use the existing background character and its attributes, not the
+current drawing style. Shrunk-away cells are discarded; subsequent growth does
+not restore them. The cursor is clamped independently to the last valid row
+and column when needed. Current attributes, full color pair, background, input
+timeout and scrolling mode are retained, including existing RGB state after
+tt(truecolor off).
+
+A private duplicate is resized and positioned before replacing the live window.
+Recoverable allocation, resize, move or setup failures leave the original handle
+and retained contents intact. Failure to release the original also retains that
+handle. Limits describe cell areas, not exact peak memory: duplicate/reallocation
+storage is needed in addition to the original. The handle name and registry
+position are preserved.
+
+Neither operation stages, reads input or presents. Previously queued screen
+cells stay in place. Recompose the old footprint with a background, stage the
+updated window and call tt(present). Ordinary input and inherited tt(refresh)
+keep their usual presentation behavior. Use no-refresh input where supported
+for an explicit application presentation boundary.
+
+The linked library's tt(wresize) behavior handles wide characters intersecting
+a new right edge. No independent Unicode reconstruction is provided; align cuts
+to complete characters where possible. Redraw layout-dependent content such as
+borders after resizing.
+
+Check tt(window_movement) for tt(mvwin) support. tt(window_resize) requires
+ tt(wresize), tt(mvwin), tt(wattr_get) and tt(wattr_set). Explicit style restoration
+preserves high color-pair IDs that some tt(dupwin) implementations lose.
+Both commands require tt(init). Status is 0 on success, 1 for invalid arguments,
+surface relationships, bounds, resource limits or library errors, and 2 for
+missing compiled support.
 
 The subcommand tt(addpad) creates a blank offscreen surface in the window
 namespace. Pads appear in tt(zdraw_windows) and can exceed the terminal size.
@@ -961,6 +1013,8 @@ Its contents are unchanged by tt(init), tt(end), or terminal availability.
 
 The following feature names are defined:
 startsitem()
+sitem(tt(window_movement))(Move independent ordinary windows.)
+sitem(tt(window_resize))(Resize and optionally reposition independent ordinary windows.)
 sitem(tt(offscreen_pads))(Bounded offscreen pads and viewport staging.)
 sitem(tt(staged_refresh))(Stage ordinary windows and explicitly present composed frames.)
 sitem(tt(region_restyle))(Replace rectangle styles while retaining character data.)

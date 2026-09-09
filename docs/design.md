@@ -373,3 +373,26 @@ barriers independently verify that staging is silent, rejected pad input leaves
 queued characters untouched, and only explicit presentation reveals queued
 content. Budget and failure variants cover allocation, deletion, viewport,
 staging and final update paths. The Zsh example owns scrolling and overlay policy.
+
+## Independent window geometry
+
+`movewin` moves a top-level ordinary window after strict coordinate and screen
+bounds validation. `resizewin` optionally changes both extent and origin. Both
+reject permanent windows, pads, subwindows and windows with children, leaving
+shared-storage geometry for a separate design. No presentation is performed.
+
+Resize bounds apply to the requested rectangle, permitting a simultaneous move
+when recovering from a smaller terminal. Old and new areas are capped at 262,144
+cells and requested dimensions at 32,767. A private duplicate receives `wresize`,
+`mvwin`, full current-style restoration, cursor clamping, scrolling mode and
+timeout. Only after all steps succeed and the original can be deleted does the
+registered pointer change. This avoids changing live geometry/cells on recoverable
+allocation or preparation errors. No named temporary surface is exposed.
+
+Explicit `wattr_get`/`wattr_set` is necessary because a duplicate can lose a
+window's separate extended color-pair field while retaining packed attribute
+bits. Background cell storage is preserved by duplication; curses supplies new
+cells from that background during expansion and performs native wide-edge repair
+during shrink. Previously queued screen cells are independent of window pointers
+and are not rewritten or erased by a geometry change. Applications recompose
+backgrounds and affected surfaces before presenting.

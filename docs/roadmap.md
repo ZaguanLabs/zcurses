@@ -7,7 +7,7 @@ A completed first milestone does not complete the broader direction.
 
 Implemented first milestones (2026-09-09): [structured input](../README.md#structured-input)
 and [prepared styled rows](../README.md#prepared-styled-rows), followed by opt-in
-`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 47-test suite passes against the matching
+`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 50-test suite passes against the matching
 Zsh 5.9.2 shell, including optional builds. The new paths also pass ASan/UBSan checks
 with leak detection disabled. The native manual
 builds and the exported patch applies in a dry run. See the
@@ -69,12 +69,15 @@ stacked windows support temporary overlays without exposing layout policy in C.
 - [x] Expose bounded offscreen pads and viewport staging, with explicit ordinary
   window staging and final presentation. Verify budgets, lifecycle, shared drawing
   operations, composition order and input ownership in PTYs.
-- [ ] Define window movement/resizing and wide-cell clipping behavior.
+- [x] Move and resize independent ordinary windows, including combined resize
+  and repositioning, retained state, cursor clamping, failure isolation and
+  documented native wide-edge behavior. Provide a [floating-window example](../examples/windows.zsh).
+- [ ] Define geometry changes for shared window trees and resizing public pads.
 - [ ] Explore optional panel-library support for stacking, hiding and showing.
 - [ ] Specify how panel updates and existing refresh operations coexist.
 - [x] Provide a [panning document and overlay example](../examples/viewports.zsh)
-  with terminal resizing and overlap tests. Ordinary window movement remains a
-  separate candidate above.
+  with terminal resizing and overlap tests. Independent window movement and
+  resizing are now covered by the floating-window example above.
 
 A pad is not automatic virtualization: applications still own large datasets
 and choose how much content to render.

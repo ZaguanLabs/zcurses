@@ -198,6 +198,8 @@ unknown, so the application chooses its fallback policy.
 | `region_copy` | Bounded opaque copies of retained rectangles |
 | `region_restyle` | Replace rectangle styles while retaining character data |
 | `offscreen_pads` | Bounded offscreen surfaces and viewport staging |
+| `window_movement` | Move independent ordinary windows |
+| `window_resize` | Resize and optionally reposition independent ordinary windows |
 | `staged_refresh` | Stage ordinary windows and explicitly present a composed frame |
 | `styled_spans` | Single-row styled text batching |
 | `wide_spans` | Wide characters and representable combining sequences in spans |
@@ -670,6 +672,87 @@ The subcommand and capability checks do not consume input, emit terminal replies
 refresh pending drawing, or alter input ownership. Input stays with the existing
 `zdraw input` API. There is no additional negotiation or reply parser. All
 screen output remains within curses and its retained-screen refresh machinery.
+
+## Moving and resizing windows
+
+```zsh
+zdraw addwin floating 6 30 2 4
+zdraw spans floating 1 1 bold 'Retained window content'
+zdraw movewin floating 4 8
+zdraw resizewin floating 8 40
+# Resize and reposition together, useful after the terminal shrinks:
+zdraw resizewin floating 5 24 1 2
+zdraw stage stdscr floating
+zdraw present
+```
+
+`zdraw movewin window row column` moves an ordinary window's screen origin.
+It preserves dimensions, retained cells, the logical cursor and drawing/input
+settings. This is distinct from inherited `move`, which moves the cursor inside
+a surface. Coordinates are zero-based nonnegative literal decimals, and the
+entire window must fit inside the current curses screen.
+
+`zdraw resizewin window rows columns [row column]` changes a window's dimensions
+and optionally its origin in the same operation. Dimensions are positive literal
+decimals, at most **32,767 each**; both the old and requested window are limited
+to **262,144 cells** for this operation. Both optional coordinates must be supplied
+together. Omitting them keeps the existing origin. The resulting rectangle must
+fit entirely inside the current curses screen. Use `resize ... nosave` to update
+the terminal dimensions first; it remains separate from `resizewin`.
+
+These operations currently accept **independent ordinary windows without
+children**. They reject `stdscr`, pads, subwindows and windows with subwindows.
+This avoids silently changing relationships between shared backing storage.
+Delete or otherwise rebuild shared window layouts explicitly. Pad dimensions
+remain fixed in this milestone.
+
+Resizing keeps the upper-left overlap, subject to native wide-character edge
+repair, and fills new cells with the window's existing background character and
+background attributes. It does not apply the current drawing style to newly
+exposed cells. Shrinking discards cells permanently; growing again does not
+restore them. The cursor is preserved where possible and clamped independently
+to the last valid row and column when necessary. Current attributes, full color
+pair, background, input timeout and scrolling setting are retained. Existing
+RGB state survives resizing even with `truecolor` disabled.
+
+The implementation duplicates the window privately, resizes and repositions the
+copy, restores drawing/input state, and replaces the live window only after all
+preparation succeeds and the old window is released. Recoverable allocation,
+resize, repositioning or setup failures leave the original handle and retained
+contents intact. A failed release of the original window also keeps that handle.
+The limits bound old and new cell areas, not exact peak memory: resizing needs
+temporary duplicate/reallocation storage as well as the live window. The handle
+name and its registry position remain unchanged.
+
+Neither operation stages a frame, reads input or presents output. Already queued
+screen cells stay where they were; moving/resizing does not erase an old screen
+footprint or update earlier staging. Recompose the background and affected
+surfaces, then call `present`. Subsequent ordinary input or inherited `refresh`
+still has its usual presentation behavior. Use no-refresh input where supported
+when the application owns the presentation boundary.
+
+A width reduction can intersect a stored wide character. The linked library's
+`wresize` repair behavior applies; the module does not provide independent
+Unicode boundary reconstruction. Align cuts to complete characters where
+possible, and redraw layout-dependent content such as borders after resizing.
+See the [window movement contract](https://invisible-island.net/ncurses/man/curs_window.3x.html)
+and [resize contract](https://invisible-island.net/ncurses/man/wresize.3x.html).
+
+Check `window_movement` for compiled `mvwin` support. `window_resize` requires
+`wresize`, `mvwin`, `wattr_get` and `wattr_set`. The latter two preserve the full
+current style, including high pair IDs that some `dupwin` implementations lose.
+Both commands require `init`; status is 0 on success, 1 for invalid arguments,
+unsupported surface relationships, bounds, resource limits or library failure,
+and 2 for missing compiled support.
+
+Run the [floating-window example](examples/windows.zsh) with the matching shell:
+
+```sh
+.build/zsh/Src/zsh -df examples/windows.zsh
+```
+
+Arrows move the retained window, `+`/`-` resize it, and `q` exits. Terminal resizing
+clamps its geometry; very small terminals temporarily show only the background.
 
 ## Offscreen pads and composed frames
 

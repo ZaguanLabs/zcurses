@@ -157,6 +157,8 @@ class FeatureTests(unittest.TestCase):
 #undef HAVE_USE_DEFAULT_COLORS
 #undef HAVE_WBORDER_SET
 #undef HAVE_INIT_EXTENDED_PAIR
+#undef HAVE_MVWIN
+#undef HAVE_WRESIZE
 #undef HAVE_PNOUTREFRESH
 #undef HAVE_WCHGAT
 #undef HAVE_COPYWIN

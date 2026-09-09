@@ -66,6 +66,13 @@
 # define ZDRAW_PADS 1
 #endif
 
+#if defined(HAVE_MVWIN) && defined(HAVE_WRESIZE) && \
+    defined(HAVE_WATTR_GET) && defined(HAVE_WATTR_SET)
+# define ZDRAW_WINDOW_RESIZE 1
+#endif
+#define ZDRAW_RESIZE_CELLS 262144
+#define ZDRAW_RESIZE_DIMENSION 32767
+
 #define ZDRAW_PAD_CELLS 262144
 #define ZDRAW_PAD_TOTAL_CELLS 1048576
 #define ZDRAW_PAD_DIMENSION 32767
@@ -987,6 +994,135 @@ zdraw_nonnegative(char *str, int *value)
     return 0;
 }
 
+
+#ifdef HAVE_MVWIN
+static ZCWin
+zdraw_independent_window(const char *nam, char *name)
+{
+    LinkNode node = zdraw_validate_window(name, ZDRAW_USED);
+    ZCWin w;
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), name);
+        return NULL;
+    }
+    w = (ZCWin)getdata(node);
+    if ((w->flags & (ZCWF_PERMANENT | ZCWF_PAD)) || w->parent ||
+        (w->children && firstnode(w->children))) {
+        zwarnnam(nam, "requires an independent ordinary window without children: %s", name);
+        return NULL;
+    }
+    return w;
+}
+
+static int
+zdraw_window_fits(int row, int col, int rows, int cols)
+{
+    int screen_rows, screen_cols;
+    getmaxyx(stdscr, screen_rows, screen_cols);
+    return row >= 0 && col >= 0 && rows > 0 && cols > 0 &&
+        row < screen_rows && col < screen_cols &&
+        rows <= screen_rows - row && cols <= screen_cols - col;
+}
+#endif
+
+static int
+zccmd_movewin(const char *nam, char **args)
+{
+#ifdef HAVE_MVWIN
+    ZCWin w;
+    int row, col, rows, cols;
+    if (zdraw_nonnegative(args[1], &row) ||
+        zdraw_nonnegative(args[2], &col)) {
+        zwarnnam(nam, "movewin expects nonnegative decimal coordinates");
+        return 1;
+    }
+    w = zdraw_independent_window(nam, args[0]);
+    if (!w)
+        return 1;
+    getmaxyx(w->win, rows, cols);
+    if (!zdraw_window_fits(row, col, rows, cols)) {
+        zwarnnam(nam, "moved window does not fit inside the screen");
+        return 1;
+    }
+    return mvwin(w->win, row, col) == ERR;
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
+}
+
+static int
+zccmd_resizewin(const char *nam, char **args)
+{
+#ifdef ZDRAW_WINDOW_RESIZE
+    ZCWin w;
+    WINDOW *replacement;
+    int rows, cols, row, col, oldrows, oldcols, y, x, nargs = arrlen(args);
+    attr_t attrs;
+    short pair;
+    if ((nargs != 3 && nargs != 5) ||
+        zdraw_nonnegative(args[1], &rows) ||
+        zdraw_nonnegative(args[2], &cols) || !rows || !cols ||
+        rows > ZDRAW_RESIZE_DIMENSION || cols > ZDRAW_RESIZE_DIMENSION ||
+        rows > ZDRAW_RESIZE_CELLS / cols) {
+        zwarnnam(nam, "resizewin expects bounded positive dimensions and optional row/column");
+        return 1;
+    }
+    w = zdraw_independent_window(nam, args[0]);
+    if (!w)
+        return 1;
+    getbegyx(w->win, row, col);
+    if (nargs == 5 && (zdraw_nonnegative(args[3], &row) ||
+                      zdraw_nonnegative(args[4], &col))) {
+        zwarnnam(nam, "resizewin expects nonnegative decimal coordinates");
+        return 1;
+    }
+    if (!zdraw_window_fits(row, col, rows, cols)) {
+        zwarnnam(nam, "resized window does not fit inside the screen");
+        return 1;
+    }
+    getmaxyx(w->win, oldrows, oldcols);
+    if (oldrows <= 0 || oldcols <= 0 || oldrows > ZDRAW_RESIZE_CELLS / oldcols) {
+        zwarnnam(nam, "existing window exceeds the resize copy limit");
+        return 1;
+    }
+    getyx(w->win, y, x);
+    if (y >= rows)
+        y = rows - 1;
+    if (x >= cols)
+        x = cols - 1;
+    if (wattr_get(w->win, &attrs, &pair, NULL) == ERR)
+        return 1;
+    replacement = dupwin(w->win);
+    if (!replacement) {
+        zwarnnam(nam, "failed to duplicate window for resizing");
+        return 1;
+    }
+    /* Work on an independent copy, including for resize-and-move recovery
+     * after terminal shrink. Explicitly restore the full current pair: some
+     * dupwin implementations copy packed attributes but lose extended IDs. */
+    if (wresize(replacement, rows, cols) == ERR ||
+        mvwin(replacement, row, col) == ERR ||
+        wattr_set(replacement, attrs, pair, NULL) == ERR ||
+        wmove(replacement, y, x) == ERR ||
+        scrollok(replacement, (w->flags & ZCWF_SCROLL) != 0) == ERR) {
+        delwin(replacement);
+        return 1;
+    }
+    wtimeout(replacement, w->timeout);
+    if (delwin(w->win) == ERR) {
+        delwin(replacement);
+        return 1;
+    }
+    w->win = replacement;
+    return 0;
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
+}
 
 static int
 zccmd_addpad(const char *nam, char **args)
@@ -3489,6 +3625,8 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"init", zccmd_init, 0, 0},
 	{"addwin", zccmd_addwin, 5, 6},
         {"addpad", zccmd_addpad, 3, 3},
+        {"movewin", zccmd_movewin, 3, 3},
+        {"resizewin", zccmd_resizewin, 3, 5},
         {"viewport", zccmd_viewport, 7, 7},
         {"stage", zccmd_stage, 1, -1},
         {"present", zccmd_present, 0, 0},
@@ -3599,6 +3737,12 @@ zdraw_featuresgetfn(UNUSED(Param pm))
         "cell_inspection",
         "window_snapshots",
         "staged_refresh",
+#ifdef HAVE_MVWIN
+        "window_movement",
+#endif
+#ifdef ZDRAW_WINDOW_RESIZE
+        "window_resize",
+#endif
 #ifdef ZDRAW_PADS
         "offscreen_pads",
 #endif

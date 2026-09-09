@@ -180,6 +180,13 @@ check zdraw init
         check zdraw move sample 2 1
         check zdraw string sample SAVED
         cell 2 1 S '#345678/#456789'
+        check zdraw truecolor off
+        check zdraw resizewin sample 8 34 2 3
+        cell 7 33 ' ' '#123456/#234567'
+        check zdraw move sample 6 1
+        check zdraw string sample G
+        cell 6 1 G '#345678/#456789'
+        check zdraw truecolor on
         check zdraw refresh sample
       fi
       # Named and decimal spellings keep their existing semantics and cache.
