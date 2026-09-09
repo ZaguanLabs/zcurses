@@ -18,11 +18,11 @@ class ColorInfoTests(unittest.TestCase):
 
     def test_headless_and_assignment(self):
         script = '''
-            zmodload zsh/curses || exit 1
-            (( ${zcurses_features[(Ie)colorinfo]} )) || exit 2
+            zmodload zdraw || exit 1
+            (( ${zdraw_features[(Ie)colorinfo]} )) || exit 2
             inspect() {
                 local -A info=(stale value)
-                zcurses colorinfo info || exit 3
+                zdraw colorinfo info || exit 3
                 [[ $info[initialized] == 0 && ${+info[stale]} == 0 ]] || exit 4
                 local key
                 for key in has_colors color_started default_colors can_change_color \\
@@ -31,33 +31,33 @@ class ColorInfoTests(unittest.TestCase):
                     [[ $info[$key] == unknown ]] || exit 5
                 done
                 # Assignment must find the caller's local association.
-                nested() { zcurses colorinfo info; }
+                nested() { zdraw colorinfo info; }
                 nested || exit 6
                 [[ $info[initialized] == 0 ]] || exit 7
                 read -r line || exit 8
                 [[ $line == 'input stays data' ]] || exit 9
             }
             inspect <<<'input stays data' || exit 10
-            (( ! ${+info} && ${#zcurses_windows} == 0 )) || exit 11
-            zcurses colorinfo fresh || exit 12
+            (( ! ${+info} && ${#zdraw_windows} == 0 )) || exit 11
+            zdraw colorinfo fresh || exit 12
             [[ ${(t)fresh} == association && $fresh[initialized] == 0 ]] || exit 13
             typeset -A output=(keep value)
-            zcurses colorinfo output extra 2>/dev/null && exit 14
+            zdraw colorinfo output extra 2>/dev/null && exit 14
             [[ $output[keep] == value && ${#output} == 1 ]] || exit 15
-            zcurses colorinfo 2>/dev/null && exit 16
-            zcurses colorinfo 'output[key]' 2>/dev/null && exit 17
-            zcurses colorinfo 'bad name' 2>/dev/null && exit 18
+            zdraw colorinfo 2>/dev/null && exit 16
+            zdraw colorinfo 'output[key]' 2>/dev/null && exit 17
+            zdraw colorinfo 'bad name' 2>/dev/null && exit 18
             typeset -Ar frozen=(keep value)
-            zcurses colorinfo frozen 2>/dev/null && exit 19
+            zdraw colorinfo frozen 2>/dev/null && exit 19
             [[ $frozen[keep] == value ]] || exit 20
             typeset scalar=keep
-            zcurses colorinfo scalar 2>/dev/null && exit 21
+            zdraw colorinfo scalar 2>/dev/null && exit 21
             [[ $scalar == keep ]] || exit 22
-            zcurses colorinfo functions 2>/dev/null && exit 23
+            zdraw colorinfo functions 2>/dev/null && exit 23
             print -r -- 'headless assignment passed'
         '''
         self.assertEqual(self.run_shell(script), 'headless assignment passed\n')
-        self.assertEqual(self.run_shell(script, terminal='zcurses-nonexistent-terminal'),
+        self.assertEqual(self.run_shell(script, terminal='zdraw-nonexistent-terminal'),
                          'headless assignment passed\n')
 
     def test_runtime_lifecycle_and_pair_counts(self):
@@ -67,7 +67,7 @@ class ColorInfoTests(unittest.TestCase):
         self.session('monochrome', terminal='vt100')
 
     def test_initialization_failure_and_optional_support(self):
-        source = (ROOT / 'Src/Modules/curses.c').read_text()
+        source = (ROOT / 'Src/Modules/zdraw.c').read_text()
         variants = {
             'failed_start': '#undef start_color\n#define start_color() ERR',
             'defaults_failed': '#undef use_default_colors\n#define use_default_colors() ERR',

@@ -13,7 +13,7 @@ ROOT, ZSH = test_features.ROOT, test_features.ZSH
 class ClippingTests(unittest.TestCase):
     def headless(self, mode='wide', modules=None):
         locales = subprocess.check_output(['locale', '-a'], text=True).splitlines()
-        utf8 = os.environ.get('ZCURSES_TEST_LOCALE') or next(
+        utf8 = os.environ.get('ZDRAW_TEST_LOCALE') or next(
             (x for x in locales if 'utf8' in x.lower().replace('-', '')), None)
         self.assertIsNotNone(utf8, 'A UTF-8 locale is required')
         env = {**os.environ, 'LC_ALL': utf8}
@@ -34,7 +34,7 @@ class ClippingTests(unittest.TestCase):
         self.assertIn('e\u0301'.encode(), output)
 
     def test_optional_implementations(self):
-        source = (ROOT / 'Src/Modules/curses.c').read_text()
+        source = (ROOT / 'Src/Modules/zdraw.c').read_text()
         for mode, definitions in (
                 ('allocation_failure', '#define init_pair(p, f, b) ((p) == 2 ? ERR : init_pair(p, f, b))'),
                 ('narrow', '#undef HAVE_WADD_WCHNSTR'),

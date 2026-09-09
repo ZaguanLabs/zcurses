@@ -23,7 +23,7 @@ backend order alternates between trials. One column per row changes on successiv
 frames, so the refresh workload is not an unchanged-screen benchmark.
 
 - `draw` times shell calls and retained-window drawing without refresh.
-- `refresh` also includes one `zcurses refresh` per frame and draining terminal
+- `refresh` also includes one `zdraw refresh` per frame and draining terminal
   output into the PTY driver. It does not measure a graphical terminal emulator's
   paint latency.
 - Byte totals cover the whole session, including initialization, warmup refresh

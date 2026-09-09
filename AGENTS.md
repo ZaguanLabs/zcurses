@@ -1,7 +1,8 @@
 # Project guidance
 
-- Develop a portable, general-purpose Zsh/curses module with changes suitable
-  for consideration in the official Zsh distribution. Keep application layouts,
+- Develop `zdraw` as an independent, portable, general-purpose Zsh module derived
+  from `zsh/curses`. Keep useful fixes and extensions suitable for adaptation to
+  the official Zsh distribution. Keep application layouts,
   command palettes and agent concepts out of the C module.
 - Do not depend on a contributor's home directory, distribution build tree,
   installed module, or another application repository. Document reproducible
@@ -14,5 +15,6 @@
 - Use the Zsh expertise skill for Zsh code. Run `make test` with `ZSH_BUILD_ROOT`
   pointing to the selected Zsh source tree after code changes. Test against the
   shell built from that tree; loading into another shell requires a matching ABI.
-- Preserve existing `zcurses` command behavior. New terminal protocols must be
+- Preserve the inherited `zcurses` operation behavior under the `zdraw` builtin;
+  keep stock `zsh/curses` separate. New terminal protocols must be
   opt-in and must have explicit input ownership and cleanup behavior.

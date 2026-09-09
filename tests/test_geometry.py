@@ -132,9 +132,9 @@ class GeometryTests(unittest.TestCase):
         result = subprocess.run(
             [ZSH, '-dfc', '''
                 module_path=("$1")
-                zmodload zsh/curses || exit 99
+                zmodload zdraw || exit 99
                 typeset -a dimensions=(sentinel)
-                zcurses geometry dimensions
+                zdraw geometry dimensions
                 print -r -- "$? ${(j: :)dimensions}"
             ''', 'geometry-test', str(MODULES)],
             start_new_session=True, capture_output=True, text=True, timeout=10)

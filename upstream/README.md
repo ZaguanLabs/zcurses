@@ -15,14 +15,16 @@ distribution build or its installed binaries.
 | --- | --- |
 | `upstream/curses.c` | `Src/Modules/curses.c` |
 | `upstream/mod_curses.yo` | `Doc/Zsh/mod_curses.yo` |
-| `Src/Modules/curses.mdd` | `Src/Modules/curses.mdd` |
-| `Src/Modules/curses_keys.awk` | `Src/Modules/curses_keys.awk` |
+| `upstream/curses.mdd` | `Src/Modules/curses.mdd` |
+| `upstream/curses_keys.awk` | `Src/Modules/curses_keys.awk` |
 | `LICENCE` | `LICENCE` |
 
 Run `sha256sum -c upstream/SHA256SUMS` from the project root to verify these
 recorded files (or `shasum -a 256 -c upstream/SHA256SUMS` where appropriate).
-The original source files, copyright headers and licence are retained.
+The original source files, copyright headers and licence are retained. The
+original build descriptor and key generator were moved here when the working
+module was renamed to `zdraw`; their recorded checksums are unchanged.
 
 The full Zsh source tree is a build dependency obtained separately; see the
 [build instructions](../README.md#build-and-test). Consult the documentation
-shipped with that release and the module documentation in `Doc/Zsh/mod_curses.yo`.
+shipped with that release and the module documentation in `Doc/Zsh/mod_zdraw.yo`.

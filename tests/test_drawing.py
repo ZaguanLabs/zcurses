@@ -21,9 +21,9 @@ ROOT, ZSH = test_features.ROOT, test_features.ZSH
 def drawing_session(case, mode, modules=None, env=None,
                     fixture='drawing.zsh', marker=b'DRAWING PASS'):
     locales = subprocess.run(['locale', '-a'], capture_output=True, text=True, check=True).stdout.splitlines()
-    utf8_locale = os.environ.get('ZCURSES_TEST_LOCALE') or next(
+    utf8_locale = os.environ.get('ZDRAW_TEST_LOCALE') or next(
         (name for name in locales if 'utf8' in name.lower().replace('-', '')), None)
-    case.assertIsNotNone(utf8_locale, 'Drawing tests require a UTF-8 locale (or ZCURSES_TEST_LOCALE)')
+    case.assertIsNotNone(utf8_locale, 'Drawing tests require a UTF-8 locale (or ZDRAW_TEST_LOCALE)')
     short_max = (1 << (8 * ctypes.sizeof(ctypes.c_short) - 1)) - 1
     pid, terminal = pty.fork()
     if pid == 0:
@@ -89,7 +89,7 @@ def drawing_session(case, mode, modules=None, env=None,
 class DrawingTests(unittest.TestCase):
     def test_wide_characters_borders_and_colors(self):
         features = test_features.FeatureTests().run_shell(
-            'zmodload zsh/curses || exit 1; print -rl -- "${zcurses_features[@]}"')
+            'zmodload zdraw || exit 1; print -rl -- "${zdraw_features[@]}"')
         if 'wide_borders' not in features.splitlines():
             self.skipTest('This build does not provide wide curses borders')
         drawing_session(self, 'wide')
@@ -98,7 +98,7 @@ class DrawingTests(unittest.TestCase):
         drawing_session(self, 'exhaustion')
 
     def test_narrow_curses_paths(self):
-        source = (ROOT / 'Src/Modules/curses.c').read_text().replace(
+        source = (ROOT / 'Src/Modules/zdraw.c').read_text().replace(
             '#include <stdio.h>', '''#include <stdio.h>
 #undef HAVE_SETCCHAR
 #undef HAVE_GETCCHAR

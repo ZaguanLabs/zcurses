@@ -1,15 +1,17 @@
-# zcurses
+# zdraw
 
-A portable, general-purpose extension of Zsh's `zsh/curses` module. The project
-preserves existing `zcurses` behavior and develops small, independently
-reviewable changes for possible inclusion in the official Zsh distribution.
+A portable, general-purpose terminal drawing and interaction module for Zsh,
+derived from Zsh's `zsh/curses` module. `zdraw` has its own module identity,
+builtin and parameters, and develops its API independently. General-purpose
+fixes and extensions remain candidates for contribution to Zsh.
 It has no dependency on another application or a contributor's local setup.
 
-An example consumer is [zcoder.zsh](https://github.com/ZaguanLabs/zcoder.zsh).
+Applications own their layouts, themes and event-loop policy; `zdraw` supplies
+terminal primitives.
 
-**`zcurses geometry array`** queries the controlling terminal's current rows
+**`zdraw geometry array`** queries the controlling terminal's current rows
 and columns without a subprocess or screen update. The read-only
-**`zcurses_features`** array reports optional compiled support without accessing
+**`zdraw_features`** array reports optional compiled support without accessing
 the terminal, including in headless processes.
 See the [design notes](docs/design.md) for scope and future work.
 
@@ -19,11 +21,11 @@ rounded Unicode borders on wide curses builds. A standalone
 borders. Color allocation now validates numeric values and fails safely when
 the library or module pair limit is reached.
 
-**`zcurses colorinfo association`** reports the current session's color
+**`zdraw colorinfo association`** reports the current session's color
 capabilities, usable limits and remaining pair capacity. It works headlessly
 before initialization, reporting unavailable values as `unknown`.
 
-**`zcurses spans window row column style text ...`** draws a row of differently
+**`zdraw spans window row column style text ...`** draws a row of differently
 styled text in one module call, preserving cursor and window state. See the
 [API](#styled-span-batching) and [reproducible benchmark](benchmarks/README.md).
 
@@ -48,7 +50,7 @@ Prerequisites:
   database containing `xterm-256color` and `vt100` for the tests. The truecolor
   tests also use ncurses `tic -x` to compile private fixtures under `.build/`.
 - Python 3.9 or newer and an installed UTF-8 locale for the PTY tests. The drawing
-  tests select a UTF-8 locale from `locale -a`; `ZCURSES_TEST_LOCALE` overrides it.
+  tests select a UTF-8 locale from `locale -a`; `ZDRAW_TEST_LOCALE` overrides it.
 - Curl, Tar, and Xz for the download example below.
 
 From this repository's root, download and extract a public
@@ -68,8 +70,8 @@ The release archive's SHA-256 is
 as listed in the publisher's [checksums](https://www.zsh.org/pub/SHA256SUM).
 Use `gmake` instead of `make` on systems where GNU Make has that name.
 
-The build copies the supplied source tree to `.build/zsh`, overlays this module,
-applies the small `configure.ac` patch in `patches/`, and regenerates configuration
+The build copies the supplied source tree to `.build/zsh`, adds this module,
+applies the build integration patch in `patches/`, and regenerates configuration
 using Autoconf and Autoheader. Configured copies are rechecked with their saved
 configuration arguments. It uses Zsh's own build rules to build both the shell and
 its modules; tests use that matching shell. All build products stay in `.build/`.
@@ -98,18 +100,18 @@ Then run these Zsh commands:
 
 ```zsh
 module_path=("$PWD/.build/modules")
-zmodload zsh/curses
+zmodload zdraw
 typeset -a size
-zcurses geometry size && print -r -- "$size[1] rows, $size[2] columns"
+zdraw geometry size && print -r -- "$size[1] rows, $size[2] columns"
 ```
 
-The staged module is `.build/modules/zsh/curses.so` on systems using the `.so`
+The staged module is `.build/modules/zdraw.so` on systems using the `.so`
 module suffix; the build uses the suffix selected by Zsh on other systems.
 Type `exit` to leave the test shell.
 
 To use the module in an existing Zsh installation, build against sources and
 configuration matching that shell's ABI. In a fresh process, prepend the staged
-module directory to `module_path` before `zmodload zsh/curses`. Changing
+module directory to `module_path` before `zmodload zdraw`. Changing
 `module_path` does not replace an already loaded module. To test a particular
 matching shell, run `ZSH_TEST_SHELL=/path/to/zsh make test` with `ZSH_BUILD_ROOT`
 still set. A binary built for one Zsh configuration or operating system is not
@@ -119,17 +121,39 @@ The public Zsh 5.9.2 release is the tested source baseline. The implementation
 uses Zsh's platform configuration and curses abstractions; Linux is currently
 verified, while BSD/macOS and alternative curses libraries still need testing.
 
+## Migrating from this project's zcurses module
+
+The module is now loaded with `zmodload zdraw`. Update consumers as follows:
+
+| Previous name | New name |
+| --- | --- |
+| `zmodload zsh/curses` | `zmodload zdraw` |
+| `zcurses ...` | `zdraw ...` |
+| `zcurses_features`, `zcurses_colors`, `zcurses_attrs`, `zcurses_keycodes`, `zcurses_windows` | Corresponding `zdraw_*` parameters |
+| `ZCURSES_COLORS`, `ZCURSES_COLOR_PAIRS` | `ZDRAW_COLORS`, `ZDRAW_COLOR_PAIRS` |
+| `ZCURSES_TEST_LOCALE`, `ZCURSES_MAKE` | `ZDRAW_TEST_LOCALE`, `ZDRAW_MAKE` |
+
+Subcommands, arguments, return statuses and terminal behavior are unchanged.
+There are no automatic aliases for the old names. Stock `zsh/curses` remains
+separate and retains its `zcurses` builtin and parameters. Only one module
+should own an active curses session in a process; end and unload it before
+switching modules.
+
+Run `make clean` once when migrating an existing build cache, then rebuild with
+`ZSH_BUILD_ROOT` set as above. The staged artifact is now `zdraw.so` (or the
+platform's equivalent suffix) at the root of `.build/modules`.
+
 ## API
 
 ### Compiled feature discovery
 
 After loading the module, use Zsh's standard module-feature check to discover
-whether the read-only `zcurses_features` array is available:
+whether the read-only `zdraw_features` array is available:
 
 ```zsh
-zmodload zsh/curses
-if zmodload -F -e zsh/curses +p:zcurses_features; then
-  if (( ${zcurses_features[(Ie)geometry]} )); then
+zmodload zdraw
+if zmodload -F -e zdraw +p:zdraw_features; then
+  if (( ${zdraw_features[(Ie)geometry]} )); then
     print -r -- 'Native terminal-size queries are compiled in.'
   else
     print -r -- 'Native terminal-size queries are not compiled in.'
@@ -139,9 +163,9 @@ else
 fi
 ```
 
-This example works without a controlling terminal or `zcurses init`. On an older
-module the feature check returns 1 silently; it does not invoke an unsupported
-`zcurses` command. A missing or disabled discovery parameter means support is
+This example works without a controlling terminal or `zdraw init`. When this
+parameter is unavailable, the feature check returns 1 silently without invoking
+an unsupported `zdraw` command. A missing or disabled parameter means support is
 unknown, so the application chooses its fallback policy.
 
 | Feature name | Compiled support |
@@ -166,12 +190,12 @@ unless understood. A listed feature can still fail at runtime, for example when
 they do not report terminfo data, negotiated protocols, or ABI compatibility.
 The array is unchanged by initialization, resizing, and `end`. Reading it emits
 no output, consumes no input, and changes no terminal state. It can also be loaded
-alone with `zmodload -F zsh/curses p:zcurses_features`.
+alone with `zmodload -F zdraw p:zdraw_features`.
 
 ### Terminal geometry
 
 ```text
-zcurses geometry array
+zdraw geometry array
 ```
 
 Returns a two-element array: **rows, columns**. It queries the controlling
@@ -188,7 +212,7 @@ A failed terminal query leaves the output parameter unchanged. Check the return
 status before using it. `position stdscr array` continues to describe the curses
 window; `geometry` describes the terminal, which may have changed independently.
 
-The [upstream-format documentation](Doc/Zsh/mod_curses.yo) includes the extension.
+The [upstream-format documentation](Doc/Zsh/mod_zdraw.yo) includes the extension.
 The PTY tests exercise live resizing before curses processes input, zero-sized
 terminals, local and readonly parameters, argument errors, operation before and
 after curses, terminal-mode restoration, no controlling terminal, and existing
@@ -199,10 +223,10 @@ optional support disabled and with the preserved stock module.
 ### Custom borders
 
 ```text
-zcurses border window [left right top bottom top_left top_right bottom_left bottom_right]
+zdraw border window [left right top bottom top_left top_right bottom_left bottom_right]
 ```
 
-The existing `zcurses border window` operation is unchanged. The new form takes
+The existing `zdraw border window` operation is unchanged. The new form takes
 all eight characters; each empty argument selects that edge/corner's curses
 default, while a literal space selects a space instead of a border glyph
 (curses' normal background-character substitution still applies).
@@ -210,8 +234,8 @@ For example, after creating a
 window named `panel` in a UTF-8 session:
 
 ```zsh
-zcurses border panel '│' '│' '─' '─' '╭' '╮' '╰' '╯'
-zcurses refresh panel
+zdraw border panel '│' '│' '─' '─' '╭' '╮' '╰' '╯'
+zdraw refresh panel
 ```
 
 Custom borders preserve the cursor, current window attributes and interior
@@ -220,7 +244,7 @@ screen. Windows must have at least two rows and columns. Glyphs must be single
 printable characters with system display width one; controls, combining marks,
 multi-character strings and double-width characters are rejected before drawing.
 
-Check `custom_borders` in `zcurses_features` before using the new form and
+Check `custom_borders` in `zdraw_features` before using the new form and
 `wide_borders` before selecting Unicode glyphs. Printable ASCII works on narrow
 builds. Unicode also requires a suitable locale and Zsh's `MULTIBYTE` option.
 Status 0 means success, 1 means invalid arguments or a curses failure, and 2
@@ -236,8 +260,8 @@ Run the showcase with the matching shell, in a UTF-8 terminal of at least
 
 ### Color and character correctness
 
-`ZCURSES_COLORS` and `ZCURSES_COLOR_PAIRS` remain the library's raw counts.
-Numeric colors must contain only decimal digits, be below `ZCURSES_COLORS`, and
+`ZDRAW_COLORS` and `ZDRAW_COLOR_PAIRS` remain the library's raw counts.
+Numeric colors must contain only decimal digits, be below `ZDRAW_COLORS`, and
 fit in C's `short` type. Index 255 is valid on a 256-color terminal. Pair IDs
 also must fit in `short`; allocation fails before exceeding either that range
 or the library limit. Existing pairs remain usable after exhaustion. Named and
@@ -257,7 +281,7 @@ build using narrow drawing paths.
 
 ```zsh
 typeset -A colors
-zcurses colorinfo colors
+zdraw colorinfo colors
 ```
 
 This replaces the named ordinary writable association, creating it if absent.
@@ -266,7 +290,7 @@ There is no default output variable. Status 0 means assignment succeeded; status
 1 means invalid arguments or assignment failure. A successful query does not
 imply that color drawing is available.
 
-Before `zcurses init` and after `zcurses end`, `initialized` is `0` and all other
+Before `zdraw init` and after `zdraw end`, `initialized` is `0` and all other
 fields below are `unknown`. During a session:
 
 | Key | Meaning |
@@ -300,7 +324,7 @@ The query reads session state and cached library data. It does not initialize
 curses, refresh the screen, allocate pairs, consume input, emit terminal output
 or negotiate protocols. Capabilities reflect curses' terminal description.
 The legacy count parameters and drawing behavior are unchanged. Applications
-can check the `colorinfo` entry in `zcurses_features` before using the command.
+can check the `colorinfo` entry in `zdraw_features` before using the command.
 Ignore unfamiliar future keys; association order is unspecified.
 
 Repeated queries and repeated `init` calls leave pair allocations alone. Existing
@@ -330,10 +354,13 @@ failed or absent default-color support, and narrow builds.
 - `patches/`: small changes to Zsh's configuration checks, applied in `.build/`.
 - `.build/`: ignored build inputs and outputs.
 
-Run `make -s patch > zcurses.patch` to export the configuration, C and documentation
-changes against the recorded baseline. Regenerate `configure` and `config.h.in`
-with `autoconf` and `autoheader` after applying it. For an independent feature submission,
-select its changes with `git diff` against the preceding revision instead.
+Run `make -s patch > zdraw.patch` to export an additive integration patch for
+the selected Zsh source release. It adds the module sources, build descriptor,
+key generator and manual, plus manual registration and optional configuration
+checks; it leaves the stock `zsh/curses` sources intact. Apply it with `patch -p1`, then regenerate
+`configure` and `config.h.in` with `autoconf` and `autoheader` and rerun configure.
+For a feature submission to `zsh/curses`, adapt the relevant changes to its
+original names and interface instead of submitting the whole integration patch.
 See [provenance](upstream/README.md) for the baseline's origin. An upstream
 submission also needs tests adapted to Zsh's test harness and review against the
 maintainers' current tree. This project is not part of the official Zsh distribution.
@@ -343,11 +370,11 @@ The original copyright notices and [Zsh licence](LICENCE) are retained.
 ## Styled-span batching
 
 ```zsh
-zcurses spans panel 1 2 \
+zdraw spans panel 1 2 \
   'bold,cyan/black' 'CPU ' \
   'green/black' '23%' \
   '' '  ready'
-zcurses refresh panel
+zdraw refresh panel
 ```
 
 Supply at least one `style text` pair. Row and column are zero-based, unsigned
@@ -382,7 +409,7 @@ emoji/ZWJ rendering. Builds without `wide_spans` accept printable ASCII only.
 Status is 0 on success, 1 for invalid arguments, text that does not fit, color
 allocation failure or a curses error, and 2 if span drawing is not compiled in
 or non-ASCII text needs the unavailable wide path. Check `styled_spans` and
-`wide_spans` in `zcurses_features` before selecting an application fallback.
+`wide_spans` in `zdraw_features` before selecting an application fallback.
 
 All arguments and text are validated before color allocation or cell changes.
 Pairs share the existing session cache and are never recycled. A later
@@ -398,7 +425,7 @@ rejects a pair that exceeds its limit instead of truncating the ID.
 
 ```zsh
 typeset -A info
-zcurses textinfo info $'e\u0301界b' 2
+zdraw textinfo info $'e\u0301界b' 2
 # info[text]        = e + combining acute
 # info[width]       = 1
 # info[remainder]   = 界b
@@ -406,7 +433,7 @@ zcurses textinfo info $'e\u0301界b' 2
 # info[truncated]   = 1
 ```
 
-`zcurses textinfo association text [columns]` measures text and optionally keeps
+`zdraw textinfo association text [columns]` measures text and optionally keeps
 the longest fitting prefix. It works before `init`, after `end`, and without a
 controlling terminal or `TERM`. Omit the budget to measure and return all text.
 The named ordinary writable association is replaced, or created if absent, with:
@@ -450,13 +477,13 @@ complex-character storage limit; styled drawing does.
 For drawing a composite stream of complete style/text runs:
 
 ```zsh
-zcurses spansclip panel 1 2 12 \
+zdraw spansclip panel 1 2 12 \
   'bold,cyan/black' 'Status: ' \
   'green/black' 'ready and waiting'
-zcurses refresh panel
+zdraw refresh panel
 ```
 
-`zcurses spansclip window row column columns style text [style text ...]` uses
+`zdraw spansclip window row column columns style text [style text ...]` uses
 one budget across all spans. The effective budget is the smaller of `columns`
 and the space to the window's right edge. Coordinates must be inside the window,
 even for a zero budget. Styles, cursor/background preservation, status codes and
@@ -502,11 +529,11 @@ TERM=xterm-direct .build/zsh/Src/zsh -df examples/truecolor.zsh
 Inside an initialized session:
 
 ```zsh
-zcurses truecolor on || return
-zcurses attr panel 'bold' '#80c0ff/#181818'
-zcurses bg panel '#e0e0e0/#181818'
-zcurses spans panel 1 2 'bold,#80c0ff/#181818' 'RGB text'
-zcurses refresh panel
+zdraw truecolor on || return
+zdraw attr panel 'bold' '#80c0ff/#181818'
+zdraw bg panel '#e0e0e0/#181818'
+zdraw spans panel 1 2 'bold,#80c0ff/#181818' 'RGB text'
+zdraw refresh panel
 ```
 
 The `truecolor` subcommand takes exactly `on` or `off`. It returns 0 on success,
@@ -559,5 +586,5 @@ pair cache and restores terminal state through the existing curses cleanup.
 
 The subcommand and capability checks do not consume input, emit terminal replies,
 refresh pending drawing, or alter input ownership. Input stays with the existing
-`zcurses input` API. There is no additional negotiation or reply parser. All
+`zdraw input` API. There is no additional negotiation or reply parser. All
 screen output remains within curses and its retained-screen refresh machinery.

@@ -1,10 +1,17 @@
-# Scope and upstream direction
+# Scope and project direction
 
-This project develops portable, general-purpose terminal and curses primitives
-for Zsh. Each extension should solve a shell-level problem, preserve existing
-`zcurses` behavior, and be reviewable as an independent patch for the official
-Zsh distribution. No application repository, developer workstation, or specific
-distribution is a project dependency.
+`zdraw` develops portable, general-purpose terminal and curses primitives for
+Zsh. Derived from `zsh/curses`, it has its own loadable module, builtin and
+parameter namespace. Each extension should solve a shell-level problem and
+preserve existing operation behavior. The project can experiment and evolve
+independently while keeping useful fixes and extensions suitable for adaptation
+to the official Zsh distribution. No application repository, developer
+workstation, or specific distribution is a project dependency.
+
+The rename preserves the inherited subcommands and their semantics under
+`zdraw`; stock `zsh/curses` is built from its original sources and is not
+replaced. No compatibility aliases are registered. A process should use only
+one active curses owner and end and unload it before switching modules.
 
 Applications such as [zcoder.zsh](https://github.com/ZaguanLabs/zcoder.zsh) own
 layout, themes, command routing, model state and event-loop policy. The module
@@ -17,19 +24,19 @@ Curses window dimensions may lag behind a terminal resize until input or a scree
 update is processed. Shell applications that need the current terminal size can
 otherwise end up repeatedly spawning a utility such as `stty`.
 
-`zcurses geometry array` reads the controlling terminal's dimensions directly.
+`zdraw geometry array` reads the controlling terminal's dimensions directly.
 It does not require curses initialization, trigger a refresh, change terminal
 modes, or take ownership of input. Platforms without `TIOCGWINSZ` return status 2.
 The API and a standalone example are in the [README](../README.md).
 
 ## Compiled feature discovery
 
-The read-only `zcurses_features` array exposes optional compiled support using
-the same parameter interface as `zcurses_attrs` and `zcurses_colors`. Its initial
+The read-only `zdraw_features` array exposes optional compiled support using
+the same parameter interface as `zdraw_attrs` and `zdraw_colors`. Its initial
 vocabulary is `geometry`, `resize`, `mouse`, and `default_colors`, gated by the
 same compile-time conditions as the corresponding implementations.
 
-Zsh's existing `zmodload -F -e zsh/curses +p:zcurses_features` check discovers the
+Zsh's existing `zmodload -F -e zdraw +p:zdraw_features` check discovers the
 interface without calling an unknown subcommand on an older module. A missing
 or disabled parameter means information is unavailable; an omitted documented
 name in an available array means that support was not compiled in. A listed
@@ -48,7 +55,7 @@ unanswered query into a claim of unsupported hardware or protocol behavior.
 
 ## Runtime color information
 
-`zcurses colorinfo association` reports color information separately from the
+`zdraw colorinfo association` reports color information separately from the
 compiled feature array. It assigns an ordinary associative parameter so fields
 can be added without changing positional output. Before initialization and after
 cleanup only `initialized=0` is known; other fields are `unknown`.
@@ -74,7 +81,7 @@ with defined failure behavior. Avoid hard-coded library paths, module suffixes,
 compiler/linker flags and assumptions about the installed Zsh ABI.
 
 Keep ncurses' retained screen and physical-screen diff. The existing
-`zcurses refresh win1 win2 ...` uses `wnoutrefresh` followed by `doupdate` to
+`zdraw refresh win1 win2 ...` uses `wnoutrefresh` followed by `doupdate` to
 perform one screen update. Applications can cache visible rows and styled spans
 without adding their layouts or a second screen model to the C module.
 
@@ -127,9 +134,10 @@ verification across Zsh versions and build configurations, Linux and BSD/macOS,
 and alternative curses libraries. A PTY does not establish rendering correctness
 across real terminals or multiplexers.
 
-Preserve the original sources and licence attribution. Export one focused patch
-per independent feature, including manual changes. Before submission, adapt tests
-to Zsh's native harness and review/rebase the patch against the maintainers'
+Preserve the original sources and licence attribution. The integration patch
+adds `zdraw` alongside stock curses. Upstream feature contributions should be
+focused patches adapted to `zsh/curses`, including manual changes. Before
+submission, adapt tests to Zsh's native harness and review/rebase the patch against the maintainers'
 current source. The standalone tests and patch export support that work; they do
 not imply upstream acceptance.
 

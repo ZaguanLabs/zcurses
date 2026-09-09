@@ -6,7 +6,7 @@ typeset project_root=${0:A:h:h}
 typeset source_root=${ZSH_BUILD_ROOT:?Set ZSH_BUILD_ROOT to an extracted Zsh release or configured in-tree build; see README.md}
 source_root=${source_root:A}
 typeset build_root=$project_root/.build/zsh
-typeset make_command=${ZCURSES_MAKE:-make}
+typeset make_command=${ZDRAW_MAKE:-make}
 [[ -f $source_root/configure && -f $source_root/Src/zsh.h &&
    -f $source_root/Src/Modules/curses.mdd ]] || {
   print -u2 -r -- 'ZSH_BUILD_ROOT must contain Zsh sources with a configure script.'
@@ -29,6 +29,10 @@ if [[ -f $source_root/config.status ]]; then
   }
 fi
 mkdir -p "$project_root/.build"
+[[ ! -f $build_root/.zcurses-configure-patch ]] || {
+  print -u2 -r -- 'Build cache predates the zdraw rename; run make clean and retry.'
+  exit 1
+}
 if [[ ! -d $build_root ]]; then
   # -R -P -p works with both POSIX/BSD and GNU cp.
   cp -R -P -p "$source_root" "$build_root"
@@ -38,16 +42,16 @@ fi
   print -u2 -r -- 'Build cache belongs to another source tree; run make clean and retry.'
   exit 1
 }
-cp "$project_root"/Src/Modules/{curses.c,curses.mdd,curses_keys.awk} "$build_root/Src/Modules/"
-cp "$project_root/Doc/Zsh/mod_curses.yo" "$build_root/Doc/Zsh/"
-# Add the drawing function checks using Zsh's own configure machinery.
+cp "$project_root"/Src/Modules/{zdraw.c,zdraw.mdd,zdraw_keys.awk} "$build_root/Src/Modules/"
+cp "$project_root/Doc/Zsh/mod_zdraw.yo" "$build_root/Doc/Zsh/"
+# Add optional drawing checks and register the manual in Zsh's build machinery.
 # Only the disposable working copy is patched, including for configured inputs.
-typeset configure_patch=$project_root/patches/configure-wide-borders.patch
-typeset configure_stamp=$build_root/.zcurses-configure-patch
-if [[ ! -f $configure_stamp ]]; then
+typeset build_patch=$project_root/patches/zdraw-build.patch
+typeset build_stamp=$build_root/.zdraw-build-patch
+if [[ ! -f $build_stamp ]]; then
   (
     cd "$build_root"
-    patch -p1 < "$configure_patch"
+    patch -p1 < "$build_patch"
     autoconf
     autoheader
     if [[ -f config.status ]]; then
@@ -55,9 +59,9 @@ if [[ ! -f $configure_stamp ]]; then
       ./config.status
     fi
   )
-  cp "$configure_patch" "$configure_stamp"
-elif ! cmp -s "$configure_patch" "$configure_stamp"; then
-  print -u2 -r -- 'Configuration patch changed; run make clean and retry.'
+  cp "$build_patch" "$build_stamp"
+elif ! cmp -s "$build_patch" "$build_stamp"; then
+  print -u2 -r -- 'Build integration patch changed; run make clean and retry.'
   exit 1
 fi
 if [[ ! -f $build_root/config.status ]]; then
@@ -67,9 +71,9 @@ fi
   print -u2 -r -- 'Zsh configuration is incomplete; run make clean and retry.'
   exit 1
 }
-awk '$1 == "name=zsh/curses" { for (i = 2; i <= NF; i++) if ($i == "link=dynamic") ok = 1 }
+awk '$1 == "name=zdraw" { for (i = 2; i <= NF; i++) if ($i == "link=dynamic") ok = 1 }
      END { exit !ok }' "$build_root/config.modules" || {
-  print -u2 -r -- 'Zsh must enable dynamic zsh/curses; install curses development headers/libraries, then run make clean and retry.'
+  print -u2 -r -- 'Zsh must enable dynamic zdraw; install curses development headers/libraries, then run make clean and retry.'
   exit 1
 }
 # Build the shell as well, so tests have a host with the same configuration/ABI.
@@ -77,10 +81,10 @@ awk '$1 == "name=zsh/curses" { for (i = 2; i <= NF; i++) if ($i == "link=dynamic
 "$make_command" -C "$build_root/Src"
 typeset module_extension
 module_extension=$(awk '$1 == "DL_EXT" && $2 == "=" { print $3; exit }' "$build_root/Src/Makefile")
-[[ -n $module_extension && -f $build_root/Src/Modules/curses.$module_extension ]] || {
-  print -u2 -r -- 'Zsh did not produce a loadable curses module.'
+[[ -n $module_extension && -f $build_root/Src/Modules/zdraw.$module_extension ]] || {
+  print -u2 -r -- 'Zsh did not produce a loadable zdraw module.'
   exit 1
 }
-mkdir -p "$project_root/.build/modules/zsh"
-cp "$build_root/Src/Modules/curses.$module_extension" "$project_root/.build/modules/zsh/"
-print -r -- "Built $project_root/.build/modules/zsh/curses.$module_extension"
+mkdir -p "$project_root/.build/modules"
+cp "$build_root/Src/Modules/zdraw.$module_extension" "$project_root/.build/modules/"
+print -r -- "Built $project_root/.build/modules/zdraw.$module_extension"

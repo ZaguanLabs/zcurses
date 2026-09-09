@@ -4,7 +4,7 @@ PYTHON ?= python3
 .PHONY: build test clean patch
 
 build:
-	+ZCURSES_MAKE="$(MAKE)" "$(ZSH_BIN)" -df scripts/build.zsh
+	+ZDRAW_MAKE="$(MAKE)" "$(ZSH_BIN)" -df scripts/build.zsh
 
 test: build
 	"$(ZSH_BIN)" -dfn scripts/build.zsh
@@ -20,14 +20,16 @@ test: build
 	"$(ZSH_BIN)" -dfn examples/colors.zsh
 	"$(ZSH_BIN)" -dfn examples/truecolor.zsh
 	"$(ZSH_BIN)" -dfn examples/clipping.zsh
-	ZCURSES_MAKE="$(MAKE)" "$(PYTHON)" -m unittest discover -s tests -v
+	ZDRAW_MAKE="$(MAKE)" "$(PYTHON)" -m unittest discover -s tests -v
 
 # Keep downloaded/extracted sources and other files under .build intact.
 clean:
 	rm -rf .build/zsh .build/modules .build/source-root
 
-# Export the module and manual changes against the recorded upstream files.
+# Export an additive Zsh integration patch, leaving zsh/curses untouched.
 patch:
-	@cat patches/configure-wide-borders.patch
-	@diff -u --label a/Src/Modules/curses.c --label b/Src/Modules/curses.c upstream/curses.c Src/Modules/curses.c; result=$$?; test $$result -le 1
-	@diff -u --label a/Doc/Zsh/mod_curses.yo --label b/Doc/Zsh/mod_curses.yo upstream/mod_curses.yo Doc/Zsh/mod_curses.yo; result=$$?; test $$result -le 1
+	@cat patches/zdraw-build.patch
+	@for file in Src/Modules/zdraw.c Src/Modules/zdraw.mdd Src/Modules/zdraw_keys.awk Doc/Zsh/mod_zdraw.yo; do \
+	  diff -u --label /dev/null --label b/$$file /dev/null $$file; result=$$?; \
+	  test $$result -le 1 || exit $$result; \
+	done

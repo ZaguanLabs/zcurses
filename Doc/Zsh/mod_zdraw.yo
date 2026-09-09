@@ -1,44 +1,48 @@
-COMMENT(!MOD!zsh/curses
+COMMENT(!MOD!zdraw
 curses windowing commands
 !MOD!)
-The tt(zsh/curses) module makes available one builtin command and
-various parameters.
+The tt(zdraw) module provides terminal drawing and interaction through one
+builtin command and various parameters. It is independently developed from
+tt(zsh/curses), with inherited operations exposed under the tt(zdraw) name.
+The stock tt(zsh/curses) module remains separate; no tt(zcurses) aliases are
+registered. Use only one active curses owner in a process, ending and unloading
+it before switching modules.
 
 subsect(Builtin)
 
 startitem()
-findex(zcurses)
+findex(zdraw)
 cindex(windows, curses)
-xitem(tt(zcurses) tt(init))
-xitem(tt(zcurses) tt(end))
-xitem(tt(zcurses) tt(addwin) var(targetwin) var(nlines) var(ncols) var(begin_y) var(begin_x) [ var(parentwin) ] )
-xitem(tt(zcurses) tt(delwin) var(targetwin) )
-xitem(tt(zcurses) tt(refresh) [ var(targetwin) ... ] )
-xitem(tt(zcurses) tt(touch) var(targetwin) ...)
-xitem(tt(zcurses) tt(move) var(targetwin) var(new_y) var(new_x) )
-xitem(tt(zcurses) tt(clear) var(targetwin) [ tt(redraw) | tt(eol) | tt(bot) ])
-xitem(tt(zcurses) tt(position) var(targetwin) var(array))
-xitem(tt(zcurses) tt(geometry) var(array))
-xitem(tt(zcurses) tt(colorinfo) var(association))
-xitem(tt(zcurses) tt(textinfo) var(association) var(text) [ var(columns) ])
-xitem(tt(zcurses) tt(truecolor) tt(on)|tt(off))
-xitem(tt(zcurses) tt(char) var(targetwin) var(character) )
-xitem(tt(zcurses) tt(string) var(targetwin) var(string) )
-xitem(tt(zcurses) tt(spans) var(targetwin) var(row) var(column) var(style) var(text) [ var(style) var(text) ... ] )
-xitem(tt(zcurses) tt(spansclip) var(targetwin) var(row) var(column) var(columns) var(style) var(text) [ var(style) var(text) ... ] )
-xitem(tt(zcurses) tt(border) var(targetwin) [ var(left) var(right) var(top) var(bottom) var(top_left) var(top_right) var(bottom_left) var(bottom_right) ] )
-xitem(tt(zcurses) tt(attr) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) ] [...])
-xitem(tt(zcurses) tt(bg) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) | tt(@)var(char) ] [...])
-xitem(tt(zcurses) tt(scroll) var(targetwin) [ tt(on) | tt(off) | [tt(+)|tt(-)]var(lines) ])
-xitem(tt(zcurses) tt(input) var(targetwin) [ var(param) [ var(kparam) [ var(mparam) ] ] ])
-xitem(tt(zcurses) tt(mouse) [ tt(delay) var(num) | [tt(+)|tt(-)]tt(motion) ])
-xitem(tt(zcurses) tt(timeout) var(targetwin) var(intval))
-xitem(tt(zcurses) tt(querychar) var(targetwin) [ var(param) ])
-item(tt(zcurses) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
+xitem(tt(zdraw) tt(init))
+xitem(tt(zdraw) tt(end))
+xitem(tt(zdraw) tt(addwin) var(targetwin) var(nlines) var(ncols) var(begin_y) var(begin_x) [ var(parentwin) ] )
+xitem(tt(zdraw) tt(delwin) var(targetwin) )
+xitem(tt(zdraw) tt(refresh) [ var(targetwin) ... ] )
+xitem(tt(zdraw) tt(touch) var(targetwin) ...)
+xitem(tt(zdraw) tt(move) var(targetwin) var(new_y) var(new_x) )
+xitem(tt(zdraw) tt(clear) var(targetwin) [ tt(redraw) | tt(eol) | tt(bot) ])
+xitem(tt(zdraw) tt(position) var(targetwin) var(array))
+xitem(tt(zdraw) tt(geometry) var(array))
+xitem(tt(zdraw) tt(colorinfo) var(association))
+xitem(tt(zdraw) tt(textinfo) var(association) var(text) [ var(columns) ])
+xitem(tt(zdraw) tt(truecolor) tt(on)|tt(off))
+xitem(tt(zdraw) tt(char) var(targetwin) var(character) )
+xitem(tt(zdraw) tt(string) var(targetwin) var(string) )
+xitem(tt(zdraw) tt(spans) var(targetwin) var(row) var(column) var(style) var(text) [ var(style) var(text) ... ] )
+xitem(tt(zdraw) tt(spansclip) var(targetwin) var(row) var(column) var(columns) var(style) var(text) [ var(style) var(text) ... ] )
+xitem(tt(zdraw) tt(border) var(targetwin) [ var(left) var(right) var(top) var(bottom) var(top_left) var(top_right) var(bottom_left) var(bottom_right) ] )
+xitem(tt(zdraw) tt(attr) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) ] [...])
+xitem(tt(zdraw) tt(bg) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) | tt(@)var(char) ] [...])
+xitem(tt(zdraw) tt(scroll) var(targetwin) [ tt(on) | tt(off) | [tt(+)|tt(-)]var(lines) ])
+xitem(tt(zdraw) tt(input) var(targetwin) [ var(param) [ var(kparam) [ var(mparam) ] ] ])
+xitem(tt(zdraw) tt(mouse) [ tt(delay) var(num) | [tt(+)|tt(-)]tt(motion) ])
+xitem(tt(zdraw) tt(timeout) var(targetwin) var(intval))
+xitem(tt(zdraw) tt(querychar) var(targetwin) [ var(param) ])
+item(tt(zdraw) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
 Manipulate curses windows.  Except for tt(geometry), tt(colorinfo) and tt(textinfo), uses of
 this command should be
-bracketed by `tt(zcurses init)' to initialise use of curses, and
-`tt(zcurses end)' to end it; omitting `tt(zcurses end)' can cause
+bracketed by `tt(zdraw init)' to initialise use of curses, and
+`tt(zdraw end)' to end it; omitting `tt(zdraw end)' can cause
 the terminal to be in an unwanted state.
 
 The subcommand tt(addwin) creates a window with var(nlines) lines and
@@ -61,7 +65,7 @@ tt(addwin).  Note that tt(end) does em(not) implicitly delete windows,
 and that tt(delwin) does not erase the screen image of the window.
 
 The window corresponding to the full visible screen is called
-tt(stdscr); it always exists after `tt(zcurses init)' and cannot
+tt(stdscr); it always exists after `tt(zdraw init)' and cannot
 be delete with tt(delwin).
 
 The subcommand tt(refresh) will refresh window var(targetwin); this is
@@ -109,8 +113,8 @@ not been initialized; status 1 indicates invalid arguments or assignment failure
 This query works before tt(init) and after tt(end).  It does not initialize
 curses, refresh windows, allocate color pairs, read terminal input, emit terminal
 output or negotiate terminal protocols.  It reads the module's current session
-state and curses' cached limits.  The existing tt(ZCURSES_COLORS) and
-tt(ZCURSES_COLOR_PAIRS) parameters are unchanged.
+state and curses' cached limits.  The existing tt(ZDRAW_COLORS) and
+tt(ZDRAW_COLOR_PAIRS) parameters are unchanged.
 
 The following keys are returned; their order is unspecified and callers should
 ignore unfamiliar future keys.  Values are decimal integers or tt(unknown).
@@ -162,7 +166,7 @@ the assigned pair ID, not a foreground or background color index.  The first
 use of tt(default/default) retains the existing allocation behavior.
 Capabilities reflect curses' terminal description, not a probe of the physical
 terminal.  Compiled support remains separately discoverable through
-tt(zcurses_features), including its tt(colorinfo) entry.
+tt(zdraw_features), including its tt(colorinfo) entry.
 
 The subcommand tt(textinfo) measures var(text) and optionally clips it to a
 prefix fitting within var(columns).  It can be used before tt(init), after
@@ -268,7 +272,7 @@ respectively.
 The subcommand tt(spans) draws one row of styled text in a single call.
 At least one var(style)/var(text) pair is required.  The zero-based var(row) and
 var(column) must be unsigned decimal integers within the window.  Each style
-is empty or a comma-separated list of attribute names from tt(zcurses_attrs)
+is empty or a comma-separated list of attribute names from tt(zdraw_attrs)
 and at most one var(foreground)tt(/)var(background) color pair, using the same
 color names or decimal indices as tt(attr).  Empty tokens, whitespace in tokens,
 and tt(+)/tt(-) attribute changes are rejected.  Arguments are never evaluated.
@@ -351,7 +355,7 @@ characters are rejected.  Custom borders require at least two rows and columns.
 The current cursor position, window attributes and interior cells are preserved;
 the border becomes visible on the next tt(refresh).
 
-The tt(custom_borders) entry in tt(zcurses_features) identifies this extended
+The tt(custom_borders) entry in tt(zdraw_features) identifies this extended
 form.  Printable ASCII characters are always supported.  Other characters
 require the tt(wide_borders) compiled feature, a suitable locale and the
 tt(MULTIBYTE) option.  The return status is 0 on success, 1 on invalid arguments
@@ -375,7 +379,7 @@ tt(default/default) is always available. To use more than the 8 named
 colors (red, green, etc.) construct the var(fg_col)tt(/)var(bg_col)
 pairs where var(fg_col) and var(bg_col) are decimal integers, e.g
 tt(128/200).  Numeric colors must consist entirely of decimal digits and must
-be less than tt(ZCURSES_COLORS) and fit in the C type tt(short).  For example,
+be less than tt(ZDRAW_COLORS) and fit in the C type tt(short).  For example,
 indices 0 through 255 are available when the terminal supports 256 colors.
 Pair allocation also respects the range of tt(short), even if the library
 advertises more pairs.  Exhaustion fails without recycling existing pairs;
@@ -411,14 +415,14 @@ If both var(param) and var(kparam) are supplied, the key is read in
 arrow keys return the name of the key in the parameter var(kparam).  The
 key names are the macros defined in the tt(curses.h) or tt(ncurses.h)
 with the prefix `tt(KEY_)' removed; see also the description of the
-parameter tt(zcurses_keycodes) below.  Other keys cause a value to be
+parameter tt(zdraw_keycodes) below.  Other keys cause a value to be
 set in var(param) as before.  On a successful return only one of
 var(param) or var(kparam) contains a non-empty string; the other is set
 to an empty string.
 
 If var(mparam) is also supplied, tt(input) attempts to handle mouse
 input.  This is only available with the ncurses library; mouse handling
-can be detected by checking for the exit status of `tt(zcurses mouse)' with
+can be detected by checking for the exit status of `tt(zdraw mouse)' with
 no arguments.  If a mouse
 button is clicked (or double- or triple-clicked, or pressed or released with
 a configurable delay from being clicked) then var(kparam) is set to the string
@@ -448,7 +452,7 @@ disappear.
 
 The subcommand tt(mouse) can be used to configure the use of the mouse.
 There is no window argument; mouse options are global.
-`tt(zcurses mouse)' with no arguments returns status 0 if mouse handling
+`tt(zdraw mouse)' with no arguments returns status 0 if mouse handling
 is possible, else status 1.  Otherwise, the possible arguments (which
 may be combined on the same command line) are as follows.
 tt(delay) var(num) sets the maximum delay in milliseconds between press and
@@ -460,11 +464,11 @@ which are always reported.  However, it appears reports for mouse
 motion are not currently implemented.
 
 The subcommand tt(timeout) specifies a timeout value for input from
-var(targetwin).  If var(intval) is negative, `tt(zcurses input)' waits
+var(targetwin).  If var(intval) is negative, `tt(zdraw input)' waits
 indefinitely for a character to be typed; this is the default.  If
-var(intval) is zero, `tt(zcurses input)' returns immediately; if there
+var(intval) is zero, `tt(zdraw input)' returns immediately; if there
 is typeahead it is returned, else no input is done and status 1 is
-returned.  If var(intval) is positive, `tt(zcurses input)' waits
+returned.  If var(intval) is positive, `tt(zdraw input)' waits
 var(intval) milliseconds for input and if there is none at the end of
 that period returns status 1.
 
@@ -484,13 +488,13 @@ down). The underlying curses extension (tt(resize_term call)) can be
 unavailable. To verify, zeroes can be used for var(height) and
 var(width). If the result of the subcommand is tt(0), resize_term is
 available (tt(2) otherwise). Tests show that resizing can be normally
-accomplished by calling tt(zcurses end) and tt(zcurses refresh). The
+accomplished by calling tt(zdraw end) and tt(zdraw refresh). The
 tt(resize) subcommand is provided for versatility. Multiple system
-configurations have been checked and tt(zcurses end) and tt(zcurses
+configurations have been checked and tt(zdraw end) and tt(zdraw
 refresh) are still needed for correct terminal state after resize. To
 invoke them with tt(resize), use var(endwin) argument.  Using
 var(nosave) argument will cause new terminal state to not be saved
-internally by tt(zcurses). This is also provided for versatility and
+internally by tt(zdraw). This is also provided for versatility and
 should normally be not needed.
 )
 enditem()
@@ -498,9 +502,9 @@ enditem()
 subsect(Parameters)
 
 startitem()
-vindex(zcurses_features)
-item(tt(zcurses_features))(
-Readonly array of optional features compiled into tt(zsh/curses), available
+vindex(zdraw_features)
+item(tt(zdraw_features))(
+Readonly array of optional features compiled into tt(zdraw), available
 as soon as the parameter is enabled when loading the module.  Reading it does
 not initialise curses, access the terminal, consume input, or produce output.
 Its contents are unchanged by tt(init), tt(end), or terminal availability.
@@ -533,48 +537,48 @@ subcommands, terminfo capabilities, or enabled terminal protocols.  Its order
 is unspecified and future versions may add names; callers should test for
 individual names and ignore unfamiliar ones.  It is not an ABI identifier.
 
-After loading the module, `tt(zmodload -F -e zsh/curses +p:zcurses_features)'
+After loading the module, `tt(zmodload -F -e zdraw +p:zdraw_features)'
 tests whether this parameter is provided and enabled.  This also works with
 older modules which lack the parameter, returning status 1 without invoking
-an unsupported tt(zcurses) subcommand.  Failure of this test means feature
+an unsupported tt(zdraw) subcommand.  Failure of this test means feature
 information is unavailable; it does not establish that an operation is absent.
 )
-vindex(ZCURSES_COLORS)
-item(tt(ZCURSES_COLORS))(
+vindex(ZDRAW_COLORS)
+item(tt(ZDRAW_COLORS))(
 Readonly integer.  The maximum number of colors the terminal
 supports.  This value is initialised by the curses library and is not
-available until the first time tt(zcurses init) is run.
+available until the first time tt(zdraw init) is run.
 )
-vindex(ZCURSES_COLOR_PAIRS)
-item(tt(ZCURSES_COLOR_PAIRS))(
+vindex(ZDRAW_COLOR_PAIRS)
+item(tt(ZDRAW_COLOR_PAIRS))(
 Readonly integer.  The maximum number of color pairs
-var(fg_col)tt(/)var(bg_col) that may be defined in `tt(zcurses attr)'
+var(fg_col)tt(/)var(bg_col) that may be defined in `tt(zdraw attr)'
 commands; note this limit applies to all color pairs that have been
 used whether or not they are currently active.  This value is initialised
-by the curses library and is not available until the first time tt(zcurses
+by the curses library and is not available until the first time tt(zdraw
 init) is run.
 )
-vindex(zcurses_attrs)
-item(tt(zcurses_attrs))(
-Readonly array.  The attributes supported by tt(zsh/curses); available
+vindex(zdraw_attrs)
+item(tt(zdraw_attrs))(
+Readonly array.  The attributes supported by tt(zdraw); available
 as soon as the module is loaded.
 )
-vindex(zcurses_colors)
-item(tt(zcurses_colors))(
-Readonly array.  The colors supported by tt(zsh/curses); available
+vindex(zdraw_colors)
+item(tt(zdraw_colors))(
+Readonly array.  The colors supported by tt(zdraw); available
 as soon as the module is loaded.
 )
-vindex(zcurses_keycodes)
-item(tt(zcurses_keycodes))(
+vindex(zdraw_keycodes)
+item(tt(zdraw_keycodes))(
 Readonly array.  The values that may be returned in the second
-parameter supplied to `tt(zcurses input)' in the order in which they
+parameter supplied to `tt(zdraw input)' in the order in which they
 are defined internally by curses.  Not all function keys
 are listed, only tt(F0); curses reserves space for tt(F0) up to tt(F63).
 )
-vindex(zcurses_windows)
-item(tt(zcurses_windows))(
+vindex(zdraw_windows)
+item(tt(zdraw_windows))(
 Readonly array.  The current list of windows, i.e. all windows that
-have been created with `tt(zcurses addwin)' and not removed with
-`tt(zcurses delwin)'.
+have been created with `tt(zdraw addwin)' and not removed with
+`tt(zdraw delwin)'.
 )
 enditem()

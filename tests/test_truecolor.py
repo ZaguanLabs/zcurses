@@ -15,7 +15,7 @@ class TrueColorTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         features = test_features.FeatureTests().run_shell(
-            'zmodload zsh/curses || exit 1; print -rl -- "${zcurses_features[@]}"')
+            'zmodload zdraw || exit 1; print -rl -- "${zdraw_features[@]}"')
         if 'truecolor' not in features.splitlines():
             raise unittest.SkipTest('This build does not provide the optional RGB library interface')
         cls.temp = tempfile.TemporaryDirectory(prefix='truecolor-terminfo-', dir=ROOT / '.build')
@@ -24,7 +24,7 @@ class TrueColorTests(unittest.TestCase):
         subprocess.run(['tic', '-x', '-o', cls.terminfo, str(ROOT / 'tests/truecolor.terminfo')],
                        capture_output=True, text=True, check=True)
 
-    def session(self, mode='normal', terminal='zcurses-test-rgb', modules=None):
+    def session(self, mode='normal', terminal='zdraw-test-rgb', modules=None):
         return drawing_session(self, mode, modules,
                                {'TERM': terminal, 'TERMINFO': self.terminfo},
                                'truecolor.zsh', b'TRUECOLOR PASS')
@@ -37,26 +37,26 @@ class TrueColorTests(unittest.TestCase):
             self.assertIn(b'\x1b[' + sgr, output)
 
     def test_opt_in_preserves_input_modes_and_deferred_refresh(self):
-        test_geometry.GeometryTests().geometry_session('zcurses-test-rgb', self.terminfo)
+        test_geometry.GeometryTests().geometry_session('zdraw-test-rgb', self.terminfo)
 
     def test_exact_low_rgb_values(self):
-        output = self.session('exact', 'zcurses-test-rgb-exact')
+        output = self.session('exact', 'zdraw-test-rgb-exact')
         self.assertIn(b'\x1b[38;2;0;0;1m', output)
         self.assertIn(b'\x1b[48;2;0;0;0m', output)
 
     def test_encoding_and_unsupported_terminals(self):
         for terminal, mode in (
-                ('zcurses-test-rgb-number', 'normal'),
-                ('zcurses-test-rgb-string', 'normal'),
-                ('zcurses-test-rgb-wrong', 'unsupported'),
-                ('zcurses-test-rgb-small', 'unsupported'),
+                ('zdraw-test-rgb-number', 'normal'),
+                ('zdraw-test-rgb-string', 'normal'),
+                ('zdraw-test-rgb-wrong', 'unsupported'),
+                ('zdraw-test-rgb-small', 'unsupported'),
                 ('xterm-256color', 'unsupported'),
                 ('vt100', 'unsupported')):
             with self.subTest(terminal=terminal):
                 self.session(mode, terminal)
 
     def test_optional_library_paths_and_allocation_failure(self):
-        source = (ROOT / 'Src/Modules/curses.c').read_text()
+        source = (ROOT / 'Src/Modules/zdraw.c').read_text()
         for mode, definitions in (
                 ('unavailable', '#undef HAVE_INIT_EXTENDED_PAIR'),
                 ('unsupported', '#define extended_color_content(c, r, g, b) ERR'),

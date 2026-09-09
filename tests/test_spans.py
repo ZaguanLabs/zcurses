@@ -19,7 +19,7 @@ class SpanTests(unittest.TestCase):
         self.session('monochrome', env={'TERM': 'vt100'})
 
     def test_alternative_builds(self):
-        source = (ROOT / 'Src/Modules/curses.c').read_text()
+        source = (ROOT / 'Src/Modules/zdraw.c').read_text()
         for mode, definitions in (
             ('narrow', '#undef HAVE_WADD_WCHNSTR'),
             ('unavailable', '#undef HAVE_WADD_WCHNSTR\n#undef HAVE_WADDCHNSTR'),

@@ -16,7 +16,8 @@ not implemented APIs or measured performance claims.
 Implementation follow-up: the first drawing changes now fix the wide-character
 buffers and color allocation bounds and implement the eight-glyph border form.
 Runtime color information is also implemented. See the [current API](../README.md#runtime-color-information).
-The review below records the
+The project has since been renamed to `zdraw`; the review retains the API names
+used at the reviewed revision. The review below records the
 findings at the revisions above; its references to defects describe that baseline.
 
 ## What creates the appearance and responsiveness
@@ -36,7 +37,7 @@ complete function would put application policy into the module.
 
 ## Custom borders and lines
 
-The current [`zccmd_border`](../Src/Modules/curses.c) passes eight zeros to
+The current [`zccmd_border`](../Src/Modules/zdraw.c) passes eight zeros to
 `wborder`, so callers get only curses' default perimeter. The dispatcher accepts
 exactly a window argument. The manual's synopsis misleadingly includes an extra
 `border` argument; that is an existing documentation defect, not an implemented
@@ -82,10 +83,10 @@ use case separately from borders.
 
 The module already exposes `ZCURSES_COLORS` and `ZCURSES_COLOR_PAIRS` after
 initialization, and accepts numeric `foreground/background` values. The
-[`module manual`](../Doc/Zsh/mod_curses.yo) documents these. A new capability API
+[`module manual`](../Doc/Zsh/mod_zdraw.yo) documents these. A new capability API
 should supplement their semantics rather than duplicate them.
 
-In [`curses.c`](../Src/Modules/curses.c), review these paths together:
+In [`curses.c`](../Src/Modules/zdraw.c), review these paths together:
 
 - `zcurses_colorget` (337–406) parses numbers with `atoi` into `short` values,
   caches pairs by the original spelling, and increments the `short` `next_cp`
