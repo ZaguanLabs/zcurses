@@ -17,6 +17,7 @@ test: build
 	"$(ZSH_BIN)" -dfn tests/copy.zsh
 	"$(ZSH_BIN)" -dfn tests/restyle.zsh
 	"$(ZSH_BIN)" -dfn tests/pads.zsh
+	"$(ZSH_BIN)" -dfn tests/resizepad.zsh
 	"$(ZSH_BIN)" -dfn tests/windows.zsh
 	"$(ZSH_BIN)" -dfn tests/window-presentation.zsh
 	"$(ZSH_BIN)" -dfn tests/pad-presentation.zsh

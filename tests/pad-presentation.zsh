@@ -36,6 +36,20 @@ check zdraw init
   step moved
   check zdraw present
   step movedpresented
+  if (( ${zdraw_features[(Ie)pad_resize]} )); then
+    check zdraw spans canvas 39 50 '' QUEUEDOLD
+    check zdraw viewport canvas 39 50 8 0 1 12
+    # Shrink away the source of queued cells before presenting that frame.
+    check zdraw resizepad canvas 2 16
+    check zdraw spans canvas 1 0 '' NEWRESIZED
+    step resized
+    check zdraw present
+    step resizedqueuedold
+    check zdraw viewport canvas 1 0 10 0 1 12
+    step restaged
+    check zdraw present
+    step resizedpresented
+  fi
   check zdraw delwin canvas
   check zdraw end
 } always {

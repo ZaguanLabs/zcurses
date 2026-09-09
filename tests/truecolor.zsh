@@ -165,10 +165,30 @@ check zdraw init
         (( ${reply[(Ie)underline]} )) || fail 'high-pair restyle attributes'
         check zdraw prepare high '#56789a/#6789ab' PREPARED
         check zdraw addpad rgbpad 2 8
+        check zdraw bg rgbpad '#123456/#234567'
+        check zdraw attr rgbpad '#345678/#456789'
         check zdraw draw rgbpad 0 0 high
         check zdraw move rgbpad 0 0
         check zdraw cellinfo rgbpad saved
         [[ $saved[color] == '#56789a/#6789ab' && $saved[pair] -gt 255 ]] || fail 'pad high RGB pair'
+        check zdraw colorinfo info
+        used=$info[pairs_used]
+        check zdraw truecolor off
+        check zdraw resizepad rgbpad 4 12
+        check zdraw move rgbpad 0 0
+        check zdraw cellinfo rgbpad saved
+        [[ $saved[color] == '#56789a/#6789ab' && $saved[pair] -gt 255 ]] || fail 'resized pad retained high RGB pair'
+        check zdraw move rgbpad 3 11
+        check zdraw cellinfo rgbpad saved
+        [[ $saved[color] == '#123456/#234567' && $saved[pair] -gt 255 ]] || fail 'resized pad RGB background'
+        check zdraw move rgbpad 2 0
+        check zdraw string rgbpad G
+        check zdraw move rgbpad 2 0
+        check zdraw cellinfo rgbpad saved
+        [[ $saved[color] == '#345678/#456789' && $saved[pair] -gt 255 ]] || fail 'resized pad current RGB style'
+        check zdraw colorinfo info
+        (( info[pairs_used] == used && info[truecolor_enabled] == 0 )) || fail 'pad resize changed RGB allocation or opt-in'
+        check zdraw truecolor on
         check zdraw viewport rgbpad 0 0 6 0 1 8
         check zdraw delwin rgbpad
         check zdraw draw sample 3 1 high

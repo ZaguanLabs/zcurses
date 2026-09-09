@@ -198,6 +198,7 @@ unknown, so the application chooses its fallback policy.
 | `region_copy` | Bounded opaque copies of retained rectangles |
 | `region_restyle` | Replace rectangle styles while retaining character data |
 | `offscreen_pads` | Bounded offscreen surfaces and viewport staging |
+| `pad_resize` | Resize public pads while retaining overlap and drawing state |
 | `window_movement` | Move independent ordinary windows |
 | `window_resize` | Resize and optionally reposition independent ordinary windows |
 | `staged_refresh` | Stage ordinary windows and explicitly present a composed frame |
@@ -703,8 +704,8 @@ the terminal dimensions first; it remains separate from `resizewin`.
 These operations currently accept **independent ordinary windows without
 children**. They reject `stdscr`, pads, subwindows and windows with subwindows.
 This avoids silently changing relationships between shared backing storage.
-Delete or otherwise rebuild shared window layouts explicitly. Pad dimensions
-remain fixed in this milestone.
+Delete or otherwise rebuild shared window layouts explicitly. Use `resizepad`
+for public pad dimensions.
 
 Resizing keeps the upper-left overlap, subject to native wide-character edge
 repair, and fills new cells with the window's existing background character and
@@ -820,8 +821,8 @@ do not provide synchronized-output protocols or atomic terminal paint.
 Pads reject `input`, `event`, `timeout`, ordinary `refresh` and `stage`; use an
 ordinary input window and `viewport` for presentation. `addwin ... parent`
 rejects a pad parent; subpads are not exposed in this milestone. Existing
-`resize` changes the terminal screen, not pad dimensions. Pads currently have
-fixed dimensions; allocate and populate a replacement when those need to change.
+`resize` changes the terminal screen, not pad dimensions. Use `resizepad` to
+change a pad's allocated extent explicitly.
 No viewport mapping is saved by the module for automatic redisplay after resize.
 
 Delete a pad with `delwin`. This releases its budget but does not erase or
@@ -849,8 +850,65 @@ Run the [viewport example](examples/viewports.zsh) with the matching shell:
 .build/zsh/Src/zsh -df examples/viewports.zsh
 ```
 
-Arrows pan a retained document, space toggles an ordinary overlay, and `q`
-exits. Screen resizing recomposes the visible area without rebuilding the pad.
+Arrows pan a retained document, `+` adds 20 rows, `-` truncates 20 rows, space
+toggles an ordinary overlay, and `q` exits. Growth populates only the newly
+allocated rows; truncation discards their drawing. The example generates its
+row data and limits the surface to 20–400 rows. Screen resizing recomposes the
+visible area without rebuilding the pad.
+
+## Resizing pads
+
+```zsh
+zdraw addpad document 100 120
+zdraw spans document 10 0 bold 'Retained document content'
+zdraw resizepad document 200 120
+# Application data can now populate the extra rows.
+zdraw spans document 150 0 '' 'New content'
+zdraw stage stdscr
+zdraw viewport document 145 0 1 0 10 60
+zdraw present
+```
+
+`zdraw resizepad pad rows columns` changes a public pad's allocated dimensions
+without changing its handle or registry position. It rejects ordinary windows
+and `stdscr`. Dimensions are positive literal decimal integers, with the same
+**32,767 per dimension**, **262,144 cells per pad**, and **1,048,576 live public
+pad cells** limits as `addpad`. The old pad is credited against the session
+budget: a same-area resize can succeed at the full budget, and a successful
+shrink releases cells for other pads. It can exceed the terminal dimensions.
+
+The upper-left overlap survives, subject to native wide-character edge repair.
+New cells use the existing background character and attributes. Shrinking
+discards cells permanently; growing again does not restore them. The logical
+cursor is clamped independently to the last valid row and column. Current
+attributes, full color pair, complex background and scrolling mode are retained.
+Existing RGB state survives with `truecolor` disabled, without allocating pairs.
+
+A private, genuine curses pad receives the original cells and background before
+native `wresize` changes its dimensions. This avoids relying on `dupwin` to retain
+pad identity across curses implementations. The original is released and its
+registered pointer and accounting updated only after preparation succeeds.
+Allocation, copying, resize, setup or original-release failures retain the old
+pad and budget. Temporary pad/reallocation storage is additional to the live
+cell budget; these limits do not specify exact peak memory. The public `copy`
+operation's smaller cell limit does not restrict `resizepad`.
+
+Resizing does not stage, read input or present. Already queued screen cells
+survive even when their source rows are truncated. Choose valid viewport bounds,
+recompose the background and affected surfaces, and call `present` to display
+the new layout. No viewport mapping is retained or adjusted automatically.
+Resized pads remain inputless, with the same restrictions as `addpad` surfaces.
+
+When shrinking through a wide character, the linked library's
+[`wresize` behavior](https://invisible-island.net/ncurses/man/wresize.3x.html)
+applies. Align cuts to complete characters and redraw layout-dependent content
+where needed; there is no independent Unicode reconstruction.
+
+Check `pad_resize`: it requires pad support plus `copywin`, `wresize`,
+`wgetbkgrnd`, `wbkgrndset`, `wattr_get` and `wattr_set`. `init` is required.
+Status is 0 on success, 1 for invalid arguments, limits or library failure,
+and 2 for missing compiled support. The [viewport example](examples/viewports.zsh)
+demonstrates growth, truncation and scroll-position clamping in Zsh.
 
 ## Styled rectangle fills
 

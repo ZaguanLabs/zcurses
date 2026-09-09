@@ -70,6 +70,12 @@
     defined(HAVE_WATTR_GET) && defined(HAVE_WATTR_SET)
 # define ZDRAW_WINDOW_RESIZE 1
 #endif
+#if defined(ZDRAW_PADS) && defined(HAVE_COPYWIN) && defined(HAVE_WRESIZE) && \
+    defined(HAVE_WGETBKGRND) && defined(HAVE_WBKGRNDSET) && \
+    defined(HAVE_WATTR_GET) && defined(HAVE_WATTR_SET)
+# define ZDRAW_PAD_RESIZE 1
+#endif
+
 #define ZDRAW_RESIZE_CELLS 262144
 #define ZDRAW_RESIZE_DIMENSION 32767
 
@@ -1161,6 +1167,81 @@ zccmd_addpad(const char *nam, char **args)
     w->pad_cells = cells;
     zdraw_pad_cells += cells;
     zinsertlinknode(zdraw_windows, (LinkNode)zdraw_windows, (void *)w);
+    return 0;
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
+}
+
+static int
+zccmd_resizepad(const char *nam, char **args)
+{
+#ifdef ZDRAW_PAD_RESIZE
+    LinkNode node;
+    ZCWin w;
+    WINDOW *replacement;
+    cchar_t background;
+    attr_t attrs;
+    short pair;
+    int rows, cols, oldrows, oldcols, y, x;
+    size_t cells;
+    if (zdraw_nonnegative(args[1], &rows) ||
+        zdraw_nonnegative(args[2], &cols) || !rows || !cols ||
+        rows > ZDRAW_PAD_DIMENSION || cols > ZDRAW_PAD_DIMENSION ||
+        rows > ZDRAW_PAD_CELLS / cols) {
+        zwarnnam(nam, "resizepad expects positive dimensions within the pad limits");
+        return 1;
+    }
+    node = zdraw_validate_window(args[0], ZDRAW_USED);
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
+        return 1;
+    }
+    w = (ZCWin)getdata(node);
+    if (!(w->flags & ZCWF_PAD)) {
+        zwarnnam(nam, "resizepad requires a pad: %s", args[0]);
+        return 1;
+    }
+    cells = (size_t)rows * cols;
+    if (cells > ZDRAW_PAD_TOTAL_CELLS - (zdraw_pad_cells - w->pad_cells)) {
+        zwarnnam(nam, "resized pad exceeds the session cell limit");
+        return 1;
+    }
+    getmaxyx(w->win, oldrows, oldcols);
+    getyx(w->win, y, x);
+    if (y >= rows)
+        y = rows - 1;
+    if (x >= cols)
+        x = cols - 1;
+    if (wgetbkgrnd(w->win, &background) == ERR ||
+        wattr_get(w->win, &attrs, &pair, NULL) == ERR)
+        return 1;
+    /* Some libraries turn dupwin(pad) into an ordinary window. Construct a
+     * genuine pad, copy every original cell, then let wresize handle growth
+     * and native wide-edge repair. The temporary pad is outside live quotas. */
+    replacement = newpad(oldrows, oldcols);
+    if (!replacement) {
+        zwarnnam(nam, "failed to allocate replacement pad");
+        return 1;
+    }
+    wbkgrndset(replacement, &background);
+    if (copywin(w->win, replacement, 0, 0, 0, 0, oldrows - 1, oldcols - 1, 0) == ERR ||
+        wresize(replacement, rows, cols) == ERR ||
+        wattr_set(replacement, attrs, pair, NULL) == ERR ||
+        wmove(replacement, y, x) == ERR ||
+        scrollok(replacement, (w->flags & ZCWF_SCROLL) != 0) == ERR) {
+        delwin(replacement);
+        return 1;
+    }
+    if (delwin(w->win) == ERR) {
+        delwin(replacement);
+        return 1;
+    }
+    zdraw_pad_cells = zdraw_pad_cells - w->pad_cells + cells;
+    w->pad_cells = cells;
+    w->win = replacement;
     return 0;
 #else
     (void)nam;
@@ -3625,6 +3706,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"init", zccmd_init, 0, 0},
 	{"addwin", zccmd_addwin, 5, 6},
         {"addpad", zccmd_addpad, 3, 3},
+        {"resizepad", zccmd_resizepad, 3, 3},
         {"movewin", zccmd_movewin, 3, 3},
         {"resizewin", zccmd_resizewin, 3, 5},
         {"viewport", zccmd_viewport, 7, 7},
@@ -3745,6 +3827,9 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 #endif
 #ifdef ZDRAW_PADS
         "offscreen_pads",
+#endif
+#ifdef ZDRAW_PAD_RESIZE
+        "pad_resize",
 #endif
 #ifdef HAVE_WCHGAT
         "region_restyle",

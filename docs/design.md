@@ -374,6 +374,36 @@ queued characters untouched, and only explicit presentation reveals queued
 content. Budget and failure variants cover allocation, deletion, viewport,
 staging and final update paths. The Zsh example owns scrolling and overlay policy.
 
+## Public pad resizing
+
+`resizepad` reuses the public-pad dimension and cell caps. Its budget check credits
+the existing allocation, allowing same-area replacement even at the session
+limit. Only successful replacement changes the live cell count. The temporary
+surface and native reallocation need additional memory outside that accounting.
+
+A fresh `newpad` at the original dimensions receives the saved complex background
+and all original cells via opaque `copywin`. Native `wresize` then changes the
+extent, fills growth from the background and repairs native wide edges during
+shrink. Copying the full original first avoids introducing a separate clipped-copy
+edge policy. Using `newpad` guarantees a pad: some libraries' `dupwin` returns an
+ordinary window for a pad source. The public `copy` limit does not apply to this
+internal transfer, which is bounded by the larger pad cap.
+
+Full current style, clamped cursor and scrolling mode are restored before releasing
+the original and replacing its registered pointer. Preparation and original-release
+failures keep the original handle, cells and accounting. Background getter/setter
+and attribute getter/setter support are required for the capability; silently
+dropping complex backgrounds or high pair IDs is not a fallback. No text decoding
+or color allocation occurs, so retained RGB survives opt-out.
+
+PTY tests compare ASCII overlap and growth to independently populated reference
+pads and cover Unicode edges, large retained areas, current/background styles,
+scrolling, quotas and failure isolation. Presentation barriers verify resize is
+silent and that staged cells survive even when their original rows are truncated.
+The viewport example grows or truncates its pad explicitly and populates new rows
+from application data. Pad resize does not alter terminal geometry, input ownership
+or viewport mappings.
+
 ## Independent window geometry
 
 `movewin` moves a top-level ordinary window after strict coordinate and screen

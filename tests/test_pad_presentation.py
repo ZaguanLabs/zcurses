@@ -85,6 +85,14 @@ class PadPresentationTests(unittest.TestCase):
                     self.assertNotIn(b'SCROLLEDVIEW', screen)
                 elif step == b'movedpresented':
                     self.assertIn(b'SCROLLEDVIEW', screen)
+                elif step == b'resized':
+                    self.assertNotIn(b'QUEUEDOLD', screen)
+                    self.assertNotIn(b'NEWRESIZED', screen)
+                elif step in (b'resizedqueuedold', b'restaged'):
+                    self.assertIn(b'QUEUEDOLD', screen)
+                    self.assertNotIn(b'NEWRESIZED', screen)
+                elif step == b'resizedpresented':
+                    self.assertIn(b'NEWRESIZED', screen)
                 else:
                     self.fail(f'Unexpected step: {step!r}')
                 os.write(control_w, b'continue\n')
@@ -92,8 +100,11 @@ class PadPresentationTests(unittest.TestCase):
             reaped = True
             self.assertEqual(os.waitstatus_to_exitcode(status), 0, bytes(screen))
             self.assertEqual(termios.tcgetattr(terminal), original_mode)
-            self.assertEqual(steps, [b'baseline', b'staged', b'input',
-                                     b'presented', b'moved', b'movedpresented'])
+            expected = [b'baseline', b'staged', b'input',
+                        b'presented', b'moved', b'movedpresented']
+            if 'pad_resize' in features.splitlines():
+                expected += [b'resized', b'resizedqueuedold', b'restaged', b'resizedpresented']
+            self.assertEqual(steps, expected)
         finally:
             if not reaped:
                 try:

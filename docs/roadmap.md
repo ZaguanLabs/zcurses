@@ -7,7 +7,7 @@ A completed first milestone does not complete the broader direction.
 
 Implemented first milestones (2026-09-09): [structured input](../README.md#structured-input)
 and [prepared styled rows](../README.md#prepared-styled-rows), followed by opt-in
-`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 50-test suite passes against the matching
+`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 52-test suite passes against the matching
 Zsh 5.9.2 shell, including optional builds. The new paths also pass ASan/UBSan checks
 with leak detection disabled. The native manual
 builds and the exported patch applies in a dry run. See the
@@ -72,7 +72,10 @@ stacked windows support temporary overlays without exposing layout policy in C.
 - [x] Move and resize independent ordinary windows, including combined resize
   and repositioning, retained state, cursor clamping, failure isolation and
   documented native wide-edge behavior. Provide a [floating-window example](../examples/windows.zsh).
-- [ ] Define geometry changes for shared window trees and resizing public pads.
+- [x] Resize public pads with retained overlap, background/style preservation,
+  cursor clamping, credited live budgets, failure isolation and explicit
+  presentation. Extend the viewport example with growth and truncation.
+- [ ] Define geometry changes for shared window trees.
 - [ ] Explore optional panel-library support for stacking, hiding and showing.
 - [ ] Specify how panel updates and existing refresh operations coexist.
 - [x] Provide a [panning document and overlay example](../examples/viewports.zsh)

@@ -19,6 +19,7 @@ xitem(tt(zdraw) tt(addwin) var(targetwin) var(nlines) var(ncols) var(begin_y) va
 xitem(tt(zdraw) tt(movewin) var(targetwin) var(row) var(column))
 xitem(tt(zdraw) tt(resizewin) var(targetwin) var(rows) var(columns) [ var(row) var(column) ])
 xitem(tt(zdraw) tt(addpad) var(name) var(rows) var(columns))
+xitem(tt(zdraw) tt(resizepad) var(pad) var(rows) var(columns))
 xitem(tt(zdraw) tt(viewport) var(pad) var(pad_row) var(pad_column) var(screen_row) var(screen_column) var(rows) var(columns))
 xitem(tt(zdraw) tt(stage) var(targetwin) [ var(targetwin) ... ])
 xitem(tt(zdraw) tt(present))
@@ -110,7 +111,7 @@ Use terminal tt(resize) with tt(nosave) to update screen dimensions first.
 
 Both operations accept only independent ordinary windows without children.
 They reject tt(stdscr), pads, subwindows and windows with subwindows. Shared
-storage relationships and pad resizing require separate handling.
+storage relationships require separate handling. Use tt(resizepad) for pads.
 
 Resizing retains the upper-left overlap subject to native wide-edge repair.
 New cells use the existing background character and its attributes, not the
@@ -161,6 +162,42 @@ pad's screen-origin fields are -1, -1; cursor and dimensions describe the pad.
 Pads reject tt(input), tt(event), tt(timeout), ordinary tt(refresh), and tt(stage).
 Use an ordinary window for input. tt(addwin) rejects pad parents; subpads are
 not exposed. Pad dimensions remain fixed across terminal tt(resize).
+
+The subcommand tt(resizepad) changes a public pad's allocated dimensions,
+preserving its handle name and registry position. Ordinary windows and tt(stdscr)
+are rejected. Dimensions use the same positive literal decimal format and limits
+as tt(addpad). The old allocation is credited against the session cell budget:
+a same-area resize can succeed at the full budget, and successful shrinkage
+releases cells for other pads. The pad can exceed the terminal dimensions.
+
+The upper-left overlap survives subject to native wide-character edge repair.
+New cells use the existing background character and attributes, not the current
+drawing style. Shrinking discards cells permanently; growth does not restore
+them. The cursor is clamped independently to the last valid row and column.
+Current attributes, full color pair, complex background and scrolling mode are
+preserved, including existing RGB state after tt(truecolor off). No new pairs
+are allocated.
+
+A private genuine pad receives the original cells and background before native
+tt(wresize) changes its dimensions. The original is released and its registered
+pointer and accounting replaced only after preparation succeeds. Allocation,
+copying, resize, setup and original-release failures retain the original pad and
+budget. Temporary pad/reallocation storage is additional to live cell limits;
+these are not exact peak-memory bounds. The public tt(copy) operation's smaller
+cell limit does not restrict tt(resizepad).
+
+Resizing does not stage, read input or present. Previously queued screen cells
+survive even if their source rows are truncated. Select valid viewport bounds,
+recompose backgrounds and affected surfaces, then call tt(present). No viewport
+mapping is retained or adjusted. Resized pads keep their input restrictions.
+The linked library's tt(wresize) repair behavior applies at a clipped wide
+character; align cuts to complete characters and redraw dependent content where
+needed. There is no independent Unicode reconstruction.
+
+Check tt(pad_resize) for pad support plus tt(copywin), tt(wresize), tt(wgetbkgrnd),
+tt(wbkgrndset), tt(wattr_get) and tt(wattr_set). The command requires tt(init).
+Status is 0 on success, 1 for invalid arguments, limits or library failure,
+and 2 for missing compiled support.
 
 The subcommand tt(viewport) stages a rectangular pad view at screen coordinates.
 Coordinates are zero-based nonnegative decimal integers and dimensions are
@@ -1016,6 +1053,7 @@ startsitem()
 sitem(tt(window_movement))(Move independent ordinary windows.)
 sitem(tt(window_resize))(Resize and optionally reposition independent ordinary windows.)
 sitem(tt(offscreen_pads))(Bounded offscreen pads and viewport staging.)
+sitem(tt(pad_resize))(Resize public pads while retaining overlap and drawing state.)
 sitem(tt(staged_refresh))(Stage ordinary windows and explicitly present composed frames.)
 sitem(tt(region_restyle))(Replace rectangle styles while retaining character data.)
 sitem(tt(region_copy))(Bounded opaque copies of retained rectangles.)
