@@ -44,6 +44,7 @@ xitem(tt(zdraw) tt(input) var(targetwin) [ var(param) [ var(kparam) [ var(mparam
 xitem(tt(zdraw) tt(mouse) [ tt(delay) var(num) | [tt(+)|tt(-)]tt(motion) ])
 xitem(tt(zdraw) tt(timeout) var(targetwin) var(intval))
 xitem(tt(zdraw) tt(querychar) var(targetwin) [ var(param) ])
+xitem(tt(zdraw) tt(cellinfo) var(targetwin) var(association))
 item(tt(zdraw) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
 Manipulate curses windows.  Except for tt(geometry), tt(colorinfo), tt(textinfo) and tt(textpos), uses of
 this command should be
@@ -669,6 +670,52 @@ returned.  If var(intval) is positive, `tt(zdraw input)' waits
 var(intval) milliseconds for input and if there is none at the end of
 that period returns status 1.
 
+The subcommand tt(cellinfo) reads the retained cell at a window's current
+cursor into an ordinary writable associative parameter, creating it if absent
+and replacing it if present. It requires an initialized session. It does not
+move the cursor, touch or refresh the window, change drawing style, consume
+input or allocate colors. Unpresented drawing is visible to the query.
+The association has these fields:
+startsitem()
+sitem(tt(text))(Complete stored wide-character text, including combining marks,
+or the library's byte cell representation with narrow readback.)
+sitem(tt(characters))(Stored wide-character count, or 1 for byte readback.)
+sitem(tt(encoding))(tt(multibyte) or tt(byte), identifying the readback path.)
+sitem(tt(row), tt(column))(Zero-based cursor position relative to the window.)
+sitem(tt(attributes))(Space-separated known flags: tt(blink), tt(bold), tt(dim),
+ tt(reverse), tt(standout), tt(underline), and tt(altcharset) when present.)
+sitem(tt(attribute_bits))(Decimal mask of all non-color attribute bits, including
+unnamed flags; this value is library-specific.)
+sitem(tt(color))(Original color-pair spelling in the module cache, or tt(unknown).)
+sitem(tt(color_source))(tt(cache) or tt(unknown), identifying the evidence.)
+sitem(tt(pair))(Curses color-pair ID; this number is session-specific.)
+endsitem()
+
+Check tt(cell_inspection) and tt(wide_cell_inspection) for compiled support.
+Wide readback converts the entire stored text using the current locale,
+independently of the tt(MULTIBYTE) option. If that locale cannot represent the
+text, the query fails. It cannot recover characters discarded by curses storage
+limits. Narrow readback cannot reconstruct wide text and has the same packed
+pair limit as tt(querychar), reported by tt(colorinfo)'s tt(query_pair_limit).
+Colors above that limit cannot be inspected reliably. Alternate-character-set
+values can render differently from their tt(text) representation.
+
+Colors are reported from the cache, not from the terminal's palette. Named and
+numeric spellings remain distinct, and existing RGB spellings remain readable
+after truecolor opt-out. Uncached pairs report tt(unknown). Neither tt(pair) nor
+ tt(attribute_bits) is a portable cross-session comparison value.
+
+On ncurses, reading a continuation column of a wide character returns the same
+stored text while retaining the requested cursor location in tt(row) and
+ tt(column). This query does not identify continuation cells or the leading
+column and is not a complete screen serialization format.
+
+Return status is 0 on assignment, or 1 on invalid arguments, failed library
+read, conversion or assignment. Readonly/special parameters, indexed arrays,
+scalars and subscripts are rejected before reading. Failures leave the target
+unchanged and do not create a missing parameter. The inherited tt(querychar)
+interface remains unchanged.
+
 The subcommand tt(querychar) queries the character at the current cursor
 position.  The return values are stored in the array named var(param) if
 supplied, else in the array tt(reply).  The first value is the character
@@ -708,6 +755,8 @@ Its contents are unchanged by tt(init), tt(end), or terminal availability.
 
 The following feature names are defined:
 startsitem()
+sitem(tt(cell_inspection))(Structured readback of the current retained cell.)
+sitem(tt(wide_cell_inspection))(Complete stored complex-character text, including combining marks.)
 sitem(tt(colorinfo))(Runtime color information through tt(colorinfo).)
 sitem(tt(custom_borders))(The eight-character form of tt(border), including
 printable ASCII borders.)

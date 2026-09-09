@@ -242,3 +242,23 @@ no grapheme or emoji-shaping claim. Callers retain original text and own scrolli
 selection policy and conversion from screen coordinates. The standalone
 `examples/hit-test.zsh` shows this composition with prepared headings, styled
 spans and structured keyboard/mouse events, redrawing only after a relevant event.
+
+
+## Retained-cell inspection
+
+`cellinfo` reads the current cursor cell without moving it. This avoids changing
+curses' internal moved/touched state just to inspect another location. The wide
+path reads the complete complex character through `win_wch` and `getcchar`, then
+converts the full string with `wcstombs`, whose conversion starts in the initial
+state rather than changing the shell's shared multibyte decoder state. Failed
+reads and conversions happen before parameter assignment. The narrow path
+reports the packed byte representation explicitly.
+
+Known attributes and original cached color spellings support readable assertions;
+raw non-color attribute bits and pair IDs are diagnostics tied to the library
+and session. Cache provenance is explicit, including unknown colors. This first
+inspection milestone deliberately leaves continuation identity and stable whole-
+screen serialization to the snapshot design. It already lets prepared-row tests
+assert that combining marks survived drawing, which `querychar` cannot show.
+
+Reference: ncurses' [complex-character API](https://invisible-island.net/ncurses/man/curs_getcchar.3x.html).

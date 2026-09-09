@@ -184,6 +184,8 @@ unknown, so the application chooses its fallback policy.
 | `default_colors` | The `default` color name through `use_default_colors` |
 | `custom_borders` | Eight-character borders, including printable ASCII |
 | `wide_borders` | Unicode borders through `setcchar` and `wborder_set` |
+| `cell_inspection` | Structured readback of the current retained cell |
+| `wide_cell_inspection` | Complete complex-character text, including stored combining marks |
 | `colorinfo` | Runtime color capabilities and allocation information |
 | `truecolor` | Optional ncurses extended-color APIs and terminfo queries for RGB |
 | `structured_events` | Associative input records using the curses decoder |
@@ -662,6 +664,76 @@ The subcommand and capability checks do not consume input, emit terminal replies
 refresh pending drawing, or alter input ownership. Input stays with the existing
 `zdraw input` API. There is no additional negotiation or reply parser. All
 screen output remains within curses and its retained-screen refresh machinery.
+
+## Inspecting rendered cells
+
+```zsh
+typeset -A cell
+zdraw spans stdscr 0 0 bold $'e\u0301'
+zdraw move stdscr 0 0
+zdraw cellinfo stdscr cell
+# cell[text] contains both e and its stored combining acute accent.
+# cell[characters] = 2; cell[attributes] = bold
+```
+
+`zdraw cellinfo window association` reads the cell at the current window cursor.
+It requires an initialized session and replaces an ordinary writable association,
+or creates one if absent. It does not move the cursor, touch or refresh the
+window, change its drawing style, consume input or allocate colors. It observes
+curses' retained cells, including drawing not yet presented to the terminal.
+
+| Key | Meaning |
+| --- | --- |
+| `text` | Complete text stored in a wide curses cell, including combining marks; the library's byte representation with narrow readback |
+| `characters` | Number of stored wide characters; `1` for byte readback |
+| `encoding` | `multibyte` or `byte`, identifying the readback path |
+| `row`, `column` | Current cursor position, relative to the window and zero-based |
+| `attributes` | Space-separated known flags: `blink`, `bold`, `dim`, `reverse`, `standout`, `underline`, and `altcharset` when present |
+| `attribute_bits` | Decimal mask of all non-color attribute bits, including flags without a name above; library-specific diagnostics |
+| `color` | Original color-pair spelling from the module's cache, or `unknown` |
+| `color_source` | `cache` or `unknown`, describing the evidence for `color` |
+| `pair` | Curses color-pair ID, valid for this session only |
+
+Wide readback uses `win_wch` and `getcchar`, converts the entire stored string
+using the current locale. This is stored character content, not recovery of the
+original source encoding. It does not claim
+that all characters originally supplied to curses survived its storage limits.
+The `MULTIBYTE` option does not alter readback; the active locale must represent
+the stored characters. A failed conversion returns status 1 without replacing
+the target. Narrow readback reports the library's packed byte cell value, which
+cannot reconstruct wide text and has the packed color-pair limit reported by
+`colorinfo[query_pair_limit]`; it cannot reliably inspect colors above that limit.
+Check `wide_cell_inspection` before requiring complete wide-cell readback.
+
+Color names are cache evidence, not a query of the terminal's palette. A library
+can establish the cached `default/default` label even on a monochrome terminal;
+use `colorinfo` to discover actual color support. Named and
+numeric spellings remain distinct, RGB spellings remain readable after truecolor
+is disabled, and an uncached pair returns `color=unknown`. `pair` and
+`attribute_bits` should not be compared across libraries or sessions. `altcharset`
+identifies alternate-character-set values whose terminal glyph may differ from
+`text`.
+
+A wide character can occupy multiple columns. On ncurses, reading an occupied
+continuation column returns the same stored text; `row`/`column` still identify
+the cursor location. This interface does **not** report the leading column or a
+continuation marker, and should not be treated as a cell-layout serialization
+format. Complete screen snapshots and explicit continuation metadata remain
+[roadmap work](docs/roadmap.md#9-inspectable-screens-and-replay).
+
+Status is 0 on assignment and 1 on invalid arguments, a failed library read,
+encoding conversion or assignment failure. Targets are validated before reading;
+readonly/special parameters, indexed arrays, scalars and subscripts are rejected.
+Failure preserves an existing target and does not create an absent one.
+The inherited `querychar` still returns only the first character in its existing
+positional array; its behavior is unchanged.
+
+Run the [inspection example](examples/cell-inspection.zsh) to draw a prepared
+row, inspect several cells, and print quoted records after ending the session:
+
+```sh
+.build/zsh/Src/zsh -df examples/cell-inspection.zsh
+```
 
 ## Structured input
 

@@ -156,6 +156,8 @@ check zdraw init
       check zdraw move sample 3 0
       check zdraw querychar sample actual
       [[ $actual[1] == e ]] || fail 'combining base missing'
+      check zdraw cellinfo sample info
+      [[ $info[text] == $'e\u0301' && $info[characters] == 2 ]] || fail 'prepared combining mark lost'
       check zdraw move sample 3 1
       check zdraw querychar sample actual
       [[ $actual[1] == '#' ]] || fail 'split wide character'

@@ -2430,6 +2430,105 @@ zccmd_rowinfo(const char *nam, char **args)
 #endif
 }
 
+/* Read the current cell without moving the cursor, touching the window or
+ * changing conversion state used by the shell's multibyte input helpers. */
+static int
+zccmd_cellinfo(const char *nam, char **args)
+{
+    LinkNode node;
+    LinkList info, names;
+    WINDOW *win;
+    Colorpairnode color;
+    const struct zdraw_namenumberpair *entry;
+    char *text, digits[DIGBUFSIZE];
+    short pair;
+    int row, column, characters;
+#if defined(HAVE_WIN_WCH) && defined(HAVE_GETCCHAR)
+    cchar_t cell;
+    attr_t attrs;
+    wchar_t *wide;
+    int count;
+    size_t bytes;
+#else
+    chtype cell, attrs;
+    char raw;
+#endif
+
+    if (zdraw_association(nam, args[1]))
+        return 1;
+    node = zdraw_validate_window(args[0], ZDRAW_USED);
+    if (!node) {
+        zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
+        return 1;
+    }
+    win = ((ZCWin)getdata(node))->win;
+    getyx(win, row, column);
+#if defined(HAVE_WIN_WCH) && defined(HAVE_GETCCHAR)
+    if (win_wch(win, &cell) == ERR)
+        return 1;
+    count = getcchar(&cell, NULL, NULL, NULL, NULL);
+    if (count <= 0 || (size_t)count > (size_t)-1 / sizeof(*wide))
+        return 1;
+    wide = (wchar_t *)zhalloc((size_t)count * sizeof(*wide));
+    if (getcchar(&cell, wide, &attrs, &pair, NULL) == ERR)
+        return 1;
+    bytes = wcstombs(NULL, wide, 0);
+    if (bytes == (size_t)-1 || bytes > (INT_MAX - 1) / 2) {
+        zwarnnam(nam, "cell text cannot be represented in the current locale");
+        return 1;
+    }
+    text = zhalloc(2 * bytes + 1);
+    if (wcstombs(text, wide, bytes + 1) != bytes)
+        return 1;
+    (void)metafy(text, (int)bytes, META_NOALLOC);
+    characters = count - 1;
+#else
+    cell = winch(win);
+    if (cell == (chtype)ERR)
+        return 1;
+    attrs = cell & A_ATTRIBUTES;
+    pair = PAIR_NUMBER(cell);
+    raw = (char)(cell & A_CHARTEXT);
+    text = metafy(&raw, 1, META_HEAPDUP);
+    characters = 1;
+#endif
+    names = newlinklist();
+    for (entry = zdraw_attributes; entry->name; entry++) {
+        if (attrs & entry->number)
+            addlinknode(names, entry->name);
+    }
+#ifdef A_ALTCHARSET
+    if (attrs & A_ALTCHARSET)
+        addlinknode(names, "altcharset");
+#endif
+    info = newlinklist();
+    addlinknode(info, "text");
+    addlinknode(info, text);
+    addlinknode(info, "attributes");
+    addlinknode(info, zjoin(hlinklist2array(names, 0), ' ', 1));
+    /* Include all non-color attribute bits for diagnostics, even flags without
+     * a portable name in this module. The number is library-specific. */
+    sprintf(digits, "%lu", (unsigned long)(attrs & ~A_COLOR));
+    addlinknode(info, "attribute_bits");
+    addlinknode(info, dupstring(digits));
+    color = zdraw_colorget_reverse(pair);
+    addlinknode(info, "color");
+    addlinknode(info, color ? color->node.nam : "unknown");
+    addlinknode(info, "color_source");
+    addlinknode(info, color ? "cache" : "unknown");
+    addlinknode(info, "encoding");
+#if defined(HAVE_WIN_WCH) && defined(HAVE_GETCCHAR)
+    addlinknode(info, "multibyte");
+#else
+    addlinknode(info, "byte");
+#endif
+    zdraw_colorinfo_value(info, "pair", pair);
+    zdraw_colorinfo_value(info, "characters", characters);
+    zdraw_colorinfo_value(info, "row", row);
+    zdraw_colorinfo_value(info, "column", column);
+    return !sethparam(args[1], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
 /* Signed event values (mouse coordinates can be outside a window). */
 static void
 zdraw_event_number(LinkList info, const char *key, zlong value)
@@ -2977,6 +3076,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"timeout", zccmd_timeout, 2, 2},
 	{"mouse", zccmd_mouse, 0, -1},
 	{"querychar", zccmd_querychar, 1, 2},
+        {"cellinfo", zccmd_cellinfo, 2, 2},
 	{"touch", zccmd_touch, 1, -1},
 	{"resize", zccmd_resize, 2, 3},
 	{NULL, (zccmd_t)0, 0, 0}
@@ -3033,6 +3133,10 @@ zdraw_featuresgetfn(UNUSED(Param pm))
      * This is compile-time support, not terminal capability or state. */
     static char *features[] = {
 	"colorinfo",
+        "cell_inspection",
+#if defined(HAVE_WIN_WCH) && defined(HAVE_GETCCHAR)
+        "wide_cell_inspection",
+#endif
 	"custom_borders",
 	"textinfo",
         "text_positions",

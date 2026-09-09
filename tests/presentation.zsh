@@ -7,7 +7,7 @@ zmodload zdraw || exit 1
 fail() { print -ru2 -- "FAIL: $*"; exit 1; }
 check() { "$@" || fail "$*"; }
 step() { print -r -u "$report_fd" -- "$1"; read -r -u "$control_fd" || fail 'control EOF'; }
-typeset -A event=(sentinel yes)
+typeset -A event=(sentinel yes) cell
 typeset -a before after
 step baseline
 check zdraw init
@@ -22,6 +22,8 @@ check zdraw init
   check zdraw string child HIDDENCHILD
   check zdraw move stdscr 2 3
   check zdraw position stdscr before
+  check zdraw cellinfo stdscr cell
+  [[ $cell[row] == 2 && $cell[column] == 3 ]] || fail 'inspection position'
   check zdraw timeout stdscr 150
   zdraw event stdscr event norefresh
   (( $? == 1 )) || fail 'finite empty read'

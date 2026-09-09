@@ -7,7 +7,7 @@ A completed first milestone does not complete the broader direction.
 
 Implemented first milestones (2026-09-09): [structured input](../README.md#structured-input)
 and [prepared styled rows](../README.md#prepared-styled-rows), followed by opt-in
-`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 33-test suite passes against the matching
+`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 36-test suite passes against the matching
 Zsh 5.9.2 shell, including optional builds. The new paths also pass ASan/UBSan checks
 with leak detection disabled. The native manual
 builds and the exported patch applies in a dry run. See the
@@ -154,7 +154,13 @@ interface. This should preserve the shell's ability to compose existing tools.
 Turn a failing interaction into a fixture: start at a known size, paste data,
 resize, send keys, then compare logical cells and styles.
 
-- [ ] Expose complete cell snapshots, including wide-character continuations.
+- [x] Add `cellinfo` for complete stored complex-character text, structured
+  attributes and cached color evidence, without moving or refreshing a window.
+  Preserve the inherited first-character `querychar` interface.
+- [x] Test stored combining marks, wide occupied columns, locale failures,
+  optional readers, high RGB pair IDs and query state preservation.
+- [ ] Expose complete screen snapshots with explicit wide-character continuation
+  metadata and a stable serialization format.
 - [ ] Represent styles independently of session-specific color-pair numbers.
 - [ ] Extend the existing PTY harness with scripted events and readable diffs.
 - [ ] Define explicitly enabled recording, replay and timing behavior.
