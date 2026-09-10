@@ -32,7 +32,7 @@ enable paste, focus reporting or synchronized output.
 
 ## Record contract
 
-The format is `zdraw-capabilities-1`. `names` lists the eight capability names;
+The format is `zdraw-capabilities-1`. `names` lists the nine capability names;
 `session` is `inactive`, `active` or `suspended`. `term`, `locale` and
 `curses_version` describe local configuration, not verified terminal identity.
 `query_owner` says whether the module has reserved mode-report decoding.
@@ -46,7 +46,7 @@ Each capability has these comma-separated keys:
 | `name,source` | `none`, `compiled`, `curses`, `terminfo`, `reply` or `override`. |
 | `name,evidence_support`, `name,evidence_source` | The unmodified evidence, even when an override is supplied. |
 | `name,enabled` | Module-owned persistent activation, `yes` or `no`; never inferred from a reply or override. |
-| `name,reported` | Last accepted mode report: `unknown`, `unrecognized`, `set`, `reset`, `permanent-set` or `permanent-reset`. |
+| `name,reported` | Last accepted DEC mode report: `unknown`, `unrecognized`, `set`, `reset`, `permanent-set` or `permanent-reset`; keyboard reports use decimal flags or `unknown`. |
 | `name,query` | `never`, `pending`, `replied`, `timeout`, `cancelled`, `send-error`, or `unavailable` for non-queryable entries. |
 
 | Name | Scope of support evidence |
@@ -57,8 +57,9 @@ Each capability has these comma-separated keys:
 | `norefresh_events` | Compiled implementation of the explicit per-call no-refresh input path. |
 | `suspend_resume` | Compiled retained-session handoff implementation. |
 | `streaming_paste` | Recognition of DEC private mode 2004, separately from the compiled paste API. |
-| `focus_events` | Recognition of mode 1004; its event API is not implemented in this milestone. |
-| `synchronized_output` | Recognition of mode 2026; its presentation API is not implemented in this milestone. |
+| `focus_events` | Recognition of mode 1004; activation is separate from recognition. |
+| `synchronized_output` | Recognition of mode 2026; its presentation API is not implemented. |
+| `keyboard_events` | Kitty keyboard protocol recognition; `reported` is its observed decimal flag value. |
 
 `enabled=no` is also used for operations without persistent activation, such as
 text measurement and per-call no-refresh input. Paste enabled state means module
@@ -94,10 +95,10 @@ This example assumes a blocking/adequate window timeout. Applications using
 There is no background reader or timer callback. External wait loops must use a
 finite tick, as described in [application integration](application-integration.md).
 
-- `query on` reserves 15 exact reply sequences in the existing curses decoder.
+- `query on` reserves 47 exact reply sequences in the existing curses decoder.
   It sends nothing and enables no terminal mode. Repeated `on` is idempotent.
-- `query request name milliseconds` supports only the three mode names above,
-  with a literal decimal timeout of 20–5000 ms. It sends one DECRQM request and
+- `query request name milliseconds` supports the three DEC mode names above and `keyboard_events`,
+  with a literal decimal timeout of 20–5000 ms. It sends one DECRQM or keyboard request and
   flushes stdout. Only one request may be outstanding; an active paste rejects it.
 - `query cancel` cancels a pending request. It sends nothing and produces no
   synthetic cancellation event; inspection reports `cancelled`.
@@ -119,6 +120,11 @@ request as `timeout` without consuming its pending timeout event. Non-poll input
 caps its initial wait by the outstanding deadline. Curses escape decoding and
 inherited signal retries can extend a call beyond that interval: this is a
 response acceptance deadline, not a hard execution-time guarantee.
+
+Keyboard queries use `CSI ? u` and recognize flag replies 0–31. Their events have
+`source=kitty-query`, `mode=0`, and a numeric `report`; zero means recognized with
+no flags set. See [enhanced input](enhanced-input.md) for activation and keyboard
+records. The remaining lifecycle rules apply to all four queryable capabilities.
 
 Only exact seven-bit reports are recognized. Ordinary keys, unsupported/malformed
 reports and incomplete sequences retain the existing curses decoding behavior.

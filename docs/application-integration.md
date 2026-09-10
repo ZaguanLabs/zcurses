@@ -224,3 +224,11 @@ returns 1 in the background before changing terminal modes. Applications retain
 signal/trap policy, including explicit suspend before stopping. The
 [portability record](portability/README.md) documents the interactive-shell
 `bg`/`fg` test and the limits of the current terminal matrix.
+
+
+Opt-in [enhanced input](enhanced-input.md) adds focus and kitty keyboard records.
+Process key release separately from press/repeat, insert only associated text,
+and preserve the legacy keymap for ordinary curses records. Partial CSI packets
+must be drained (or timed out) before suspend or keyboard off; end/unload remain
+the unconditional cleanup path. Focus events describe terminal focus and do not
+change the application's field selection automatically.

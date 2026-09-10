@@ -19,6 +19,7 @@ check zmodload zdraw
 check zdraw init
 {
   check zdraw paste on
+  check zdraw focus on force
   check zdraw query on
   check zdraw query request focus_events 5000
   print -r -u "$report_fd" -- "ready $$"
@@ -33,7 +34,7 @@ check zdraw init
   kill -USR1 $$
   (( stopped == 1 && continued >= 2 && signalled == 1 )) || fail 'application traps'
   check zdraw capabilities info
-  [[ $info[session] == active && $info[streaming_paste,enabled] == yes ]] || fail 'foreground resume'
+  [[ $info[session] == active && $info[streaming_paste,enabled] == yes && $info[focus_events,enabled] == yes ]] || fail 'foreground resume'
   print -r -u "$report_fd" -- foreground
 } always {
   zdraw end

@@ -165,3 +165,38 @@ class CompositionTests(unittest.TestCase):
             session.finish()
         finally:
             session.close()
+
+    def test_enhanced_form_recipe(self):
+        session = RecipeSession(self, 'form-enhanced')
+        try:
+            self.assertEqual(session.advance(), ['frame', '1', '1', '0', '0', 'focus_events', '0'])
+            self.assertEqual(session.advance(b'\x1b[?1004;2$y')[-2:], ['keyboard_events', '0'])
+            self.assertEqual(session.advance(b'\x1b[?0u')[-2:], ['done', '1'])
+            self.assertEqual(session.advance(b'\x1b[97;1;97u')[4], '1')
+            # Release must not insert a second character; the following focus event draws.
+            self.assertEqual(session.advance(b'\x1b[97;1:3;97u\x1b[O')[1:5], ['0', '1', '0', '1'], bytes(session.output[-4000:]))
+            self.assertEqual(session.advance(b'\x1b[I')[1], '1')
+            self.assertEqual(session.advance(b'\x1b[115;6u')[3], '1')
+            self.assertEqual(session.advance(b'\x1b[9u')[2], '2')
+            self.assertEqual(session.advance(b'\x1b[9;2u')[2], '1')
+            self.assertEqual(session.advance(b'\x1b[97;5u')[4], '1')
+            self.assertEqual(session.advance(b'\x1b[127u')[4], '0')
+            session.finish()
+        finally:
+            session.close()
+
+    def test_enhanced_event_inspector(self):
+        session = RecipeSession(self, 'events-enhanced')
+        try:
+            self.assertEqual(session.advance()[1], 'ready')
+            self.assertEqual(session.advance(b'\x1b[?1004;2$y')[-2], 'keyboard_events')
+            self.assertEqual(session.advance(b'\x1b[?0u')[-1], '1')
+            self.assertEqual(session.advance(b'\x1b[97;5:3u')[1:4], ['key', 'kitty', 'release'])
+            self.assertEqual(session.advance(b'\x1b[O')[1:3], ['focus', 'focus-report'])
+            self.assertEqual(session.advance(b'\x1b[113;1;113u'), ['done'])
+            _, status = os.waitpid(session.pid, 0)
+            session.reaped = True
+            self.assertEqual(os.waitstatus_to_exitcode(status), 0)
+            self.assertEqual(termios.tcgetattr(session.terminal), session.baseline)
+        finally:
+            session.close()

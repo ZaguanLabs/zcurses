@@ -50,6 +50,9 @@ xitem(tt(zdraw) tt(inputinfo) var(association))
 xitem(tt(zdraw) tt(capabilities) var(association) [ var(name)tt(=)tt(yes)|tt(no)|tt(unknown) ... ])
 xitem(tt(zdraw) tt(query) tt(on)|tt(off)|tt(cancel))
 xitem(tt(zdraw) tt(query) tt(request) var(name) var(milliseconds))
+xitem(tt(zdraw) tt(focus) tt(on) [ tt(force) ])
+xitem(tt(zdraw) tt(focus) tt(off))
+xitem(tt(zdraw) tt(keyboard) tt(on)|tt(off))
 xitem(tt(zdraw) tt(inputdelay) var(milliseconds))
 xitem(tt(zdraw) tt(spansclip) var(targetwin) var(row) var(column) var(columns) var(style) var(text) [ var(style) var(text) ... ] )
 xitem(tt(zdraw) tt(border) var(targetwin) [ var(left) var(right) var(top) var(bottom) var(top_left) var(top_right) var(bottom_left) var(bottom_right) ] )
@@ -700,11 +703,10 @@ endsitem()
 
 Wide input uses the current locale and reports a numeric wide-character value;
 narrow input returns raw bytes 0--255. Curses key numbers vary by library.
-Character records do not identify unmodified physical keys. This first event
-interface does not distinguish focus, keyboard modifiers or
-press/repeat/release events, and negotiates no modern keyboard protocol.
-Bracketed paste and capability replies have separate explicitly enabled record
-formats described below.
+Character records do not identify unmodified physical keys. Ordinary curses
+records do not distinguish press/repeat/release or exact keyboard modifiers.
+Focus, enhanced keyboard input, bracketed paste and capability replies have
+separate explicitly enabled record formats described below.
 
 The existing tt(input) and new tt(event) share the same curses queue and decoder.
 Applications choose which call consumes each item. There is no background reader;
@@ -743,16 +745,18 @@ terminfo evidence. tt(wide_text), tt(norefresh_events) and tt(suspend_resume)
 report compiled API support; wide text does not establish font or emoji coverage.
 Names tt(streaming_paste), tt(focus_events) and tt(synchronized_output) report
 terminal recognition of modes 2004, 1004 and 2026, independently of compiled API
-support. Focus and synchronized-output activation are not implemented here.
+support. Synchronized-output activation is not implemented here.
+tt(keyboard_events) reports recognition of the kitty keyboard protocol; its
+tt(reported) field is the accepted decimal flag value, or tt(unknown).
 Before evidence exists, terminal support remains tt(unknown). The tt(enabled)
 field describes module-owned persistent activation, not terminal confirmation;
 operations with no persistent activation report tt(no).
 
-With an initialized session, tt(query on) reserves fifteen exact seven-bit
-DECRPM replies in the existing curses decoder. It emits nothing and enables no
+With an initialized session, tt(query on) reserves 47 exact seven-bit replies
+(15 DECRPM and 32 keyboard reports) in the existing curses decoder. It emits nothing and enables no
 terminal mode. tt(query request) accepts one of tt(streaming_paste),
-tt(focus_events), tt(synchronized_output), and literal decimal milliseconds from
-20 through 5000. It writes one DECRQM request and flushes stdout. One request may
+tt(focus_events), tt(synchronized_output), tt(keyboard_events), and literal decimal milliseconds from
+20 through 5000. It writes one DECRQM or keyboard request and flushes stdout. One request may
 be outstanding; requests during an active paste fail. Each mode may be attempted
 once per session, even after cancellation or a failed write: replies lack request
 identifiers, so a retry could mistake an old reply for a new one.
@@ -765,6 +769,11 @@ reset, permanently set and permanently reset. Recognition does not establish
 that a permanently reset mode can be enabled. The tt(reported) capability field
 records these as tt(unrecognized), tt(set), tt(reset), tt(permanent-set),
 tt(permanent-reset), or tt(unknown) without accepted evidence.
+
+Keyboard queries send tt(CSI ? u) and accept current flag values 0 through 31.
+Their events use tt(source=kitty-query), tt(mode=0), and numeric tt(report).
+Zero confirms protocol recognition with no flags set; it does not mean
+unrecognized. Larger future flag combinations are not accepted as evidence.
 
 A tt(timeout) event has report -1 and leaves support unknown. Other recognized
 replies are tt(unsolicited) or tt(late) events without changing evidence.
@@ -793,6 +802,85 @@ them. Status is 0 on success, 1 on invalid input/state, collisions or library/I/
 failure, and 2 for queries without compiled support. On systems supporting
 terminal process groups, background tt(resume) returns 1 before changing modes;
 applications resume after foreground handoff and retain their own signal traps.
+
+The subcommand tt(focus on) requires an accepted mode-1004 tt(reset) report,
+then enables reporting and reserves the exact tt(CSI I) and tt(CSI O) sequences.
+Requiring reset avoids taking over an already enabled or permanent mode.
+tt(focus on force) explicitly assumes ownership without that evidence; neither
+form changes recorded evidence. Existing matching terminfo tt(kxIN)/tt(kxOUT)
+definitions are borrowed and preserved; other collisions fail without replacement.
+Events contain tt(type=focus), tt(source=focus-report), tt(focused=1) or tt(0),
+and empty tt(text). Application field focus and selection are unchanged.
+tt(focus off) disables reporting and releases newly allocated definitions.
+
+The subcommand tt(keyboard on) requires an accepted keyboard query reply; there
+is no force form. It pushes kitty flag value 27, requesting disambiguation,
+event types, all-key reporting and associated text, without alternate-layout
+reporting. It does not independently confirm each requested enhancement.
+tt(keyboard off) pops that entry, restoring the previous flags. Activation during
+an active paste fails. Both protocols' on/off calls are idempotent. Check compiled
+features tt(focus_events) and tt(keyboard_events); terminal support is separate.
+
+Enhanced keyboard records contain tt(type=key), tt(source=kitty), and:
+startsitem()
+sitem(tt(key), tt(code), tt(code_kind))(A tt(U+) codepoint identity, supported
+functional name or tt(UNKNOWN); the decimal protocol number; and tt(unicode)
+or tt(functional). Functional CSI numbers need tt(key)/tt(raw) to distinguish
+encodings. CSI-u Escape, Enter, Tab, Backspace and F13 through F35 have names.
+CSI letter/tilde forms support arrows, Home/End, Insert/Delete, Page Up/Down,
+F1 through F12 and Menu. Other protocol private-use identities are unsupported.)
+sitem(tt(supported))(tt(yes) for known identities, otherwise tt(no) with the
+numeric identity preserved.)
+sitem(tt(action))(tt(press), tt(repeat) or tt(release); an omitted wire event
+type defaults to press.)
+sitem(tt(modifiers), tt(modifier_bits))(Space-separated tt(SHIFT ALT CTRL SUPER
+HYPER META CAPS_LOCK NUM_LOCK) in that order, empty for none; and the decoded
+0 through 255 bitmask.)
+sitem(tt(text), tt(encoding), tt(text_status))(Only explicitly associated text,
+encoded as UTF-8 even with narrow curses input; tt(encoding=utf-8) and
+tt(text_status=provided) or tt(none). At most 16 Unicode scalars (64 bytes),
+including possible NUL/control characters. Never infer text from key identity or
+Shift. Applications should ignore release events for text insertion.)
+sitem(tt(shifted_key), tt(base_key))(tt(unknown). Alternate fields are bounded
+and validated but not exposed as physical-layout claims.)
+sitem(tt(raw))(Original bounded wire bytes, safely stored in the shell string
+but unsafe to print directly to a terminal.)
+endsitem()
+
+Curses handles existing keys, mouse, focus, paste starts and query replies first.
+Only an otherwise literal Escape followed immediately on the same queue by an
+opening square bracket enters the enhanced CSI-tail parser. Standalone Escape
+and non-CSI prefixes retain legacy decoding. Ordinary curses records retain
+their existing fields; no repeat/release or modifier information is invented.
+Paste payload is never interpreted as enhanced input.
+
+The parser retains at most 256 bytes and reads at most 256 bytes per call, with
+a 250 ms monotonic tail deadline. Partial state survives empty reads; continuation
+waits are capped by the deadline. Initial curses escape timing and signal handling
+still affect call duration, and gaps before prefix recognition may leave input
+on the legacy path. Numeric fields are bounded to seven digits and Unicode
+scalar limits; surrogates, invalid modifiers/actions and excess fields fail.
+Unknown or malformed packets produce tt(type=unknown), tt(source=kitty),
+tt(supported=no), tt(reason), bounded tt(raw), empty tt(text), tt(text_status=none),
+tt(encoding=byte), and unknown key/code/action/modifiers. Oversized packets are
+discarded in bounded unknown chunks until their final byte or timeout, keeping
+their tail out of text input. A new Escape interrupts a partial packet and is
+returned to the queue for normal decoding. Timeout releases partial state;
+later bytes cannot reliably be correlated with it.
+
+While either protocol owns decoding, tt(input) is rejected; use tt(event) as the
+single terminal input owner. Neither adds a background reader or installs traps.
+tt(keyboard off) and tt(suspend) reject partial/discard state: drain it through
+tt(event), including its timeout, or end the session. Suspend disables focus and
+pops keyboard flags; resume restores configured enhancements. End/unload disable
+owned modes and clear the held parser buffer, including incomplete packets, but
+cannot retract bytes in transit. Late reports after off may become ordinary input.
+Cleanup never re-enables another protocol after a disable failure. A failed
+keyboard pop is not retried because a failed flush may have reached the peer;
+terminal output failures can leave peer state uncertain. Activation returns 0
+on success, 1 for invalid arguments/state or library/I/O failure, and 2 without
+compiled support or sufficient evidence. Delivering an unknown event is success;
+an incomplete or empty read returns 1 without replacing the output association.
 
 The subcommand tt(inputinfo) requires a session and replaces an ordinary writable
 association with input state, without reading or presenting:
@@ -862,17 +950,17 @@ control sequences immediately; tt(norefresh) still prevents frame presentation.
 Status is 0 on success, 1 for invalid state/arguments or library/output failure,
 and 2 without compiled support. Initialization is required.
 
-The subcommand tt(suspend) saves program modes, disables configured paste and
-active mouse reporting, calls tt(endwin), and restores the modes saved before
+The subcommand tt(suspend) saves program modes, disables configured paste, focus,
+keyboard enhancements and active mouse reporting, calls tt(endwin), and restores the modes saved before
 initialization. Windows, pads, prepared rows and colors remain allocated.
-Repeated suspension is idempotent; active paste must finish first. While suspended,
+Repeated suspension is idempotent; active paste and partial keyboard packets must finish first. While suspended,
 drawing, input and tt(init) are rejected. tt(resume), tt(suspend), tt(end),
 tt(inputinfo), tt(capabilities), geometry/color queries and headless text queries remain available.
 Ending a suspended session frees resources without re-entering the alternate screen.
 
 The subcommand tt(resume) restores program modes, rechecks terminal dimensions,
 updates them when tt(resize_term) is available, and repaints the retained virtual
-frame. Configured paste and mouse reporting are restored. Repeated resume is
+frame. Configured paste, focus, keyboard and mouse reporting are restored. Repeated resume is
 idempotent. This is an explicit presentation boundary, including drawing queued
 before suspension. Applications still own relayout and viewport recomposition;
 changed terminal geometry is reported by the next event where supported. Handoff
@@ -1305,7 +1393,9 @@ sitem(tt(suspend_resume))(Retained session handoff to foreground commands.)
 sitem(tt(event_poll))(Per-call zero initial input timeout.)
 sitem(tt(input_info))(Input descriptor, polling guidance and session input state.)
 sitem(tt(capability_evidence))(Passive support/evidence/state records and record-only overrides.)
-sitem(tt(capability_queries))(Opt-in bounded DECRQM requests and exact DECRPM event decoding.)
+sitem(tt(capability_queries))(Opt-in bounded DEC/kitty requests and exact reply decoding.)
+sitem(tt(focus_events))(Opt-in terminal focus reports with explicit mode ownership.)
+sitem(tt(keyboard_events))(Negotiated kitty keyboard subset with bounded event decoding.)
 sitem(tt(input_delay))(Explicit ncurses escape delay with end/unload restoration.)
 sitem(tt(norefresh_events))(Opt-in event input without refreshing drawing windows,
 currently with ncurses.)

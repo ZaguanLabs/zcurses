@@ -186,22 +186,36 @@ static int zdraw_saved_mouse;
 static int zdraw_saved_escape_delay = -1;
 #endif
 
-/* Exact DECRPM replies reuse curses' decoder; no second reader or raw parser.
+/* Exact capability replies reuse curses' decoder; no second input reader.
  * A mode may be queried once per session: replies carry no request identifier. */
 #if defined(ZDRAW_PASTE) && defined(HAVE_CLOCK_GETTIME) && defined(CLOCK_MONOTONIC)
 # define ZDRAW_QUERIES 1
-static int zdraw_query_keys[15], zdraw_query_owner;
+# define ZDRAW_QUERY_KEYS 47
+static int zdraw_query_keys[ZDRAW_QUERY_KEYS], zdraw_query_owner;
 static int zdraw_query_pending = -1;
 static double zdraw_query_deadline;
 #endif
 static const char *zdraw_query_names[] = {
-    "streaming_paste", "focus_events", "synchronized_output"
+    "streaming_paste", "focus_events", "synchronized_output", "keyboard_events"
 };
-static const int zdraw_query_modes[] = {2004, 1004, 2026};
-static int zdraw_query_reports[3] = {-1, -1, -1};
-static const char *zdraw_query_states[3] = {"never", "never", "never"};
+static const int zdraw_query_modes[] = {2004, 1004, 2026, 0};
+static int zdraw_query_reports[4] = {-1, -1, -1, -1};
+static const char *zdraw_query_states[4] = {"never", "never", "never", "never"};
 static void zdraw_query_cleanup(void);
 static void zdraw_query_cancel(void);
+#ifdef ZDRAW_QUERIES
+# define ZDRAW_ENHANCED 1
+static int zdraw_focus_owned[2];
+static int zdraw_focus_keys[2], zdraw_focus_on, zdraw_focus_applied;
+static int zdraw_keyboard_on, zdraw_keyboard_applied;
+#define ZDRAW_KEY_BYTES 256
+static char zdraw_key_buffer[ZDRAW_KEY_BYTES];
+static int zdraw_key_used, zdraw_key_discard;
+static double zdraw_key_deadline;
+#endif
+static int zdraw_enhanced_pause(void);
+static int zdraw_enhanced_resume(void);
+static void zdraw_enhanced_cleanup(void);
 
 enum {
     ZCF_MOUSE_ACTIVE = 1 << 0,
@@ -2252,12 +2266,21 @@ zccmd_suspend(const char *nam, UNUSED(char **args))
         return 1;
     }
 #endif
+#ifdef ZDRAW_ENHANCED
+    if (zdraw_key_used || zdraw_key_discard) {
+        zwarnnam(nam, "finish the partial keyboard event before suspending");
+        return 1;
+    }
+#endif
     if (def_prog_mode() == ERR)
         return 1;
     gettyinfo(&curses_tty_state);
+    if (zdraw_enhanced_pause())
+        return 1;
 #ifdef ZDRAW_PASTE
     if (zdraw_paste_key && zdraw_paste_mode(0)) {
         zdraw_paste_mode(1);
+        zdraw_enhanced_resume();
         return 1;
     }
 #endif
@@ -2267,6 +2290,7 @@ zccmd_suspend(const char *nam, UNUSED(char **args))
 #endif
     if (!isendwin() && endwin() == ERR) {
         reset_prog_mode();
+        zdraw_enhanced_resume();
 #ifdef ZDRAW_PASTE
         if (zdraw_paste_key)
             zdraw_paste_mode(1);
@@ -2291,11 +2315,12 @@ static int
 zccmd_resume(UNUSED(const char *nam), UNUSED(char **args))
 {
 #ifdef ZDRAW_SUSPEND
+    int result;
 #ifdef HAVE_RESIZE_TERM
     int rows, cols;
 #endif
     if (!zdraw_suspended)
-        return 0;
+        return zdraw_enhanced_resume();
 #ifdef HAVE_TCSETPGRP
     /* A background continuation must leave shell mode intact until fg. */
     if (isatty(0) && tcgetpgrp(0) != getpgrp())
@@ -2321,15 +2346,17 @@ zccmd_resume(UNUSED(const char *nam), UNUSED(char **args))
         return 1;
     }
     zdraw_suspended = 0;
+    /* Attempt every configured restoration even if one protocol write fails. */
+    result = zdraw_enhanced_resume();
 #ifdef NCURSES_MOUSE_VERSION
     if (zdraw_saved_mouse)
         mousemask(zdraw_mouse_mask, NULL);
 #endif
 #ifdef ZDRAW_PASTE
     if (zdraw_paste_key && zdraw_paste_mode(1))
-        return 1;
+        result = 1;
 #endif
-    return 0;
+    return result;
 #else
     return 2;
 #endif
@@ -2359,6 +2386,7 @@ zccmd_endwin(UNUSED(const char *nam), UNUSED(char **args))
     LinkNode stdscr_win = zdraw_getwindowbyname("stdscr");
 
     if (stdscr_win) {
+        zdraw_enhanced_cleanup();
         zdraw_query_cleanup();
 #ifdef ZDRAW_PASTE
         if (zdraw_paste_key) {
@@ -3457,6 +3485,421 @@ zdraw_query_now(void)
 }
 #endif
 
+#ifdef ZDRAW_ENHANCED
+static int
+zdraw_enhanced_write(const char *sequence)
+{
+    return fputs(sequence, stdout) == EOF || fflush(stdout) == EOF;
+}
+
+static int
+zccmd_focus(const char *nam, char **args)
+{
+    int i, j, code, force = args[1] && !strcmp(args[1], "force");
+    char *bound;
+    const char *sequences[] = {"\033[I", "\033[O"};
+    if (!strcmp(args[0], "off") && !args[1]) {
+        if (zdraw_focus_applied && zdraw_enhanced_write("\033[?1004l"))
+            return 1;
+        zdraw_focus_applied = zdraw_focus_on = 0;
+        for (i = 0; i < 2; i++) {
+            if (zdraw_focus_owned[i] && define_key(NULL, zdraw_focus_keys[i]) == ERR)
+                return 1;
+            zdraw_focus_keys[i] = zdraw_focus_owned[i] = 0;
+        }
+        return 0;
+    }
+    if (strcmp(args[0], "on") || (args[1] && !force))
+        return 1;
+    if (zdraw_focus_on)
+        return zdraw_enhanced_resume();
+    /* A reset report permits owning this mode without disabling another owner. */
+    if (!force && zdraw_query_reports[1] != 2) {
+        zwarnnam(nam, "focus needs an observed reset mode or explicit force");
+        return 2;
+    }
+    if (!isatty(0) || !isatty(1))
+        return 1;
+    for (i = 0; i < 2; i++) {
+        code = key_defined(sequences[i]);
+        if (code) {
+#ifdef HAVE_TIGETSTR
+            char *declared = tigetstr(i ? "kxOUT" : "kxIN");
+            if (code < 0 || !declared || declared == (char *)-1 || strcmp(declared, sequences[i]))
+                return 1;
+#else
+            return 1;
+#endif
+        }
+    }
+    for (i = 0; i < 2; i++) {
+        code = key_defined(sequences[i]);
+        if (code > 0) {
+            zdraw_focus_keys[i] = code;
+            continue;
+        }
+        for (code = KEY_MAX + 1; code < KEY_MAX + 257; code++) {
+            bound = keybound(code, 0);
+            if (!bound) break;
+            free(bound);
+        }
+        if (code == KEY_MAX + 257 || define_key(sequences[i], code) == ERR) {
+            for (j = 0; j < i; j++) {
+                if (zdraw_focus_owned[j]) define_key(NULL, zdraw_focus_keys[j]);
+                zdraw_focus_keys[j] = zdraw_focus_owned[j] = 0;
+            }
+            return 1;
+        }
+        zdraw_focus_keys[i] = code;
+        zdraw_focus_owned[i] = 1;
+    }
+    if (zdraw_enhanced_write("\033[?1004h")) {
+        zdraw_enhanced_write("\033[?1004l");
+        for (i = 0; i < 2; i++) {
+            if (zdraw_focus_owned[i]) define_key(NULL, zdraw_focus_keys[i]);
+            zdraw_focus_keys[i] = zdraw_focus_owned[i] = 0;
+        }
+        return 1;
+    }
+    zdraw_focus_on = zdraw_focus_applied = 1;
+    return 0;
+}
+
+static int
+zccmd_keyboard(const char *nam, char **args)
+{
+    if (!strcmp(args[0], "off")) {
+        if (zdraw_key_used || zdraw_key_discard) {
+            zwarnnam(nam, "finish the partial keyboard event before disabling it");
+            return 1;
+        }
+        zdraw_keyboard_on = 0;
+        if (zdraw_keyboard_applied) {
+            /* Never retry a pop: even a failed flush may have reached the peer. */
+            zdraw_keyboard_applied = 0;
+            return zdraw_enhanced_write("\033[<u");
+        }
+        return 0;
+    }
+    if (strcmp(args[0], "on"))
+        return 1;
+    if (zdraw_keyboard_on)
+        return zdraw_enhanced_resume();
+    if (zdraw_query_reports[3] < 0) {
+        zwarnnam(nam, "keyboard needs an accepted keyboard_events query reply");
+        return 2;
+    }
+    if (zdraw_paste_active || !isatty(0) || !isatty(1))
+        return 1;
+    if (zdraw_enhanced_write("\033[>27u")) {
+        zdraw_enhanced_write("\033[<u");
+        return 1;
+    }
+    zdraw_keyboard_on = zdraw_keyboard_applied = 1;
+    return 0;
+}
+#else
+static int
+zccmd_focus(UNUSED(const char *nam), UNUSED(char **args))
+{
+    return 2;
+}
+static int
+zccmd_keyboard(UNUSED(const char *nam), UNUSED(char **args))
+{
+    return 2;
+}
+#endif
+
+static int
+zdraw_enhanced_pause(void)
+{
+#ifdef ZDRAW_ENHANCED
+    if (zdraw_keyboard_applied) {
+        zdraw_keyboard_applied = 0;
+        if (zdraw_enhanced_write("\033[<u"))
+            return 1;
+    }
+    if (zdraw_focus_applied) {
+        if (zdraw_enhanced_write("\033[?1004l")) {
+            zdraw_enhanced_resume();
+            return 1;
+        }
+        zdraw_focus_applied = 0;
+    }
+#endif
+    return 0;
+}
+
+static int
+zdraw_enhanced_resume(void)
+{
+#ifdef ZDRAW_ENHANCED
+    if (zdraw_focus_on && !zdraw_focus_applied) {
+        if (zdraw_enhanced_write("\033[?1004h"))
+            return 1;
+        zdraw_focus_applied = 1;
+    }
+    if (zdraw_keyboard_on && !zdraw_keyboard_applied) {
+        if (zdraw_enhanced_write("\033[>27u")) {
+            zdraw_enhanced_write("\033[<u");
+            return 1;
+        }
+        zdraw_keyboard_applied = 1;
+    }
+#endif
+    return 0;
+}
+
+static void
+zdraw_enhanced_cleanup(void)
+{
+#ifdef ZDRAW_ENHANCED
+    int i;
+    /* Cleanup must never roll back into re-enabling another protocol. */
+    if (zdraw_keyboard_applied) {
+        zdraw_keyboard_applied = 0;
+        zdraw_enhanced_write("\033[<u");
+    }
+    if (zdraw_focus_applied)
+        zdraw_enhanced_write("\033[?1004l");
+    for (i = 0; i < 2; i++) {
+        if (zdraw_focus_owned[i]) define_key(NULL, zdraw_focus_keys[i]);
+        zdraw_focus_keys[i] = zdraw_focus_owned[i] = 0;
+    }
+    zdraw_focus_on = zdraw_focus_applied = 0;
+    zdraw_keyboard_on = zdraw_keyboard_applied = 0;
+    zdraw_key_used = zdraw_key_discard = 0;
+#endif
+}
+
+#ifdef ZDRAW_ENHANCED
+static int
+zdraw_focus_event(char *target, int focused)
+{
+    LinkList info = newlinklist();
+    addlinknode(info, "type"); addlinknode(info, "focus");
+    addlinknode(info, "source"); addlinknode(info, "focus-report");
+    addlinknode(info, "focused"); addlinknode(info, focused ? "1" : "0");
+    addlinknode(info, "text"); addlinknode(info, "");
+    return !sethparam(target, zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
+static int
+zdraw_keyboard_unknown(char *target, const char *reason)
+{
+    LinkList info = newlinklist();
+    addlinknode(info, "type"); addlinknode(info, "unknown");
+    addlinknode(info, "source"); addlinknode(info, "kitty");
+    addlinknode(info, "supported"); addlinknode(info, "no");
+    addlinknode(info, "reason"); addlinknode(info, dupstring(reason));
+    addlinknode(info, "key"); addlinknode(info, "UNKNOWN");
+    addlinknode(info, "code"); addlinknode(info, "unknown");
+    addlinknode(info, "action"); addlinknode(info, "unknown");
+    addlinknode(info, "modifiers"); addlinknode(info, "unknown");
+    addlinknode(info, "encoding"); addlinknode(info, "byte");
+    addlinknode(info, "text_status"); addlinknode(info, "none");
+    addlinknode(info, "text"); addlinknode(info, "");
+    addlinknode(info, "raw"); addlinknode(info, metafy(zdraw_key_buffer, zdraw_key_used, META_HEAPDUP));
+    zdraw_key_used = 0;
+    return !sethparam(target, zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
+static int
+zdraw_keyboard_scalar(unsigned value)
+{
+    return value <= 0x10ffff && !(value >= 0xd800 && value <= 0xdfff);
+}
+
+/* Text is transmitted as scalar values, not inferred from key identity. */
+static int
+zdraw_keyboard_utf8(unsigned value, char *out)
+{
+    if (value < 0x80) { out[0] = value; return 1; }
+    if (value < 0x800) {
+        out[0] = 0xc0 | (value >> 6); out[1] = 0x80 | (value & 63); return 2;
+    }
+    if (value < 0x10000) {
+        out[0] = 0xe0 | (value >> 12); out[1] = 0x80 | ((value >> 6) & 63);
+        out[2] = 0x80 | (value & 63); return 3;
+    }
+    out[0] = 0xf0 | (value >> 18); out[1] = 0x80 | ((value >> 12) & 63);
+    out[2] = 0x80 | ((value >> 6) & 63); out[3] = 0x80 | (value & 63); return 4;
+}
+
+static int
+zdraw_keyboard_record(char *target)
+{
+    unsigned values[3][16] = {{0}}, code, modifiers, action;
+    int present[3][16] = {{0}};
+    int counts[3] = {1, 1, 1}, field = 0, sub = 0, i, digits = 0, textlen = 0;
+    char final = zdraw_key_buffer[zdraw_key_used - 1], text[64], key[32];
+    char *mods[9];
+    int nmods = 0;
+    const char *modifier_names[] = {"SHIFT", "ALT", "CTRL", "SUPER", "HYPER", "META", "CAPS_LOCK", "NUM_LOCK"};
+    const char *name = NULL;
+    LinkList info;
+    if (zdraw_key_used < 3 || zdraw_key_buffer[0] != '\033' || zdraw_key_buffer[1] != '[')
+        return zdraw_keyboard_unknown(target, "unsupported-sequence");
+    values[1][0] = 1;
+    values[1][1] = 1;
+    for (i = 2; i < zdraw_key_used - 1; i++) {
+        unsigned ch = (unsigned char)zdraw_key_buffer[i];
+        if (ch >= '0' && ch <= '9') {
+            present[field][sub] = 1;
+            if (!digits) values[field][sub] = 0;
+            if (++digits > 7 || values[field][sub] > (0x10ffff - (ch - '0')) / 10)
+                return zdraw_keyboard_unknown(target, "numeric-limit");
+            values[field][sub] = values[field][sub] * 10 + ch - '0';
+        } else if (ch == ':' || ch == ';') {
+            if (ch == ';') {
+                if (++field > 2) return zdraw_keyboard_unknown(target, "field-limit");
+                sub = 0;
+            } else {
+                sub++;
+                if (sub >= (field == 0 ? 3 : field == 1 ? 2 : 16))
+                    return zdraw_keyboard_unknown(target, "field-limit");
+                counts[field]++;
+            }
+            digits = 0;
+        } else return zdraw_keyboard_unknown(target, "unsupported-sequence");
+    }
+    code = values[0][0]; modifiers = values[1][0]; action = values[1][1];
+    if (!modifiers || modifiers > 256 || action < 1 || action > 3)
+        return zdraw_keyboard_unknown(target, "unsupported-modifiers-or-action");
+    modifiers--;
+    if (final == 'u') {
+        if (!present[0][0]) return zdraw_keyboard_unknown(target, "missing-key");
+        if (!zdraw_keyboard_scalar(code)) return zdraw_keyboard_unknown(target, "invalid-scalar");
+        for (i = 1; i < counts[0]; i++)
+            if (!zdraw_keyboard_scalar(values[0][i])) return zdraw_keyboard_unknown(target, "invalid-scalar");
+        switch (code) {
+            case 27: name = "ESC"; break; case 13: name = "ENTER"; break;
+            case 9: name = "TAB"; break; case 127: name = "BACKSPACE"; break;
+        }
+        if (!name && code >= 57376 && code <= 57398) {
+            sprintf(key, "F%u", code - 57363); name = key;
+        }
+        if (!name) {
+            if (code >= 57344 && code <= 63743) name = "UNKNOWN";
+            else { sprintf(key, "U+%04X", code); name = key; }
+        }
+    } else {
+        /* Kitty retains these CSI functional encodings, adding event subfields. */
+        if (counts[0] != 1 || field > 1) return zdraw_keyboard_unknown(target, "unsupported-functional");
+        if (final == '~') {
+            static const struct zdraw_namenumberpair functions[] = {
+                {"IC",2},{"DC",3},{"PPAGE",5},{"NPAGE",6},{"HOME",7},{"END",8},
+                {"F1",11},{"F2",12},{"F3",13},{"F4",14},{"F5",15},{"F6",17},
+                {"F7",18},{"F8",19},{"F9",20},{"F10",21},{"F11",23},{"F12",24},
+                {"MENU",29},{NULL,0}
+            };
+            for (i = 0; functions[i].name; i++)
+                if ((unsigned)functions[i].number == code) { name = functions[i].name; break; }
+        } else if (code == 0 || code == 1) {
+            switch (final) {
+                case 'A': name="UP"; break; case 'B': name="DOWN"; break;
+                case 'C': name="RIGHT"; break; case 'D': name="LEFT"; break;
+                case 'H': name="HOME"; break; case 'F': name="END"; break;
+                case 'P': name="F1"; break; case 'Q': name="F2"; break; case 'S': name="F4"; break;
+            }
+        }
+        if (!name) return zdraw_keyboard_unknown(target, "unsupported-functional");
+    }
+    if (field == 2 && (present[2][0] || counts[2] > 1)) {
+        for (i = 0; i < counts[2]; i++) {
+            if (!present[2][i] || !zdraw_keyboard_scalar(values[2][i])) return zdraw_keyboard_unknown(target, "invalid-text-scalar");
+            textlen += zdraw_keyboard_utf8(values[2][i], text + textlen);
+        }
+    }
+    info = newlinklist();
+    addlinknode(info, "type"); addlinknode(info, "key");
+    addlinknode(info, "source"); addlinknode(info, "kitty");
+    addlinknode(info, "key"); addlinknode(info, dupstring(name));
+    addlinknode(info, "supported"); addlinknode(info, strcmp(name, "UNKNOWN") ? "yes" : "no");
+    zdraw_event_number(info, "code", code);
+    addlinknode(info, "code_kind"); addlinknode(info, final == 'u' ? "unicode" : "functional");
+    addlinknode(info, "action"); addlinknode(info, action == 1 ? "press" : action == 2 ? "repeat" : "release");
+    for (i = 0; i < 8; i++) if (modifiers & (1u << i)) mods[nmods++] = (char *)modifier_names[i];
+    mods[nmods] = NULL;
+    addlinknode(info, "modifiers"); addlinknode(info, zjoin(mods, ' ', 1));
+    zdraw_event_number(info, "modifier_bits", modifiers);
+    addlinknode(info, "text"); addlinknode(info, metafy(text, textlen, META_HEAPDUP));
+    addlinknode(info, "encoding"); addlinknode(info, "utf-8");
+    addlinknode(info, "text_status"); addlinknode(info, field == 2 && present[2][0] ? "provided" : "none");
+    addlinknode(info, "shifted_key"); addlinknode(info, "unknown");
+    addlinknode(info, "base_key"); addlinknode(info, "unknown");
+    /* Alternate identities are parsed and validated, but not requested or exposed. */
+    addlinknode(info, "raw"); addlinknode(info, metafy(zdraw_key_buffer, zdraw_key_used, META_HEAPDUP));
+    zdraw_key_used = 0;
+    return !sethparam(target, zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
+/* Curses first recognizes its known sequences. Only an otherwise literal ESC
+ * enters this bounded CSI tail reader, on that same curses input queue. */
+static int
+zdraw_keyboard_read(WINDOW *win, int timeout, char *target, int initial)
+{
+    int ch, reads = 0, result;
+    double now = zdraw_query_now(), remaining;
+    if (initial) {
+        wtimeout(win, 0); keypad(win, FALSE);
+        ch = wgetch(win);
+        keypad(win, TRUE); wtimeout(win, timeout);
+        if (ch != '[') {
+            if (ch != ERR && ungetch(ch) == ERR) {
+                zdraw_key_buffer[0] = '\033'; zdraw_key_buffer[1] = ch;
+                zdraw_key_used = 2;
+                return zdraw_keyboard_unknown(target, "queue-failure");
+            }
+            return -1; /* Standalone ESC or legacy non-CSI input. */
+        }
+        zdraw_key_buffer[0] = '\033'; zdraw_key_buffer[1] = '[';
+        zdraw_key_used = 2; zdraw_key_deadline = now + 250;
+    }
+    if (now < 0 || now >= zdraw_key_deadline) {
+        zdraw_key_discard = 0;
+        return zdraw_keyboard_unknown(target, "timeout");
+    }
+    remaining = zdraw_key_deadline - now;
+    if (initial) wtimeout(win, 0);
+    else if (timeout < 0 || timeout > remaining) wtimeout(win, (int)remaining + 1);
+    keypad(win, FALSE);
+    while (reads++ < ZDRAW_KEY_BYTES) {
+        ch = wgetch(win);
+        wtimeout(win, 0);
+        if (ch == ERR || ch > 255) break;
+        if (ch == '\033') {
+            ungetch(ch);
+            keypad(win, TRUE); wtimeout(win, timeout);
+            zdraw_key_discard = 0;
+            return zdraw_keyboard_unknown(target, "interrupted-sequence");
+        }
+        zdraw_key_buffer[zdraw_key_used++] = ch;
+        if (ch >= 0x40 && ch <= 0x7e) {
+            keypad(win, TRUE); wtimeout(win, timeout);
+            if (zdraw_key_discard) {
+                zdraw_key_discard = 0;
+                return zdraw_keyboard_unknown(target, "discarded-tail");
+            }
+            return zdraw_keyboard_record(target);
+        }
+        if (zdraw_key_used == ZDRAW_KEY_BYTES) {
+            zdraw_key_discard = 1;
+            keypad(win, TRUE); wtimeout(win, timeout);
+            return zdraw_keyboard_unknown(target, "byte-limit");
+        }
+    }
+    keypad(win, TRUE); wtimeout(win, timeout);
+    result = zdraw_query_now() >= zdraw_key_deadline;
+    if (result) {
+        zdraw_key_discard = 0;
+        return zdraw_keyboard_unknown(target, "timeout");
+    }
+    return 1;
+}
+#endif
+
 static void
 zdraw_query_cancel(void)
 {
@@ -3473,14 +3916,14 @@ zdraw_query_cleanup(void)
     int i;
     zdraw_query_cancel();
 #ifdef ZDRAW_QUERIES
-    for (i = 0; i < 15; i++) {
+    for (i = 0; i < ZDRAW_QUERY_KEYS; i++) {
         if (zdraw_query_keys[i])
             define_key(NULL, zdraw_query_keys[i]);
         zdraw_query_keys[i] = 0;
     }
     zdraw_query_owner = 0;
 #endif
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < 4; i++) {
         zdraw_query_states[i] = "never";
         zdraw_query_reports[i] = -1;
     }
@@ -3499,7 +3942,7 @@ zccmd_query(const char *nam, char **args)
     }
     if (!strcmp(args[0], "off") && !args[1]) {
         zdraw_query_cancel();
-        for (i = 0; i < 15; i++) {
+        for (i = 0; i < ZDRAW_QUERY_KEYS; i++) {
             if (zdraw_query_keys[i] && define_key(NULL, zdraw_query_keys[i]) == ERR)
                 return 1;
             zdraw_query_keys[i] = 0;
@@ -3513,19 +3956,25 @@ zccmd_query(const char *nam, char **args)
         if (!isatty(0) || !isatty(1))
             return 1;
         /* Preflight every sequence, then reserve distinct unused key codes. */
-        for (i = 0; i < 15; i++) {
-            sprintf(sequence, "\033[?%d;%d$y", zdraw_query_modes[i / 5], i % 5);
+        for (i = 0; i < ZDRAW_QUERY_KEYS; i++) {
+            if (i < 15)
+                sprintf(sequence, "\033[?%d;%d$y", zdraw_query_modes[i / 5], i % 5);
+            else
+                sprintf(sequence, "\033[?%du", i - 15);
             if (key_defined(sequence))
                 return 1;
         }
-        for (i = 0; i < 15; i++) {
+        for (i = 0; i < ZDRAW_QUERY_KEYS; i++) {
             for (code = KEY_MAX + 1; code < KEY_MAX + 257; code++) {
                 bound = keybound(code, 0);
                 if (!bound)
                     break;
                 free(bound);
             }
-            sprintf(sequence, "\033[?%d;%d$y", zdraw_query_modes[i / 5], i % 5);
+            if (i < 15)
+                sprintf(sequence, "\033[?%d;%d$y", zdraw_query_modes[i / 5], i % 5);
+            else
+                sprintf(sequence, "\033[?%du", i - 15);
             if (code == KEY_MAX + 257 || define_key(sequence, code) == ERR) {
                 for (j = 0; j < i; j++) {
                     define_key(NULL, zdraw_query_keys[j]);
@@ -3543,10 +3992,10 @@ zccmd_query(const char *nam, char **args)
         zwarnnam(nam, "query expects on, off, cancel or request capability milliseconds (20..5000)");
         return 1;
     }
-    for (i = 0; i < 3; i++)
+    for (i = 0; i < 4; i++)
         if (!strcmp(args[1], zdraw_query_names[i]))
             break;
-    if (i == 3 || !zdraw_query_owner || zdraw_query_pending >= 0 ||
+    if (i == 4 || !zdraw_query_owner || zdraw_query_pending >= 0 ||
         strcmp(zdraw_query_states[i], "never") || zdraw_paste_active) {
         zwarnnam(nam, "query needs an input owner, an unqueried mode and no pending request or paste");
         return 1;
@@ -3556,7 +4005,7 @@ zccmd_query(const char *nam, char **args)
         return 1;
     /* Even an unsuccessful write might have reached the peer. Do not retry. */
     zdraw_query_states[i] = "send-error";
-    if (fprintf(stdout, "\033[?%d$p", zdraw_query_modes[i]) < 0 || fflush(stdout) == EOF)
+    if ((i == 3 ? fputs("\033[?u", stdout) : fprintf(stdout, "\033[?%d$p", zdraw_query_modes[i])) < 0 || fflush(stdout) == EOF)
         return 1;
     zdraw_query_pending = i;
     zdraw_query_deadline = now + delay;
@@ -3575,16 +4024,16 @@ zccmd_capabilities(const char *nam, char **args)
 {
     static const char *names[] = {"colors", "truecolor", "wide_text",
         "norefresh_events", "suspend_resume", "streaming_paste",
-        "focus_events", "synchronized_output"};
-    const char *compiled[8] = {"yes", "no", "no", "no", "no", "no", "no", "no"};
-    const char *support[8] = {"unknown", "unknown", "no", "no", "no", "unknown", "unknown", "unknown"};
-    const char *source[8] = {"none", "none", "compiled", "compiled", "compiled", "none", "none", "none"};
-    const char *enabled[8] = {"no", "no", "no", "no", "no", "no", "no", "no"};
-    const char *overrides[8] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+        "focus_events", "synchronized_output", "keyboard_events"};
+    const char *compiled[9] = {"yes", "no", "no", "no", "no", "no", "no", "no", "no"};
+    const char *support[9] = {"unknown", "unknown", "no", "no", "no", "unknown", "unknown", "unknown", "unknown"};
+    const char *source[9] = {"none", "none", "compiled", "compiled", "compiled", "none", "none", "none", "none"};
+    const char *enabled[9] = {"no", "no", "no", "no", "no", "no", "no", "no", "no"};
+    const char *overrides[9] = {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
     static const char *reported[] = {"unrecognized", "set", "reset", "permanent-set", "permanent-reset"};
     LinkList info;
     int active = zdraw_getwindowbyname("stdscr") != NULL, i, j;
-    char key[96], *value, *term;
+    char key[96], flags[16], *value, *term;
     const char *query;
     if (zdraw_association(nam, args[0]))
         return 1;
@@ -3592,10 +4041,10 @@ zccmd_capabilities(const char *nam, char **args)
         value = strchr(args[i], '=');
         if (!value || (strcmp(value + 1, "yes") && strcmp(value + 1, "no") && strcmp(value + 1, "unknown")))
             return 1;
-        for (j = 0; j < 8; j++)
+        for (j = 0; j < 9; j++)
             if (strlen(names[j]) == (size_t)(value - args[i]) && !strncmp(names[j], args[i], value - args[i]))
                 break;
-        if (j == 8 || overrides[j])
+        if (j == 9 || overrides[j])
             return 1;
         overrides[j] = value + 1;
     }
@@ -3619,21 +4068,26 @@ zccmd_capabilities(const char *nam, char **args)
     compiled[5] = "yes";
     enabled[5] = zdraw_paste_key && !zdraw_suspended ? "yes" : "no";
 #endif
+#ifdef ZDRAW_ENHANCED
+    compiled[6] = compiled[8] = "yes";
+    enabled[6] = zdraw_focus_applied ? "yes" : "no";
+    enabled[8] = zdraw_keyboard_applied ? "yes" : "no";
+#endif
     if (active) {
         support[0] = zc_has_colors ? "yes" : "no";
         source[0] = "curses";
         enabled[0] = zc_color_started && !zdraw_suspended ? "yes" : "no";
         enabled[1] = zc_truecolor && !zdraw_suspended ? "yes" : "no";
     }
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < 4; i++) {
         if (zdraw_query_reports[i] >= 0) {
-            support[i + 5] = zdraw_query_reports[i] == 0 ? "no" : "yes";
+            support[i + 5] = i != 3 && zdraw_query_reports[i] == 0 ? "no" : "yes";
             source[i + 5] = "reply";
         }
     }
     info = newlinklist();
     addlinknode(info, "format"); addlinknode(info, "zdraw-capabilities-1");
-    addlinknode(info, "names"); addlinknode(info, "colors truecolor wide_text norefresh_events suspend_resume streaming_paste focus_events synchronized_output");
+    addlinknode(info, "names"); addlinknode(info, "colors truecolor wide_text norefresh_events suspend_resume streaming_paste focus_events synchronized_output keyboard_events");
     addlinknode(info, "session"); addlinknode(info, active ? (zdraw_suspended ? "suspended" : "active") : "inactive");
     term = getsparam("TERM");
     addlinknode(info, "term"); addlinknode(info, term ? dupstring(term) : "");
@@ -3650,7 +4104,7 @@ zccmd_capabilities(const char *nam, char **args)
 #else
     addlinknode(info, "no");
 #endif
-    for (i = 0; i < 8; i++) {
+    for (i = 0; i < 9; i++) {
 #define ZDRAW_CAP_FIELD(field, val) \
         sprintf(key, "%s,%s", names[i], field); \
         addlinknode(info, dupstring(key)); addlinknode(info, dupstring(val))
@@ -3660,7 +4114,9 @@ zccmd_capabilities(const char *nam, char **args)
         ZDRAW_CAP_FIELD("evidence_support", support[i]);
         ZDRAW_CAP_FIELD("evidence_source", source[i]);
         ZDRAW_CAP_FIELD("enabled", enabled[i]);
-        ZDRAW_CAP_FIELD("reported", i >= 5 && zdraw_query_reports[i - 5] >= 0 ? reported[zdraw_query_reports[i - 5]] : "unknown");
+        sprintf(flags, "%d", zdraw_query_reports[3]);
+        ZDRAW_CAP_FIELD("reported", i == 8 ? (zdraw_query_reports[3] >= 0 ? flags : "unknown") :
+            i >= 5 && zdraw_query_reports[i - 5] >= 0 ? reported[zdraw_query_reports[i - 5]] : "unknown");
         query = i >= 5 ? zdraw_query_states[i - 5] : "unavailable";
 #ifdef ZDRAW_QUERIES
         if (i >= 5 && zdraw_query_pending == i - 5 && zdraw_query_now() >= zdraw_query_deadline)
@@ -3678,7 +4134,7 @@ zdraw_query_event(char *target, int mode, const char *phase, int report)
 {
     LinkList info = newlinklist();
     addlinknode(info, "type"); addlinknode(info, "capability");
-    addlinknode(info, "source"); addlinknode(info, "decrpm");
+    addlinknode(info, "source"); addlinknode(info, mode == 3 ? "kitty-query" : "decrpm");
     addlinknode(info, "name"); addlinknode(info, dupstring(zdraw_query_names[mode]));
     addlinknode(info, "phase"); addlinknode(info, dupstring(phase));
     addlinknode(info, "text"); addlinknode(info, "");
@@ -3896,6 +4352,13 @@ zccmd_event(const char *nam, char **args)
         return result;
     }
 #endif
+#ifdef ZDRAW_ENHANCED
+    if (zdraw_keyboard_on && (zdraw_key_used || zdraw_key_discard)) {
+        result = zdraw_keyboard_read(input_window, poll ? 0 : w->timeout, args[1], 0);
+        wtimeout(input_window, w->timeout);
+        return result;
+    }
+#endif
     result = zdraw_read_input(nam, input_window, mouse ? 4 : 3, &input);
     wtimeout(input_window, w->timeout);
     if (result) {
@@ -3916,20 +4379,29 @@ zccmd_event(const char *nam, char **args)
 #endif
 #ifdef ZDRAW_QUERIES
     if (zdraw_query_owner) {
-        for (i = 0; i < 15; i++) {
+        for (i = 0; i < ZDRAW_QUERY_KEYS; i++) {
             if (input.key == zdraw_query_keys[i]) {
-                int mode = i / 5;
+                int mode = i < 15 ? i / 5 : 3, report = i < 15 ? i % 5 : i - 15;
                 const char *phase = !strcmp(zdraw_query_states[mode], "never") ? "unsolicited" : "late";
                 double now = zdraw_query_now();
                 if (mode == zdraw_query_pending && now >= 0 && now < zdraw_query_deadline) {
                     phase = "reply";
-                    zdraw_query_reports[mode] = i % 5;
+                    zdraw_query_reports[mode] = report;
                     zdraw_query_states[mode] = "replied";
                     zdraw_query_pending = -1;
                 }
-                return zdraw_query_event(args[1], mode, phase, i % 5);
+                return zdraw_query_event(args[1], mode, phase, report);
             }
         }
+    }
+#endif
+#ifdef ZDRAW_ENHANCED
+    if (zdraw_focus_on && (input.key == zdraw_focus_keys[0] || input.key == zdraw_focus_keys[1]))
+        return zdraw_focus_event(args[1], input.key == zdraw_focus_keys[0]);
+    if (zdraw_keyboard_on && input.key < 0 && input.code == 27) {
+        result = zdraw_keyboard_read(input_window, poll ? 0 : w->timeout, args[1], 1);
+        wtimeout(input_window, w->timeout);
+        if (result >= 0) return result;
     }
 #endif
     info = newlinklist();
@@ -4490,8 +4962,10 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
         {"suspend", zccmd_suspend, 0, 0},
         {"resume", zccmd_resume, 0, 0},
         {"inputinfo", zccmd_inputinfo, 1, 1},
-        {"capabilities", zccmd_capabilities, 1, 9},
+        {"capabilities", zccmd_capabilities, 1, 10},
         {"query", zccmd_query, 1, 3},
+        {"focus", zccmd_focus, 1, 2},
+        {"keyboard", zccmd_keyboard, 1, 1},
         {"inputdelay", zccmd_inputdelay, 1, 1},
 	{"timeout", zccmd_timeout, 2, 2},
 	{"mouse", zccmd_mouse, 0, -1},
@@ -4534,6 +5008,12 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
         zwarnnam(nam, "resume the suspended session first");
         return 1;
     }
+#ifdef ZDRAW_ENHANCED
+    if ((zdraw_keyboard_on || zdraw_focus_on) && zcsc->cmd == zccmd_input) {
+        zwarnnam(nam, "use event while enhanced input owns decoding");
+        return 1;
+    }
+#endif
 #ifdef ZDRAW_QUERIES
     if (zdraw_query_owner && zcsc->cmd == zccmd_input) {
         zwarnnam(nam, "use event while capability queries own input");
@@ -4625,6 +5105,8 @@ zdraw_featuresgetfn(UNUSED(Param pm))
         "capability_evidence",
 #ifdef ZDRAW_QUERIES
         "capability_queries",
+        "focus_events",
+        "keyboard_events",
 #endif
 #ifdef ZDRAW_PASTE
         "streaming_paste",

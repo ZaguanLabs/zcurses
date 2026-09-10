@@ -128,3 +128,10 @@ The implementation is intentionally for bounded single-line fields and small
 forms. The tests cover combining/wide characters, selection replacement,
 malformed offsets, paste chunk boundaries/overflow, rule validation, scrolling,
 retained styles, actual PTY input, resize and terminal cleanup.
+
+
+The form recipe also accepts `--focus --keyboard` for the optional
+[enhanced native input](enhanced-input.md). It negotiates through its event loop,
+keeps legacy editing available, preserves field selection on terminal focus loss,
+ignores key releases, and demonstrates Ctrl+Shift+S validation. The field and form
+libraries themselves still own neither terminal protocols nor input reads.

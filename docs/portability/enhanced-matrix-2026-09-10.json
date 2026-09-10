@@ -1,0 +1,105 @@
+{
+  "format": "zdraw-terminal-matrix-1",
+  "platform": "Linux-6.18.44-desktop-1.mga10-x86_64-with-glibc2.42",
+  "xterm": "XTerm(407)",
+  "scenarios": [
+    {
+      "backend": "direct",
+      "tested": true,
+      "transport": "local PTY",
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "xterm",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "focus_events,support": "yes",
+        "focus_events,source": "reply",
+        "focus_events,compiled": "yes",
+        "focus_events,reported": "reset",
+        "focus_events,query": "replied",
+        "keyboard_events,support": "unknown",
+        "keyboard_events,source": "none",
+        "keyboard_events,compiled": "yes",
+        "keyboard_events,reported": "unknown",
+        "keyboard_events,query": "timeout",
+        "focus_activation": "yes",
+        "keyboard_activation": "no"
+      }
+    },
+    {
+      "backend": "tmux",
+      "tested": true,
+      "transport": "local PTY",
+      "version": "tmux next-3.3",
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "screen",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "focus_events,support": "unknown",
+        "focus_events,source": "none",
+        "focus_events,compiled": "yes",
+        "focus_events,reported": "unknown",
+        "focus_events,query": "timeout",
+        "keyboard_events,support": "unknown",
+        "keyboard_events,source": "none",
+        "keyboard_events,compiled": "yes",
+        "keyboard_events,reported": "unknown",
+        "keyboard_events,query": "timeout",
+        "focus_activation": "no",
+        "keyboard_activation": "no"
+      }
+    },
+    {
+      "backend": "screen",
+      "tested": true,
+      "transport": "local PTY",
+      "version": "Screen version 5.0.1 (build on 2025-05-16 15:05:45)",
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "screen",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "focus_events,support": "unknown",
+        "focus_events,source": "none",
+        "focus_events,compiled": "yes",
+        "focus_events,reported": "unknown",
+        "focus_events,query": "timeout",
+        "keyboard_events,support": "unknown",
+        "keyboard_events,source": "none",
+        "keyboard_events,compiled": "yes",
+        "keyboard_events,reported": "unknown",
+        "keyboard_events,query": "timeout",
+        "focus_activation": "no",
+        "keyboard_activation": "no"
+      }
+    },
+    {
+      "backend": "kitty",
+      "tested": true,
+      "transport": "local PTY",
+      "version": "kitty 0.44.0 created by Kovid Goyal",
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "xterm-kitty",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "focus_events,support": "yes",
+        "focus_events,source": "reply",
+        "focus_events,compiled": "yes",
+        "focus_events,reported": "reset",
+        "focus_events,query": "replied",
+        "keyboard_events,support": "yes",
+        "keyboard_events,source": "reply",
+        "keyboard_events,compiled": "yes",
+        "keyboard_events,reported": "0",
+        "keyboard_events,query": "replied",
+        "associated_text": "1",
+        "focus_activation": "yes",
+        "keyboard_activation": "yes",
+        "shortcut_press": "1",
+        "shortcut_release": "1"
+      }
+    }
+  ]
+}

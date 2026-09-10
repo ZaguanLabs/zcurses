@@ -105,3 +105,35 @@ path and can silently generate an empty embedded database. This happened in the
 initial local build; a clean rebuild without the variable produced the recorded
 successful results. Tests use the selected locale and do not load installed Zsh
 modules. These optional investigations are separate from the standard test suite.
+
+## Enhanced input follow-up
+
+Milestone 4 extends the same matrix with focus activation and the kitty keyboard
+query. It uses the matching Zsh 5.9.2 build, ncurses 6.5 and `C.UTF-8`:
+
+| Terminal / intermediary | Focus activation | Keyboard activation | Enhanced key evidence |
+| --- | --- | --- | --- |
+| XTerm(407), direct | Enabled after reset report | Unknown; left off | Legacy fallback |
+| XTerm(407), tmux `next-3.3` | Unknown; left off | Unknown; left off | Legacy fallback |
+| XTerm(407), Screen 5.0.1 | Unknown; left off | Unknown; left off | Legacy fallback |
+| Kitty 0.44.0, private Xvfb | Enabled after reset report | Enabled after flags reply | Ctrl+Shift+S press/release and associated `a` text verified |
+
+[Recorded enhanced results](enhanced-matrix-2026-09-10.json) contain the actual
+returned fields and executable version seen by the driver. The kitty test uses
+its remote key-command injection for the shortcut and XTest on the private Xvfb
+display for associated text. Remote key-command injection alone did not supply
+associated text in this tested version. The test is real emulator encoding of
+synthetic key input, not physical keyboard or IME coverage. Focus in/out decoding,
+repeat events, paste collisions and restoration are separately covered by PTYs.
+
+```sh
+python3 scripts/portability/terminal-matrix.py --enhanced \
+  --output .build/portability/enhanced-matrix.json
+```
+
+The optional kitty case requires kitty, X11/XTest shared libraries, and software
+OpenGL support under Xvfb. It starts with an empty kitty configuration and a
+private control socket, and closes its own process and display. It does not use
+the user's running kitty instance or desktop. Unsupported/missing combinations
+remain untested; actual SSH and other terminal versions are still outside the
+recorded matrix. The initial milestone-3 JSON is retained as historical evidence.
