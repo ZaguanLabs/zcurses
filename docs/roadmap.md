@@ -82,9 +82,17 @@ without an input call accidentally revealing an unfinished frame.
   input retains its refresh behavior.
 - [ ] Validate no-refresh input on other curses implementations before enabling
   the feature there.
-- [ ] Explore synchronized-output markers around the final curses update.
-- [ ] Define opt-in detection, flushing, timeout and cleanup behavior.
-- [ ] Verify partial-frame behavior with real terminals and slow connections.
+- [x] Explore synchronized-output markers around the final curses update.
+  Evidence-gated `sync on|off` brackets explicit `present` calls; ordinary
+  refresh and resume repaint retain their existing paths.
+- [x] Define opt-in detection, flushing, timeout and cleanup behavior.
+  The [contract](frame-presentation.md) bounds ownership to one update, documents
+  blocking-write timing limits and retries failed reset cleanup.
+- [x] Verify partial-frame behavior with real terminals and controlled slow output.
+  The [rendering matrix](portability/README.md#frame-presentation-follow-up)
+  records sampled emulator pixels during a delayed native frame: kitty hides
+  intermediate changes; tested xterm/tmux/screen paths decline activation.
+  Actual SSH and physical display timing remain untested.
 
 Keep curses' screen diff. Synchronized output supplements it; it does not
 promise atomic presentation on every terminal.

@@ -239,20 +239,54 @@ identities and arbitrary future protocol extensions are outside this subset.
 Use synchronized output as an optional addition to curses' existing screen diff.
 Keep application frame boundaries explicit.
 
-- [ ] Define where synchronization begins and ends around the final update,
+- [x] Define where synchronization begins and ends around the final update,
   including staging, ordinary refreshes, nested attempts and an empty frame.
-- [ ] Implement opt-in activation with milestone 3's evidence model; leave the
+- [x] Implement opt-in activation with milestone 3's evidence model; leave the
   ordinary presentation path available when support is unknown or absent.
-- [ ] Bound synchronization duration and define flushing, failed updates,
-  interrupted frames, suspend/resume, end and unload cleanup.
-- [ ] Exercise a redraw-heavy chart/table example with hidden intermediate state.
-- [ ] Verify emitted ordering in PTYs and observable partial-frame behavior on
+- [x] Bound the owned region to the final update and define flushing, failed
+  updates, interrupted frames, suspend/resume, end and unload cleanup; document
+  blocking-write and emulator-timeout limits.
+- [x] Exercise a redraw-heavy chart/table example with hidden intermediate state.
+- [x] Verify emitted ordering in PTYs and observable partial-frame behavior on
   recorded terminal/slow-link configurations. Separate byte-order guarantees from
   actual emulator rendering observations.
 
 **Completion:** the explicit frame path has a documented cleanup contract and
 measured evidence of improvement where supported, without promising universal
 atomic terminal painting.
+
+**Completed 2026-09-10 — implementation commit `808aa2f`.**
+The [frame-presentation guide](frame-presentation.md) specifies `sync on|off`,
+requiring an accepted mode-2026 reset report. Activation configures explicit
+`present` calls without opening a terminal region between commands. Each call
+queues Zsh traps, flushes preceding output, brackets one curses update and attempts
+reset before releasing deferred traps. Ordinary refresh and resume repaint retain
+their existing paths. Empty frames, nesting, failed updates and failed-reset
+recovery are documented and tested. Configuration survives suspension and clears
+on end/unload.
+
+The bound is one update plus marker writes, **not a hard wall-clock deadline**:
+blocking terminal I/O can delay reset, and the protocol specifies no universal
+emulator timeout. No watchdog, application trap replacement or nonblocking
+descriptor mutation is introduced. This is an explicit implementation limit.
+
+The task monitor accepts `--sync`, negotiates in its event loop and composes its
+table/chart views before presenting. It retains ordinary presentation on rejected
+or unanswered negotiation. All 96 tests passed against public Zsh 5.9.2 and the
+matching built shell. Coverage includes non-reset evidence, unavailable builds,
+empty frames, nested calls, injected update/reset failures, deferred SIGINT traps,
+off/suspend/unload recovery, and more than 100 monitor frames with resize and
+chart/table changes. Changed Zsh files passed parse checks; the native manual
+builds and the integration patch passes a dry run against the selected release.
+Final local log: `.build/sync-final-make-test.log`.
+
+The [rendering matrix](portability/README.md#frame-presentation-follow-up) records
+actual Xvfb pixels while native output is paused midway through a frame. In kitty
+0.44.0, a roughly 181 ms pause exposed partial changes without synchronization and
+zero changes with it; both complete frames became visible afterward. The tested
+xterm, tmux and screen paths declined activation. The probe separates native byte
+ordering, relay delay and sampled emulator pixels; physical display latency,
+actual SSH and arbitrary terminal versions remain untested.
 
 ## 6. Overlays and region composition
 
