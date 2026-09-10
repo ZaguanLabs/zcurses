@@ -512,19 +512,49 @@ integration patch passes its dry run. Final local log:
 
 Begin with activity feedback. Decorative transitions should remain easy to omit.
 
-- [ ] Implement bounded activity-indicator frames and caller-driven advancement;
+- [x] Implement bounded activity-indicator frames and caller-driven advancement;
   the component must not start a background timer or own the event loop.
-- [ ] Define reduced-motion behavior, cancellation, off-screen behavior and
+- [x] Define reduced-motion behavior, cancellation, off-screen behavior and
   immediate completion for disabled effects.
-- [ ] Prototype one finite transition using existing region/restyle operations,
+- [x] Prototype one finite transition using existing region/restyle operations,
   preserving focus position and meaningful content throughout.
-- [ ] Use bounded frame/shade sets and resource accounting; avoid allocating an
+- [x] Use bounded frame/shade sets and resource accounting; avoid allocating an
   unbounded stream of RGB color pairs for fades.
-- [ ] Verify deterministic frames, resize, interruption, cleanup and idle cost;
+- [x] Verify deterministic frames, resize, interruption, cleanup and idle cost;
   demonstrate both animated and immediate-state versions in the task monitor.
 
 **Completion:** motion supplies useful state feedback with a tested nonanimated
 alternative and explicit resource limits.
+
+**Completed 2026-09-10 — implementation commit `e289926`.**
+The [optional-motion guide](optional-motion.md) specifies caller-owned, validated
+`zdraw-motion-1` state, explicit advancement and cancellation, hidden-frame freezing,
+and immediate finite-transition completion in reduced/off modes. The passive Zsh
+loader owns no clock, event loop, native object, input or terminal protocol.
+Activity uses four fixed ASCII or optional Braille frames, with static pending,
+paused, complete and cancelled markers. A finite emphasis transition uses existing
+`restyle` over at most 4,096 cells: bold, underline, then the caller's uniform base
+style. Content and cursor positions remain in place; no RGB fade palette is built.
+
+The task monitor defaults to no motion and accepts `--motion`, `--reduced-motion`
+and `--no-motion`, alongside `--sync`. Its `a` key cycles policies. Status words,
+progress and selection remain available in every mode. The existing simulation
+timeout drives frames; paused/completed work uses blocking input after visible
+transitions settle. INT/TERM record interruption and leave through `always`,
+cancelling both instances and restoring the terminal with status 130/143.
+
+Verification: all **120 tests passed** against the selected public Zsh 5.9.2 source
+release and matching built shell. New headless/PTY tests cover deterministic frame
+sequences, static alternatives, invalid data, hidden/paused/completed behavior,
+state and cursor preservation, combining/wide content, rectangle budgets, resize,
+Queue selection, interruption at presentation and during blocking input, and
+terminal cleanup. One hundred transition repetitions allocate zero additional
+color pairs after warmup in 256-color and monochrome profiles; prepared-row count
+remains zero. A settled paused monitor makes zero further input calls or
+presentations during a 400 ms observation, exceeding the old polling interval.
+These are scheduling/resource observations, not emulator paint or CPU-time claims.
+Changed Zsh files pass parse checks; the native module is unchanged. Final log:
+`.build/motion-final-make-test.log`.
 
 ## 11. Inline shell interaction
 
