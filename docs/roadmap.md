@@ -232,15 +232,20 @@ resize, send keys, then compare logical cells and styles.
 - [x] Capture whole retained windows into versioned `zdraw-snapshot-1`
   associations, with owned strings, explicit readback semantics, cell/byte bounds,
   private-copy cleanup and atomic assignment. Provide a readable diff example.
-- [ ] Add explicit wide-character continuation metadata and a portable screen
+- [x] Add explicit wide-character continuation metadata and a portable screen
   serialization format beyond coordinate-by-coordinate readback.
-- [ ] Represent styles independently of session-specific color-pair numbers.
-- [ ] Extend the existing PTY harness with scripted events and readable diffs.
-- [ ] Define explicitly enabled recording, replay and timing behavior.
+- [x] Represent styles independently of session-specific color-pair numbers.
+- [x] Extend the existing PTY harness with scripted events and readable diffs.
+- [x] Define explicitly enabled recording, replay and timing behavior.
 - [x] Add useful rendering/resource diagnostics without promising unmeasurable
   terminal-emulator paint times. See [passive resource accounting](diagnostics.md)
   and [component measurements](../benchmarks/README.md#component-boundaries);
   duplicate canvas validation is removed, while native batching remains deferred.
+
+Implemented in the [recording and restoration milestone](recording-and-restoration.md):
+explicit bounded recipe replay, conservative occupancy provenance and a separate
+single-column text-screen format. Wide restoration and timing-dependent terminal
+behavior remain outside that supported subset.
 
 Start with curses inside a PTY; a separate headless renderer risks behavioral
 drift and needs its own justification.

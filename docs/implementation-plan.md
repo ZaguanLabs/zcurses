@@ -459,24 +459,54 @@ dry run including both headers. Final local log:
 Extend the existing fixtures and scripted PTY tests into reusable recordings.
 Separate replaying application events from restoring a saved screen.
 
-- [ ] Define a versioned, bounded recording with initial geometry, relevant
+- [x] Define a versioned, bounded recording with initial geometry, relevant
   capability/locale context, event order and timing policy. Recording must be
   explicit and document that input/paste content may be included.
-- [ ] Replay scripted input and resize sequences against examples using a
+- [x] Replay scripted input and resize sequences against examples using a
   deterministic timing mode and the current portable fixture comparisons.
-- [ ] Add native wide-character continuation metadata with explicit unknown
+- [x] Add native wide-character continuation metadata with explicit unknown
   behavior for clipped/shared-window edges; preserve existing snapshot consumers.
-- [ ] Specify a separate screen-serialization/restoration contract for text,
+- [x] Specify a separate screen-serialization/restoration contract for text,
   styles and wide-cell occupancy, with validation and resource budgets. Retain
   readback fixtures as the comparison format rather than silently changing them.
-- [ ] Implement the supported text-screen restoration subset and verify round
+- [x] Implement the supported text-screen restoration subset and verify round
   trips, corrupt/oversized input, unsupported cells, allocation failures and cleanup.
-- [ ] Turn an input/resize failure into a saved recording with a readable diff,
+- [x] Turn an input/resize failure into a saved recording with a readable diff,
   and document when timing-dependent failures still need a real terminal.
 
 **Completion:** an explicitly recorded interaction is reproducible, and the
 supported restoration subset is distinct from raw readback. Future image/text-size
 placements are not implicitly included in this version.
+
+**Completed 2026-09-10 — implementation commit `038b347`.**
+The [recording and restoration guide](recording-and-restoration.md) defines two
+separate bounded formats. Explicit `zdraw-interaction-1` recordings drive the form,
+document and canvas recipes through real PTYs, retain native events and capability
+context, and compare existing portable fixtures at presentation barriers. Input,
+geometry, traffic and waits have explicit limits. A checked-in split-UTF-8 paste
+and resize recording matches; a deliberate expected-cell mutation demonstrates
+saving and reporting a failed assertion without claiming a new application defect.
+
+Optional `snapshot ... occupancy` adds conservative native metadata while keeping
+default snapshot consumers unchanged. Interior wide runs are explicitly inferred
+from public readback; ambiguous clipped/shared edges remain unknown. The companion
+`zdraw-screen-1` format supports single-column text cells and stored combining marks,
+with symbolic styles independent of session pair IDs. Wide cells, unsupported
+attribute bits and uncached nonzero pairs are rejected. All rows are validated and
+prepared before drawing; temporary resources are released on failures. Curses write
+failures can leave partial output, and allocated color pairs remain session-cached.
+Images, scaled text and arbitrary wide-cell restoration are outside this subset.
+
+Verification: all **115 tests passed** against the selected public Zsh 5.9.2 source
+release and matching built shell. New coverage includes all three replay recipes,
+fragmented paste, resize, saved readable mismatches, malformed/oversized recordings,
+a saturated input queue with deadline/child/descriptor cleanup, screen round trips,
+corrupt/oversized data, wide/shared edges, injected allocation/write failures,
+prepared-name collisions and restoration after module reload with changed pair
+allocation order. Existing snapshot schemas and visual baselines still pass.
+Changed Zsh files pass parse checks, the native manual builds, and the additive
+integration patch passes its dry run. Final local log:
+`.build/replay-final-make-test.log`.
 
 ## 10. Optional motion
 
