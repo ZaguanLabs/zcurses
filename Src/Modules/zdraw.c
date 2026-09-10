@@ -1726,12 +1726,14 @@ struct zdraw_prepared {
     char *locale;
     int multibyte;
     size_t bytes;
+    zlong draws;
 };
 
 /* Session-scoped cells contain session-scoped color-pair IDs. */
 #define ZDRAW_PREPARED_LIMIT ((size_t)16 * 1024 * 1024)
 static HashTable zdraw_prepared_rows;
 static size_t zdraw_prepared_bytes;
+static zlong zdraw_prepared_created, zdraw_prepared_draws;
 
 static void
 zdraw_free_prepared(HashNode node)
@@ -2300,6 +2302,8 @@ zccmd_prepare(const char *nam, char **args)
     p->bytes = bytes + (size_t)data.count * (sizeof(*data.cells) + sizeof(*data.widths));
     zdraw_prepared_bytes += p->bytes;
     addhashnode(zdraw_prepared_rows, ztrdup(args[0]), p);
+    if (zdraw_prepared_created < ZLONG_MAX)
+        zdraw_prepared_created++;
     return 0;
 #else
     (void)nam;
@@ -2314,7 +2318,7 @@ zccmd_draw(const char *nam, char **args)
 #if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
     struct zdraw_prepared *p;
     WINDOW *win;
-    int row, col, cols, budget, count = 0, width = 0;
+    int row, col, cols, budget, count = 0, width = 0, result;
     if (zdraw_row_target(nam, args, &win, &row, &col, &cols))
         return 1;
     p = zdraw_prepared_rows ?
@@ -2340,7 +2344,12 @@ zccmd_draw(const char *nam, char **args)
     }
     while (count < p->row.count && p->row.widths[count] <= cols - width)
         width += p->row.widths[count++];
-    return zdraw_write_row(win, row, col, p->row.cells, count);
+    result = zdraw_write_row(win, row, col, p->row.cells, count);
+    if (!result) {
+        if (p->draws < ZLONG_MAX) p->draws++;
+        if (zdraw_prepared_draws < ZLONG_MAX) zdraw_prepared_draws++;
+    }
+    return result;
 #else
     (void)nam;
     (void)args;
@@ -2714,6 +2723,7 @@ zccmd_endwin(UNUSED(const char *nam), UNUSED(char **args))
             deletehashtable(zdraw_prepared_rows);
             zdraw_prepared_rows = NULL;
         }
+        zdraw_prepared_created = zdraw_prepared_draws = 0;
 #endif
 	if (!zdraw_suspended)
             endwin();
@@ -3549,6 +3559,7 @@ zccmd_rowinfo(const char *nam, char **args)
     info = newlinklist();
     zdraw_colorinfo_value(info, "width", p->row.width);
     zdraw_colorinfo_value(info, "cells", p->row.count);
+    zdraw_colorinfo_value(info, "draws", p->draws);
     zdraw_colorinfo_value(info, "bytes", (zlong)p->bytes);
     zdraw_colorinfo_value(info, "session_bytes", (zlong)zdraw_prepared_bytes);
     zdraw_colorinfo_value(info, "session_limit", (zlong)ZDRAW_PREPARED_LIMIT);
@@ -3759,6 +3770,95 @@ zccmd_snapshot(const char *nam, char **args)
     if (result)
         return 1;
     return !sethparam(args[1], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
+/* Logical counters are deliberately independent of curses allocator details.
+ * Saturate totals rather than overflowing on an unbounded inherited window list. */
+static void
+zdraw_resource_add(zlong *total, zlong amount)
+{
+    *total = amount > ZLONG_MAX - *total ? ZLONG_MAX : *total + amount;
+}
+
+static int
+zccmd_resourceinfo(const char *nam, char **args)
+{
+    LinkList info;
+    LinkNode node;
+    zlong windows = 0, children = 0, owned = 0, cells = 0, backing = 0;
+    zlong pads = 0, retired = 0, input_pads = 0;
+    int rows, cols;
+#ifdef ZDRAW_WINDOW_TREE
+    int i;
+#endif
+    if (zdraw_association(nam, args[0]))
+        return 1;
+    /* No cleanup, allocation of surfaces, input, touching or refresh here. */
+    if (zdraw_windows) {
+        for (node = firstnode(zdraw_windows); node; incnode(node)) {
+            ZCWin w = (ZCWin)getdata(node);
+            if (w->flags & ZCWF_PAD) {
+                zdraw_resource_add(&pads, 1);
+                continue;
+            }
+            getmaxyx(w->win, rows, cols);
+            zdraw_resource_add(&windows, 1);
+            zdraw_resource_add(&cells, (zlong)rows * cols);
+            if (w->parent)
+                zdraw_resource_add(&children, 1);
+            else {
+                zdraw_resource_add(&backing, (zlong)rows * cols);
+                if (!(w->flags & ZCWF_PERMANENT))
+                    zdraw_resource_add(&owned, 1);
+            }
+        }
+    }
+#ifdef ZDRAW_WINDOW_TREE
+    for (i = 0; i < zdraw_tree_retired_count; i++)
+        if (zdraw_tree_retired[i]) retired++;
+#endif
+#ifdef NCURSES_VERSION
+    input_pads = zdraw_input_pad != NULL;
+#endif
+    info = newlinklist();
+    addlinknode(info, "format"); addlinknode(info, "zdraw-resources-1");
+    addlinknode(info, "session");
+    addlinknode(info, zdraw_getwindowbyname("stdscr") ?
+                (zdraw_suspended ? "suspended" : "active") : "inactive");
+    zdraw_colorinfo_value(info, "windows", windows);
+    zdraw_colorinfo_value(info, "child_windows", children);
+    zdraw_colorinfo_value(info, "owned_windows", owned);
+    zdraw_colorinfo_value(info, "window_cells", cells);
+    zdraw_colorinfo_value(info, "backing_cells", backing);
+    zdraw_colorinfo_value(info, "pads", pads);
+    zdraw_colorinfo_value(info, "pad_cells", (zlong)zdraw_pad_cells);
+    zdraw_colorinfo_value(info, "private_input_pads", input_pads);
+    zdraw_colorinfo_value(info, "retired_tree_windows", retired);
+    zdraw_colorinfo_value(info, "cached_color_pairs", zdraw_colorpairs ? zdraw_colorpairs->ct : 0);
+    zdraw_colorinfo_value(info, "counter_limit", ZLONG_MAX);
+#if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
+    zdraw_colorinfo_value(info, "prepared_rows", zdraw_prepared_rows ? zdraw_prepared_rows->ct : 0);
+    zdraw_colorinfo_value(info, "prepared_bytes", (zlong)zdraw_prepared_bytes);
+    zdraw_colorinfo_value(info, "prepared_created", zdraw_prepared_created);
+    zdraw_colorinfo_value(info, "prepared_draws", zdraw_prepared_draws);
+    zdraw_colorinfo_value(info, "prepared_byte_limit", (zlong)ZDRAW_PREPARED_LIMIT);
+#else
+    zdraw_colorinfo_value(info, "prepared_rows", 0);
+    zdraw_colorinfo_value(info, "prepared_bytes", 0);
+    zdraw_colorinfo_value(info, "prepared_created", 0);
+    zdraw_colorinfo_value(info, "prepared_draws", 0);
+    zdraw_colorinfo_value(info, "prepared_byte_limit", -1);
+#endif
+    zdraw_colorinfo_value(info, "pad_cell_limit", ZDRAW_PAD_CELLS);
+    zdraw_colorinfo_value(info, "pad_total_cell_limit", ZDRAW_PAD_TOTAL_CELLS);
+    zdraw_colorinfo_value(info, "pad_dimension_limit", ZDRAW_PAD_DIMENSION);
+    zdraw_colorinfo_value(info, "resize_cell_limit", ZDRAW_RESIZE_CELLS);
+    zdraw_colorinfo_value(info, "resize_dimension_limit", ZDRAW_RESIZE_DIMENSION);
+    zdraw_colorinfo_value(info, "tree_window_limit", ZDRAW_TREE_WINDOWS);
+    zdraw_colorinfo_value(info, "copy_cell_limit", ZDRAW_COPY_CELLS);
+    zdraw_colorinfo_value(info, "snapshot_cell_limit", ZDRAW_SNAPSHOT_CELLS);
+    zdraw_colorinfo_value(info, "snapshot_byte_limit", (zlong)ZDRAW_SNAPSHOT_BYTES);
+    return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
 }
 
 /* Signed event values (mouse coordinates can be outside a window). */
@@ -5240,6 +5340,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"position", zccmd_position, 2, 2},
 	{"geometry", zccmd_geometry, 1, 1},
 	{"colorinfo", zccmd_colorinfo, 1, 1},
+        {"resourceinfo", zccmd_resourceinfo, 1, 1},
 	{"textinfo", zccmd_textinfo, 2, 3},
         {"textpos", zccmd_textpos, 4, 4},
         {"textwrap", zccmd_textwrap, 3, 3},
@@ -5306,7 +5407,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 
     if (zdraw_suspended && zcsc->cmd != zccmd_resume &&
         zcsc->cmd != zccmd_suspend && zcsc->cmd != zccmd_endwin &&
-        zcsc->cmd != zccmd_capabilities &&
+        zcsc->cmd != zccmd_capabilities && zcsc->cmd != zccmd_resourceinfo &&
         zcsc->cmd != zccmd_inputinfo && zcsc->cmd != zccmd_geometry &&
         zcsc->cmd != zccmd_colorinfo && zcsc->cmd != zccmd_textinfo &&
         zcsc->cmd != zccmd_textpos && zcsc->cmd != zccmd_textwrap) {
@@ -5335,6 +5436,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	zcsc->cmd != zccmd_geometry && zcsc->cmd != zccmd_colorinfo &&
 	zcsc->cmd != zccmd_textinfo && zcsc->cmd != zccmd_textpos &&
         zcsc->cmd != zccmd_textwrap && zcsc->cmd != zccmd_capabilities &&
+        zcsc->cmd != zccmd_resourceinfo &&
 	!zdraw_getwindowbyname("stdscr")) {
 	zwarnnam(nam, "command `%s' can't be used before `zdraw init'",
 		 zcsc->name);
@@ -5376,6 +5478,7 @@ zdraw_featuresgetfn(UNUSED(Param pm))
      * This is compile-time support, not terminal capability or state. */
     static char *features[] = {
 	"colorinfo",
+        "resource_info",
         "cell_inspection",
         "window_snapshots",
         "staged_refresh",

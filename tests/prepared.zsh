@@ -67,6 +67,8 @@ check zdraw init
     check zdraw position sample before
     if [[ $mode == write_failure ]]; then
       reject zdraw draw sample 0 0 label
+      check zdraw rowinfo label info
+      [[ $info[draws] == 0 ]] || fail 'failed draw counted'
     else
       check zdraw draw sample 0 0 label
     fi

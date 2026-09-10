@@ -8,7 +8,7 @@ zmodload zdraw || exit 1
 fail() { print -ru2 -- "FAIL: $*"; exit 1; }
 check() { "$@" || fail "$*"; }
 reject() { "$@" 2>/dev/null && fail "unexpected success: $*"; return 0; }
-typeset -A zdraw_ui_canvas zdraw_ui_canvas_raster zdraw_ui_theme before after info zdraw_ui_style=(sentinel yes)
+typeset -A zdraw_ui_canvas zdraw_ui_canvas_raster zdraw_ui_theme before after info resources_before resources_after zdraw_ui_style=(sentinel yes)
 typeset -a reply=(sentinel) position
 typeset key
 typeset -i i
@@ -47,6 +47,12 @@ check zdraw init
   check zdraw-canvas-draw sample 0 0 normal palette=ascii fg=error
   check zdraw snapshot sample after
   [[ $after[0,0,text] == '#' && $after[0,0,color] == 210/236 ]] || fail 'ASCII styled draw'
+  check zdraw resourceinfo resources_before
+  check zdraw-canvas-draw sample 0 0 normal palette=ascii fg=error
+  check zdraw resourceinfo resources_after
+  for key in "${(@k)resources_before}"; do
+    [[ $resources_before[$key] == "$resources_after[$key]" ]] || fail "redraw grew resource: $key"
+  done
   check zdraw-canvas sample 2 0 2 4 normal palette=auto
   check zdraw snapshot sample before
   if [[ $2 == wide ]]; then [[ $before[2,0,text] == ⡏ ]] || fail 'automatic Braille'
@@ -60,7 +66,7 @@ check zdraw init
   reject zdraw-canvas-draw sample 7 23 normal
   check zdraw snapshot sample after
   same
-  zdraw_ui_canvas_raster[1,mask]='evil=1'
+  zdraw_ui_canvas_raster[8,mask]='evil=1'
   reject zdraw-canvas-draw sample 0 0 normal
   (( ! ${+evil} )) || fail injection
   check zdraw snapshot sample after

@@ -239,15 +239,15 @@ function _zdraw_ui_canvas_raster_read {
   done
 }
 
-function zdraw-canvas-rows {
+# Encode the validated scratch raster supplied by the public caller. Keeping
+# validation once per call avoids rescanning every cell in the draw path.
+function _zdraw_ui_canvas_rows {
   emulate -L zsh
-  [[ $# -ge 1 && $# -le 2 && ${(t)reply} == (array|array-local) ]] || return 1
   local _zui_profile=$1 _zui_ink=${2-#} _zui_glyph _zui_escape _zui_row=''
   [[ $_zui_profile == (auto|ascii|block|braille) ]] || return 1
-  local -i _zui_rows _zui_columns _zui_mask _zui_i _zui_supported=1
-  local -a _zui_masks _zui_output _zui_probe
+  local -i _zui_mask _zui_i _zui_supported=1
+  local -a _zui_output _zui_probe
   local -A _zui_info _zui_glyphs
-  _zdraw_ui_canvas_raster_read || return
   # ASCII export works without a native module; custom ink is printable ASCII.
   [[ ${#_zui_ink} == 1 && $_zui_ink == [\ -\~] ]] || return 1
   if [[ $_zui_profile != ascii ]]; then
@@ -299,6 +299,15 @@ function zdraw-canvas-rows {
   reply=("${_zui_output[@]}")
 }
 
+function zdraw-canvas-rows {
+  emulate -L zsh
+  [[ $# -ge 1 && $# -le 2 && ${(t)reply} == (array|array-local) ]] || return 1
+  local -i _zui_rows _zui_columns
+  local -a _zui_masks
+  _zdraw_ui_canvas_raster_read || return
+  _zdraw_ui_canvas_rows "$@"
+}
+
 # Draw a previously compiled raster, allowing cheap profile/theme changes.
 function zdraw-canvas-draw {
   emulate -L zsh
@@ -318,7 +327,7 @@ function zdraw-canvas-draw {
   done
   zdraw-ui-style "$4" fg=accent bg=surface "${_zui_tokens[@]}" || return
   [[ $zdraw_ui_style[border] == none && $zdraw_ui_style[px] == 0 && $zdraw_ui_style[py] == 0 && $zdraw_ui_style[align] == left ]] || return 1
-  zdraw-canvas-rows "$_zui_profile" "$_zui_ink" || return
+  _zdraw_ui_canvas_rows "$_zui_profile" "$_zui_ink" || return
   for (( _zui_i=1; _zui_i<=_zui_rows; _zui_i++ )); do
     zdraw spansclip "$_zui_win" "$((_zui_y+_zui_i-1))" "$_zui_x" "$_zui_columns" "$zdraw_ui_style[style]" "$reply[$_zui_i]" || return
   done

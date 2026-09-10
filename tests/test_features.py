@@ -170,7 +170,11 @@ class FeatureTests(unittest.TestCase):
             self.assertEqual(self.run_shell('''
                 zmodload zdraw || exit 1
                 zmodload -F -e zdraw +p:zdraw_features || exit 2
-                (( ${#zdraw_features} == 12 + (${zdraw_features[(Ie)wide_cell_inspection]} > 0) + (${zdraw_features[(Ie)resize_events]} > 0) + (${zdraw_features[(Ie)wide_text]} > 0) + (${zdraw_features[(Ie)wide_events]} > 0) &&
+                typeset -A resources
+                zdraw resourceinfo resources || exit 20
+                [[ $resources[windows] == 0 && $resources[prepared_rows] == 0 &&
+                   $resources[prepared_byte_limit] == unknown ]] || exit 21
+                (( ${#zdraw_features} == 13 + (${zdraw_features[(Ie)wide_cell_inspection]} > 0) + (${zdraw_features[(Ie)resize_events]} > 0) + (${zdraw_features[(Ie)wide_text]} > 0) + (${zdraw_features[(Ie)wide_events]} > 0) &&
                    ${zdraw_features[(Ie)textinfo]} &&
                    ${zdraw_features[(Ie)text_positions]} &&
                    ${zdraw_features[(Ie)text_wrapping]} &&

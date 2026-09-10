@@ -158,3 +158,90 @@ Cached drawing still validates/encodes cells in Zsh; native prepared rows are an
 available separate reuse path, but were not timed in this benchmark. Keep these
 results as evidence for the later diagnostics/optimization milestone rather than
 moving the rasterizer into C without an application workload that needs it.
+
+## Component boundaries
+
+Build using the [public-source setup](../README.md#build-and-test) and its matching shell,
+then run from any directory:
+
+```sh
+python3 benchmarks/components.py --trials 5 --frames 20 --label local > components.json
+# A shorter, focused run:
+python3 benchmarks/components.py --workloads canvas --trials 3 --frames 10
+```
+
+The harness uses fresh `-df` Zsh processes in drained 24×80 Unix PTYs,
+`xterm-256color`, and `C.UTF-8` (`ZDRAW_TEST_LOCALE` overrides the locale). It
+warms up two complete frames and measures twenty. Workload order reverses on
+alternate trials. Each case has separate repeated/changing variants and small
+8×32 / large 16×64 drawing rectangles. Setup and final inspection are excluded
+from timings. All samples are retained in the JSON.
+
+| Workload | Timed work; change applied in the changing variant |
+| --- | --- |
+| Chart | Render bars from 32/64 signed samples; update one sample and rebuild the series |
+| Canvas | Encode a retained Braille raster and draw it; change the first segment endpoint and rerasterize 31/63 segments |
+| Form | Draw 4/12 fields, including preflight outside the viewport; replace the first character through editing actions |
+| Document | Reflow 4/12 retained paragraphs and draw a viewport; alternate wrap width 32/31 or 64/63 (word wrapping can retain identical visible lines) |
+| Surfaces | Rebuild a two-window shared tree, fill surfaces, copy the base and overlay a 4×12 floating surface; alternate base text and overlay position |
+| Spans | Draw 8/16 full rows through ordinary styled spans; alternate text between `0` and `1` |
+| Prepared | Draw the same rows from two prepared handles constructed before timing; alternate the handle |
+
+`work_ms` includes Zsh functions, argument construction and called native drawing
+operations. `stage_ms` and `present_ms` separately measure shell calls to those
+operations, including dispatch/timing overhead. Tiny intervals near that overhead
+are not C-only timings. `output_bytes` counts the **entire session**, including
+setup, warmup and cleanup. The driver drains a PTY without an emulator; it cannot
+measure paint latency or claim an interactive frame rate. Whole-shell Linux
+`VmHWM` is sampled after snapshot serialization, so memory includes all loaded
+companions, setup, inspection and reporting. It is `null` outside Linux `/proc`.
+
+The baseline used `67b38c7`; the after run adds passive resource accounting and
+removes the second raster-validation pass from canvas drawing. Both cohorts used
+the same harness and system (AMD Ryzen 9 5950X, Linux x86-64, public Zsh 5.9.2,
+wide ncurses, GCC with `-Wall -Wmissing-prototypes -O2`), with five fresh processes per case and twenty
+measured frames per process. Cohorts ran sequentially, so small unrelated
+changes are noise, not attributed improvements. The [before JSON](results/components-before-2026-09-10.json)
+and [after JSON](results/components-after-2026-09-10.json) contain raw samples,
+retained-cell SHA-256 hashes, output counts and (after) passive resource records.
+To repeat the baseline, use a separate checkout at `67b38c7`, copy
+`components.py` and `components.zsh` there from this milestone, then build it
+using the same public Zsh source release and run the command above.
+
+Large-rectangle work medians, in milliseconds per frame:
+
+| Workload | Repeated before → after | Changing before → after |
+| --- | ---: | ---: |
+| Chart | 4.899 → 4.975 | 6.620 → 6.743 |
+| Canvas | 28.733 → 17.613 | 56.139 → 45.265 |
+| Form | 13.452 → 13.841 | 14.350 → 14.529 |
+| Document | 8.117 → 8.075 | 7.875 → 8.236 |
+| Surfaces | 0.050 → 0.052 | 0.054 → 0.053 |
+| Spans | 0.109 → 0.112 | 0.112 → 0.114 |
+| Prepared | 0.063 → 0.065 | 0.065 → 0.067 |
+
+Removing duplicate cell validation reduced repeated large-canvas work by **38.7%**
+and changing-canvas work by **19.4%**. Every public operation still validates all
+cells; no cross-call cache or invalidation rule was added. All 28 final snapshot
+hashes and session output lengths match the baseline, and repeated canvas drawing
+is tested to retain the same native resource counts. Snapshot hashing includes
+cell text, style, pair IDs and cursor metadata; matching byte *lengths* alone do
+not prove terminal-byte identity.
+
+The prepared workload reports two live rows, two successful preparations and
+176/352 successful draws for the small/large cases (including two warmup frames).
+It uses 2,234/4,282 accounted bytes in this build. Release and session reset are
+covered separately by lifecycle tests. Companion models remain caller-owned;
+see the [diagnostics guide](../docs/diagnostics.md) for their budgets and the
+scope of all native counters.
+
+**Decision:** defer generic native batching. Existing row/fill/copy operations
+already make native composition small in these cases; avoiding dispatch alone
+cannot explain or remove the multi-millisecond companion costs. The prepared
+comparison supports existing explicit row reuse for stable content, without
+introducing a new batch contract. Canvas remains the clearest candidate for a
+separate acceleration proposal when larger or frequently changing scenes are
+needed. That proposal should distinguish raster compilation from row encoding,
+measure filled/erased and Unicode-fallback scenes, and retain current bounds and
+failure behavior. This milestone does not add a native canvas API or approve a
+batch API without its own validation, partial-failure and budget specification.

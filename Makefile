@@ -44,6 +44,8 @@ test: build
 	"$(ZSH_BIN)" -dfn examples/stacking.zsh
 	"$(ZSH_BIN)" -dfn examples/overlays.zsh
 	"$(ZSH_BIN)" -dfn scripts/portability/frame-source.zsh
+	"$(ZSH_BIN)" -dfn tests/resources.zsh
+	"$(ZSH_BIN)" -dfn benchmarks/components.zsh
 	"$(ZSH_BIN)" -dfn tests/prepared.zsh
 	"$(ZSH_BIN)" -dfn tests/clipping.zsh
 	"$(ZSH_BIN)" -dfn benchmarks/spans.zsh

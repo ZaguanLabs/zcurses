@@ -6,7 +6,7 @@ zmodload zdraw || exit 1
 fail() { print -ru2 -- "FAIL: $*"; exit 1; }
 check() { "$@" || fail "$*"; }
 reject() { "$@" 2>/dev/null && fail "unexpected success: $*"; return 0; }
-typeset -A before after cell
+typeset -A before after cell resources resources_again
 typeset -a geometry names
 same() {
   local key
@@ -45,6 +45,10 @@ check zdraw init
   else
     if [[ $mode == retire ]]; then
       reject zdraw treewin root 8 24 3 10
+      check zdraw resourceinfo resources
+      check zdraw resourceinfo resources_again
+      (( resources[retired_tree_windows] > 0 )) || fail 'retired handles missing'
+      [[ $resources[retired_tree_windows] == $resources_again[retired_tree_windows] ]] || fail 'inspection cleaned up'
     else
       check zdraw treewin root 8 24 3 10
     fi
@@ -62,6 +66,8 @@ check zdraw init
     [[ $cell[text] == Q ]] || fail 'sharing lost after tree replacement'
     # Shrink descendants before ancestors, retaining shared backing.
     check zdraw treewin child 2 5 4 12
+    check zdraw resourceinfo resources
+    [[ $resources[retired_tree_windows] == 0 ]] || fail 'retired handles not collected'
     position child '1 4 4 12 2 5'
     position grand '0 1 5 13 1 3'
     zdraw event child cell norefresh

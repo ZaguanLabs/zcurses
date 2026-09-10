@@ -7,7 +7,7 @@ zmodload zdraw || exit 1
 fail() { print -ru2 -- "FAIL: $*"; exit 1; }
 check() { "$@" || fail "$*"; }
 step() { print -r -u "$report_fd" -- "$1"; read -r -u "$control_fd" || fail 'control EOF'; }
-typeset -A event=(sentinel yes) cell captured
+typeset -A event=(sentinel yes) cell captured resources
 typeset -a before after
 step baseline
 check zdraw init
@@ -35,7 +35,9 @@ check zdraw init
   [[ $event[sentinel] == yes && ${#zdraw_windows} == 2 ]] || fail 'poll mutated state'
   check zdraw position stdscr after
   [[ "${(j: :)before}" == "${(j: :)after}" ]] || fail 'poll moved cursor'
+  check zdraw resourceinfo resources
   step hidden
+  check zdraw resourceinfo resources
   check zdraw event child event norefresh
   [[ $event[text] == X ]] || fail 'character read'
   check zdraw event stdscr event norefresh

@@ -33,6 +33,7 @@ xitem(tt(zdraw) tt(clear) var(targetwin) [ tt(redraw) | tt(eol) | tt(bot) ])
 xitem(tt(zdraw) tt(position) var(targetwin) var(array))
 xitem(tt(zdraw) tt(geometry) var(array))
 xitem(tt(zdraw) tt(colorinfo) var(association))
+xitem(tt(zdraw) tt(resourceinfo) var(association))
 xitem(tt(zdraw) tt(textinfo) var(association) var(text) [ var(columns) ])
 xitem(tt(zdraw) tt(textpos) var(association) var(text) tt(column)|tt(byte) var(offset))
 xitem(tt(zdraw) tt(textwrap) var(association) var(text) var(columns))
@@ -72,7 +73,7 @@ xitem(tt(zdraw) tt(overlay) var(sourcewin) var(source_row) var(source_column) va
 xitem(tt(zdraw) tt(restyle) var(targetwin) var(row) var(column) var(rows) var(columns) var(style))
 xitem(tt(zdraw) tt(fill) var(targetwin) var(row) var(column) var(rows) var(columns) var(style) var(tile))
 item(tt(zdraw) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
-Manipulate curses windows. Except for tt(geometry), tt(colorinfo), tt(textinfo),
+Manipulate curses windows. Except for tt(geometry), tt(colorinfo), tt(resourceinfo), tt(textinfo),
 tt(textpos), tt(textwrap) and tt(capabilities), uses of
 this command should be
 bracketed by `tt(zdraw init)' to initialise use of curses, and
@@ -420,6 +421,55 @@ Capabilities reflect curses' terminal description, not a probe of the physical
 terminal.  Compiled support remains separately discoverable through
 tt(zdraw_features), including its tt(colorinfo) entry.
 
+The subcommand tt(resourceinfo) creates or replaces an ordinary writable
+associative parameter, following tt(colorinfo)'s destination rules. It is available
+before tt(init), after tt(end), without a controlling terminal or tt(TERM), and
+while suspended. It does not read input, activate protocols, touch or refresh
+windows, allocate surfaces, or retry failed cleanup. Its fields are:
+
+startsitem()
+sitem(tt(format), tt(session))(The format is tt(zdraw-resources-1); session is
+one of tt(inactive), tt(active), or tt(suspended).)
+sitem(tt(windows), tt(owned_windows), tt(child_windows))(Public non-pad windows
+including tt(stdscr); independent application windows excluding tt(stdscr); and
+shared subwindows at every depth, respectively.)
+sitem(tt(window_cells), tt(backing_cells))(Sum of public non-pad window areas,
+including overlapping children; and sum of root areas including tt(stdscr) but
+excluding children. Neither estimates curses allocations or resident memory.)
+sitem(tt(pads), tt(pad_cells), tt(private_input_pads))(Public pad count, budgeted
+public pad area, and zero or one private one-cell input pad.)
+sitem(tt(retired_tree_windows))(Non-null handles retained after failed tree
+cleanup. Inspection leaves them intact; repeated cleanup failure can retain
+handles even after tt(end). Shared handles are not independent allocations.)
+sitem(tt(cached_color_pairs))(Live module color-pair cache entries. Allocator
+limits are separately available from tt(colorinfo).)
+sitem(tt(prepared_rows), tt(prepared_bytes))(Live prepared rows and their
+accounted storage, following tt(rowinfo)'s accounting.)
+sitem(tt(prepared_created), tt(prepared_draws))(Successful preparations and
+successful tt(draw) calls since session start, including subsequently released
+rows and empty or zero-budget draws. Failures do not count, even if a failed
+write changed some cells. Counters survive suspension and reset at tt(end).)
+sitem(tt(counter_limit))(The tt(ZLONG_MAX) saturation limit for cumulative
+counters and window totals.)
+sitem(tt(prepared_byte_limit))(16 MiB for supported prepared rows. Unsupported
+builds report tt(unknown), with all prepared counts and bytes zero.)
+sitem(tt(pad_cell_limit), tt(pad_total_cell_limit), tt(pad_dimension_limit))(
+262144 cells per public pad, 1048576 total cells, and 32767 per dimension.)
+sitem(tt(resize_cell_limit), tt(resize_dimension_limit), tt(tree_window_limit))(
+262144 cells per old/new window, 32767 per requested dimension, and 64 handles
+per reconstructed tree. At most one bounded retired tree is retained.)
+sitem(tt(copy_cell_limit), tt(snapshot_cell_limit), tt(snapshot_byte_limit))(
+65536 cells per copy/overlay rectangle; 65536 snapshot cells; and 16 MiB of
+snapshot key/value strings.)
+endsitem()
+
+Except for the prepared byte limit, budgets describe configured limits even if
+an optional operation is unavailable. Check tt(zdraw_features) for support. They
+do not guarantee allocation success or add limits to inherited tt(addwin).
+The query's own result storage, allocator/hash-table overhead, private curses
+screen buffers and shell-owned companion data are not included. No elapsed time
+or emulator paint-time estimate is produced by this query.
+
 The subcommand tt(textinfo) measures var(text) and optionally clips it to a
 prefix fitting within var(columns).  It can be used before tt(init), after
 tt(end), and without a controlling terminal or tt(TERM).  It replaces or creates
@@ -722,6 +772,8 @@ rejected. An unknown row leaves the target unchanged. The fields are:
 startsitem()
 sitem(tt(width))(Row width in terminal columns.)
 sitem(tt(cells))(Number of stored spacing-character groups, not columns.)
+sitem(tt(draws))(Successful draws of this row, including empty and zero-budget
+calls, saturating at the tt(counter_limit) reported by tt(resourceinfo).)
 sitem(tt(bytes))(Accounted storage of this row.)
 sitem(tt(session_bytes))(Total accounted storage of all prepared rows.)
 sitem(tt(session_limit))(The session storage limit, 16 MiB.)
@@ -1027,7 +1079,7 @@ The subcommand tt(suspend) saves program modes, disables configured paste, focus
 keyboard enhancements and active mouse reporting, calls tt(endwin), and restores the modes saved before
 initialization. Windows, pads, prepared rows and colors remain allocated.
 Repeated suspension is idempotent; active paste and partial keyboard packets must finish first. While suspended,
-drawing, input and tt(init) are rejected. tt(resume), tt(suspend), tt(end),
+drawing, input and tt(init) are rejected. tt(resume), tt(suspend), tt(end), tt(resourceinfo),
 tt(inputinfo), tt(capabilities), geometry/color queries and headless text queries remain available.
 Ending a suspended session frees resources without re-entering the alternate screen.
 
@@ -1470,6 +1522,8 @@ sitem(tt(window_snapshots))(Bounded capture of retained window cells into an ass
 sitem(tt(cell_inspection))(Structured readback of the current retained cell.)
 sitem(tt(wide_cell_inspection))(Complete stored complex-character text, including combining marks.)
 sitem(tt(colorinfo))(Runtime color information through tt(colorinfo).)
+sitem(tt(resource_info))(Passive resource counts, budgets and prepared-row reuse
+through tt(resourceinfo).)
 sitem(tt(custom_borders))(The eight-character form of tt(border), including
 printable ASCII borders.)
 sitem(tt(default_colors))(Support for the color name tt(default) through

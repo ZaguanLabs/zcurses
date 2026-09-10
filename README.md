@@ -88,6 +88,12 @@ rounded Unicode borders on wide curses builds. A standalone
 borders. Color allocation now validates numeric values and fails safely when
 the library or module pair limit is reached.
 
+**`zdraw resourceinfo association`** reports live windows, pads, prepared rows,
+accounted storage, budgets and successful prepared-row reuse. It works before
+initialization, during suspension and after cleanup, without input or presentation.
+See [rendering and resource diagnostics](docs/diagnostics.md) and the
+[component measurements](benchmarks/README.md#component-boundaries).
+
 **`zdraw colorinfo association`** reports the current session's color
 capabilities, usable limits and remaining pair capacity. It works headlessly
 before initialization, reporting unavailable values as `unknown`.
@@ -254,6 +260,7 @@ unknown, so the application chooses its fallback policy.
 | `cell_inspection` | Structured readback of the current retained cell |
 | `wide_cell_inspection` | Complete complex-character text, including stored combining marks |
 | `colorinfo` | Runtime color capabilities and allocation information |
+| `resource_info` | Passive resource counts, budgets and prepared-row reuse |
 | `truecolor` | Optional ncurses extended-color APIs and terminfo queries for RGB |
 | `structured_events` | Associative input records using the curses decoder |
 | `streaming_paste` | Opt-in bracketed paste through curses, in bounded byte chunks |
@@ -1566,6 +1573,8 @@ RGB cells remain drawable after `truecolor off`; preparing new RGB rows still
 requires `truecolor on`. Preparation allocates colors for the complete row,
 including cells that a later clipped draw might omit.
 
+`rowinfo` also reports `draws`, the number of successful draws of that row
+(including empty and zero-budget calls, saturating at `resourceinfo[counter_limit]`).
 `rowinfo` reports `width` (terminal columns), `cells` (stored spacing-character
 groups, not columns), `bytes`, `session_bytes`, `session_limit`, `locale` and
 `multibyte`. Its target follows `colorinfo`'s ordinary-association rules and is
