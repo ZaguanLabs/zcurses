@@ -191,19 +191,48 @@ shipped NetBSD module support.
 Ship focus reporting first, then add one bounded negotiated keyboard protocol.
 Preserve the inherited decoder behavior when the new feature is disabled.
 
-- [ ] Extend the structured event schema for focus changes and define activation,
+- [x] Extend the structured event schema for focus changes and define activation,
   deactivation, ownership and cleanup; implement opt-in focus reporting.
-- [ ] Specify the supported keyboard-protocol subset: key identity, modifiers,
+- [x] Specify the supported keyboard-protocol subset: key identity, modifiers,
   text, press/repeat/release and explicit unknown/unsupported fields.
-- [ ] Implement negotiation and decoding within the single input owner, defining
+- [x] Implement negotiation and decoding within the single input owner, defining
   coexistence with legacy keys, mouse, paste and capability replies.
-- [ ] Extend the event inspector and form recipe to demonstrate richer shortcuts
+- [x] Extend the event inspector and form recipe to demonstrate richer shortcuts
   and focus behavior while retaining the existing keymap as a fallback.
-- [ ] Test fragmented/ambiguous input, timeouts, paste collisions, opt-out,
+- [x] Test fragmented/ambiguous input, timeouts, paste collisions, opt-out,
   suspend/resume, unload and the compatibility matrix from milestone 3.
 
 **Completion:** supported enhanced events are demonstrable, and unsupported or
 unnegotiated sessions keep working with the existing input API.
+
+**Completed 2026-09-10 — implementation commit `9c207f4`.**
+The [enhanced-input guide](enhanced-input.md) specifies opt-in focus ownership and
+a negotiated kitty keyboard subset with key identity, modifiers, associated UTF-8
+text and press/repeat/release actions. Both use the existing curses queue alongside
+legacy keys, mouse, paste and capability replies. The keyboard tail is bounded to
+256 bytes and 250 ms, with at most 16 associated Unicode scalars; unknown data is
+reported explicitly. Suspend/resume, off, end and unload have documented mode
+restoration and partial-packet rules. Legacy records retain their existing shape.
+
+The event inspector and form accept `--focus --keyboard`, negotiate in their own
+event loops and retain their legacy keymaps. The form preserves selection through
+terminal focus changes, ignores release events for editing and demonstrates
+Ctrl+Shift+S validation. Application shortcut and rendering policy stays in Zsh.
+
+Verification: all 93 tests passed against public Zsh 5.9.2 and its matching built
+shell, including narrow/unavailable builds, fragmented and interrupted packets,
+scalar and byte limits, timeouts, paste/mouse/query coexistence, balanced mode
+cleanup, enhanced recipes and focus across interactive `bg`/`fg`. Changed Zsh files
+passed parse checks, the native manual builds, and the exported integration patch
+passes a dry run against the selected public source release. Final local log:
+`.build/enhanced-final-make-test.log`.
+
+The [expanded terminal matrix](portability/README.md#enhanced-input-follow-up)
+records direct xterm focus activation, conservative fallback through the tested
+tmux/screen configurations, and kitty 0.44.0 shortcut press/release and associated
+text from synthetic keys on a private Xvfb display. Other terminal versions,
+physical keyboard/IME behavior and actual SSH remain untested. Alternate-layout
+identities and arbitrary future protocol extensions are outside this subset.
 
 ## 5. Frame presentation
 

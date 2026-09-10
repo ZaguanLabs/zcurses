@@ -56,11 +56,17 @@ that contract without putting a second reader beside curses.
 - [x] Add bounded streaming paste through the curses input owner, with explicit
   opt-in, binary chunks, fragmented end delimiters and end/unload cleanup.
   Start delimiters use the documented native escape-decoder timing window.
-- [ ] Add focus events and negotiated keyboard press/repeat/release reporting.
+- [x] Add focus events and negotiated keyboard press/repeat/release reporting.
+  The [bounded kitty subset](enhanced-input.md) includes modifiers and associated
+  text, explicit ownership, legacy fallback and cleanup; layout/IME mapping remains
+  outside its contract.
 - [x] Add per-call polling, explicit escape delay and input-state queries for
   `zselect` composition. Report internal queue readiness as unknown, document
   native wait limits, and demonstrate bounded event batches with a worker pipe.
-- [ ] Test protocols across terminals, multiplexers and interrupted sessions.
+- [x] Test protocols across terminals, multiplexers and interrupted sessions.
+  The [recorded matrix](portability/README.md) covers xterm, kitty, tmux, screen,
+  controlled slow PTYs and job-control handoffs; actual SSH and other versions
+  remain explicitly untested.
 
 References: [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/),
 [xterm paste, focus and mouse protocols](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html).
