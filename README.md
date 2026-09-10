@@ -78,6 +78,9 @@ fixtures and compares text, styles and geometry, with optional HTML reports.
 [Optional motion](docs/optional-motion.md) supplies caller-driven activity markers
 and a finite emphasis transition, with static alternatives and no owned timers.
 Try the task monitor with `--motion` or `--reduced-motion`.
+[Inline shell interaction](docs/inline-shell.md) experiments with a short ZLE
+picker below the prompt, optional asynchronous choices and restored editor state.
+Try `.build/zsh/Src/zsh -df scripts/inline-shell.zsh` in a terminal.
 [Recording and restoration](docs/recording-and-restoration.md) adds explicit PTY
 input/resize replay, optional snapshot occupancy metadata and a separate bounded
 text-screen format with symbolic styles.

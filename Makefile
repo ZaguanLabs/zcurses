@@ -8,6 +8,9 @@ build:
 
 test: build
 	"$(ZSH_BIN)" -dfn scripts/build.zsh
+	"$(ZSH_BIN)" -dfn scripts/inline-shell.zsh
+	"$(ZSH_BIN)" -dfn examples/inline-picker.zsh
+	"$(ZSH_BIN)" -dfn tests/inline.zsh
 	"$(ZSH_BIN)" -dfn tests/geometry.zsh
 	"$(ZSH_BIN)" -dfn tests/drawing.zsh
 	"$(ZSH_BIN)" -dfn tests/colorinfo.zsh
@@ -77,7 +80,7 @@ test: build
 
 # Keep downloaded/extracted sources and other files under .build intact.
 clean:
-	rm -rf .build/zsh .build/modules .build/source-root
+	rm -rf .build/zsh .build/modules .build/functions .build/source-root
 
 # Export an additive Zsh integration patch, leaving zsh/curses untouched.
 patch:

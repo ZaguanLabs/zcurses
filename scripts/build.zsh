@@ -89,9 +89,17 @@ mkdir -p "$project_root/.build/modules"
 cp "$build_root/Src/Modules/zdraw.$module_extension" "$project_root/.build/modules/"
 mkdir -p "$project_root/.build/modules/zsh"
 typeset helper
-for helper in zselect system; do
+for helper in zselect system parameter zutil; do
   if [[ -f $build_root/Src/Modules/$helper.$module_extension ]]; then
     cp "$build_root/Src/Modules/$helper.$module_extension" "$project_root/.build/modules/zsh/"
   fi
 done
+# Interactive experiments must use ZLE modules with this shell's ABI as well.
+for helper in zle zleparameter complete; do
+  if [[ -f $build_root/Src/Zle/$helper.$module_extension ]]; then
+    cp "$build_root/Src/Zle/$helper.$module_extension" "$project_root/.build/modules/zsh/"
+  fi
+done
+mkdir -p "$project_root/.build/functions"
+cp "$source_root/Functions/Misc/add-zle-hook-widget" "$project_root/.build/functions/"
 print -r -- "Built $project_root/.build/modules/zdraw.$module_extension"
