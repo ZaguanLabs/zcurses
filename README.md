@@ -10,6 +10,41 @@ Applications own their layouts, themes and event-loop policy; `zdraw` supplies
 terminal primitives. The [exploration checklist](docs/roadmap.md) tracks candidate
 additions and completed milestones.
 
+**Optional UI components** provide shared themes, styling utilities, panels,
+labels, scrolling lists and tables through companion Zsh libraries. Select the pieces
+you need and customize colors, borders, padding and interaction states. Start
+with the [toolkit guide](docs/ui-toolkit.md) or run the
+[interactive gallery](examples/gallery.zsh) after building:
+
+```sh
+.build/zsh/Src/zsh -df examples/gallery.zsh
+```
+
+[Rectangle layout helpers](docs/ui-toolkit.md#layout-with-rectangles) add fixed
+and weighted rows/columns, gaps, insets and centering. The
+[list/detail recipe](docs/recipes/list-detail.md) shows an application that
+preserves selection while switching between two panes and a narrow single pane:
+
+```sh
+.build/zsh/Src/zsh -df examples/list-detail.zsh
+```
+
+[Tables](docs/ui-table.md) add configurable column widths, aligned cells,
+headers and row styling. Try the responsive
+[table/inspector recipe](docs/recipes/table-inspector.md):
+
+```sh
+.build/zsh/Src/zsh -df examples/table-inspector.zsh
+```
+
+[Tabs, badges, meters and help rows](docs/ui-presentation.md) provide smaller
+presentation pieces. The [task-monitor recipe](docs/recipes/task-monitor.md)
+combines them with a queue table and controllable simulated progress:
+
+```sh
+.build/zsh/Src/zsh -df examples/task-monitor.zsh
+```
+
 **`zdraw geometry array`** queries the controlling terminal's current rows
 and columns without a subprocess or screen update. The read-only
 **`zdraw_features`** array reports optional compiled support without accessing

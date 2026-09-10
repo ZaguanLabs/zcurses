@@ -5,10 +5,21 @@ set of candidates, not a promise to implement every item. Check an item only
 when its implementation, documentation and relevant verification are complete.
 A completed first milestone does not complete the broader direction.
 
-Development stops after the final application-integration batch (2026-09-10):
+The native exploration batch stopped after application integration (2026-09-10):
 streaming paste, suspend/resume, asynchronous input integration and colored command
 output. Remaining unchecked items are deferred candidates, not follow-on work for
 this batch. See the [integration contracts and combined example](application-integration.md).
+
+Subsequent visual-toolkit work has its own
+[implementation checklist and guide](ui-toolkit.md), informed by the
+[beautiful TUI research](beautiful-tuis-research.md). Its first milestone adds
+optional Zsh themes, utilities, panels, labels, lists and a gallery above the
+existing native primitives. Pure rectangle layout helpers and a responsive
+[list/detail recipe](recipes/list-detail.md) extend this companion layer.
+Customizable [tables](ui-table.md) and a
+[table/inspector recipe](recipes/table-inspector.md) build on those helpers.
+[Tabs, badges, meters and help rows](ui-presentation.md) complete the initial
+presentation set, demonstrated in a [task monitor](recipes/task-monitor.md).
 
 Implemented first milestones (2026-09-09): [structured input](../README.md#structured-input)
 and [prepared styled rows](../README.md#prepared-styled-rows), followed by opt-in
