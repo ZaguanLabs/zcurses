@@ -45,6 +45,9 @@ combines them with a queue table and controllable simulated progress:
 .build/zsh/Src/zsh -df examples/task-monitor.zsh
 ```
 
+[Visual regression tooling](docs/visual-regression.md) exports portable readback
+fixtures and compares text, styles and geometry, with optional HTML reports.
+
 **`zdraw geometry array`** queries the controlling terminal's current rows
 and columns without a subprocess or screen update. The read-only
 **`zdraw_features`** array reports optional compiled support without accessing

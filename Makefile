@@ -32,6 +32,8 @@ test: build
 	"$(ZSH_BIN)" -dfn tests/sgr.zsh
 	"$(ZSH_BIN)" -dfn lib/zdraw-sgr.zsh
 	"$(ZSH_BIN)" -dfn lib/zdraw-run.zsh
+	"$(ZSH_BIN)" -dfn lib/zdraw-fixture.zsh
+	"$(ZSH_BIN)" -dfn tests/visual.zsh
 	@for file in lib/zdraw-ui.zsh lib/zdraw-panel.zsh lib/zdraw-list.zsh lib/zdraw-layout.zsh lib/zdraw-table.zsh lib/zdraw-tabs.zsh lib/zdraw-meter.zsh lib/zdraw-badge.zsh lib/zdraw-help.zsh lib/ui/*.zsh tests/ui*.zsh tests/gallery.zsh examples/gallery.zsh examples/list-detail.zsh examples/table-inspector.zsh examples/task-monitor.zsh; do \
 	  "$(ZSH_BIN)" -dfn "$$file" || exit; \
 	done

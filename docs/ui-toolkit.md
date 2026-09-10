@@ -432,7 +432,7 @@ idle input timeout. Large datasets may warrant a future measured optimization.
 - [x] Responsive table/inspector recipe and empty-data handling.
 - [x] Task-monitor recipe with simulated progress, pause, reset and view changes.
 - [x] Tabs, status badges, meters and whole-item help rows.
-- [ ] Portable visual fixture exports and reviewable visual diffs.
+- [x] [Portable visual fixtures and reviewable diffs](visual-regression.md), with theme/density baselines.
 - [ ] Separate proposals for inputs/forms and semantic document rendering.
 
 The unchecked items remain follow-ups, as do the experimental ideas in the
