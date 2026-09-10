@@ -97,20 +97,40 @@ are not required to reproduce the tests. Changed Zsh files passed parse checks.
 Build on the chart conventions to support small plots and diagrams. Keep the
 initial rasterization algorithms in the companion library.
 
-- [ ] Define a bounded logical canvas, coordinate transform, clipping rules,
+- [x] Define a bounded logical canvas, coordinate transform, clipping rules,
   point collisions and mapping from logical pixels to terminal cells.
-- [ ] Implement points, line segments and rectangles with Braille/block markers
+- [x] Implement points, line segments and rectangles with Braille/block markers
   and an explicit ASCII alternative. Keep marker selection separate from geometry.
-- [ ] Define clear/replace behavior and composable output using existing spans or
+- [x] Define clear/replace behavior and composable output using existing spans or
   prepared rows, preserving window cursor/style and application-owned refreshes.
-- [ ] Demonstrate one waveform or scatter plot with equivalent data and scales
+- [x] Demonstrate one waveform or scatter plot with equivalent data and scales
   in ASCII and Braille; include labels outside the plot area.
-- [ ] Verify clipped edges, degenerate shapes, overlapping points, resize and
+- [x] Verify clipped edges, degenerate shapes, overlapping points, resize and
   unsupported characters; measure representative redraw cost and memory use.
 
 **Completion:** a reusable canvas renders the example correctly in both modes.
 Native acceleration is not required to finish this milestone; retain measurements
 for milestone 7.
+
+**Completed 2026-09-10 — implementation commit `7c66c90`.**
+The [character-canvas guide](character-canvas.md) documents retained source
+coordinates, clipped points/lines/rectangles, set/erase operations and a shared
+2×4 logical-pixel grid per terminal cell. ASCII, block and Braille profiles reuse
+the same raster; exported rows also work with native prepared drawing. The
+waveform recipe demonstrates cached geometry, marker/theme changes and resize.
+
+Verification: all 82 tests passed using the selected public Zsh 5.9.2 source tree
+and matching built shell. Coverage includes clipping and reversed endpoints,
+work/storage limits, atomic output failures, prepared-row reuse, ASCII-only
+builds, monochrome, locale fallback, visual fixtures and PTY lifecycle/resize.
+Changed Zsh files passed parse checks. The final test log is local to
+`.build/canvas-make-test.log`; it is not needed to reproduce the suite.
+
+[Recorded benchmarks](../benchmarks/README.md#character-canvas) compare raster
+compilation, cached drawing and full rebuilds, with whole-shell peak RSS and
+logical resource counts. At 16×64 cells, the measured Braille medians were
+28.319 ms for cached drawing and 45.041 ms for rebuild plus drawing; these exclude
+refresh and terminal paint latency. Retain this evidence for milestone 7.
 
 ## 3. Capability evidence and portability
 

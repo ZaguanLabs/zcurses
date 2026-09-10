@@ -238,9 +238,11 @@ These operations understand cells and rectangles, not application layouts.
 
 ## 11. Graphics experiments
 
-- [ ] Prototype points/lines encoded as Braille or block characters in a
+- [x] Prototype points/lines encoded as Braille or block characters in a
   companion Zsh library; move only measured bottlenecks into C.
-- [ ] Demonstrate ASCII/Braille alternatives for the same waveform or plot.
+- [x] Demonstrate ASCII/Braille alternatives for the same waveform or plot.
+  Delivered by the [character canvas](character-canvas.md), with a waveform
+  recipe and [recorded redraw/memory measurements](../benchmarks/README.md#character-canvas).
 - [ ] Explore an optional image-upload and placement interface.
 - [ ] Investigate Unicode image placeholders against curses character capacity,
   widths, clipping, scrolling, multiplexers and resource cleanup.
