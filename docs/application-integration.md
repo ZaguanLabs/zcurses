@@ -232,3 +232,10 @@ and preserve the legacy keymap for ordinary curses records. Partial CSI packets
 must be drained (or timed out) before suspend or keyboard off; end/unload remain
 the unconditional cleanup path. Focus events describe terminal focus and do not
 change the application's field selection automatically.
+
+For optional synchronized presentation, explicitly query `synchronized_output`
+and enable `sync on` only after accepted reset evidence. Build frames before
+`stage`/`viewport`, then call `present`; ordinary refresh and resume repaint keep
+their existing paths. The region contains one curses update with no shell work or
+input wait. See [frame presentation](frame-presentation.md) for failed-write cleanup
+and the limits of timing guarantees on blocking terminal output.

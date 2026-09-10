@@ -25,13 +25,15 @@ class CapabilityTests(unittest.TestCase):
             zdraw capabilities frozen 2>/dev/null && exit 2
             inspect() {
                 local -A info
+                local sync_compiled=no
+                (( ${zdraw_features[(Ie)synchronized_output]} )) && sync_compiled=yes
                 zdraw capabilities info synchronized_output=yes || return 3
                 [[ $info[format] == zdraw-capabilities-1 && $info[session] == inactive &&
                    $info[colors,support] == unknown && $info[colors,source] == none &&
                    $info[synchronized_output,source] == override &&
                    $info[synchronized_output,evidence_support] == unknown &&
                    $info[synchronized_output,enabled] == no &&
-                   $info[synchronized_output,compiled] == no ]] || return 4
+                   $info[synchronized_output,compiled] == $sync_compiled ]] || return 4
                 read -r line || return 5
                 [[ $line == unchanged ]] || return 6
             }

@@ -137,3 +137,45 @@ private control socket, and closes its own process and display. It does not use
 the user's running kitty instance or desktop. Unsupported/missing combinations
 remain untested; actual SSH and other terminal versions are still outside the
 recorded matrix. The initial milestone-3 JSON is retained as historical evidence.
+
+## Frame presentation follow-up
+
+The [frame probe](../../scripts/portability/frame-matrix.py) tests actual rendered
+pixels using private Xvfb terminals. A PTY relay forwards native capability queries
+and real replies, captures one `present` update, then pauses delivery at its byte
+midpoint. ImageMagick reads the private display before, during and after that
+pause. No terminal contents from the user's desktop are accessed.
+
+[Recorded results](frame-matrix-2026-09-10.json), Zsh 5.9.2, ncurses 6.5,
+`C.UTF-8`:
+
+| Terminal / intermediary | Mode-2026 evidence | Activation | Mid-frame observation |
+| --- | --- | --- | --- |
+| XTerm(407) | Unrecognized | Declined | Ordinary output exposes a partial frame |
+| XTerm(407), tmux `next-3.3` | Unknown, timeout | Declined | Ordinary output exposes a partial frame |
+| XTerm(407), Screen 5.0.1 | Unknown, timeout | Declined | Ordinary output exposes a partial frame |
+| Kitty 0.44.0 | Reset | Enabled | Old frame retained until closing marker |
+
+Kitty's plain-output comparison changed 808,595 RGB bytes at the midpoint;
+synchronization changed **zero**, while both final frames changed 1,595,580 bytes.
+The relay held the remainder for about 181 ms. The plain update was 4,278 bytes;
+the synchronized update was 4,294 bytes, including the 16 marker bytes. Reported
+`producer_interval_ms` measures relay release of the native producer to receipt
+of its completion report (about 0.25–0.28 ms here), not CPU time, physical-display
+latency or a portable performance bound. Pixel hashes and exact relay pauses are
+recorded. The fixture changes a large colored cell region; the normal PTY suite
+separately exercises the task monitor's table/chart views and resize behavior.
+
+```sh
+python3 scripts/portability/frame-matrix.py \
+  --output .build/portability/frame-matrix.json
+```
+
+Required programs are Xvfb, xterm and ImageMagick `import`; kitty, tmux and screen
+are optional cases. Kitty also needs software OpenGL on Xvfb. Multiplexers use
+private sessions and empty configurations. This is a controlled delayed local
+transport, not an actual SSH test. There is one midpoint sample per frame; the
+probe does not claim continuous observation, all emulator versions, physical
+refresh timing or behavior when a delay exceeds an emulator's own timeout. A
+blocked writer cannot enforce a portable hard synchronization deadline; the
+[API contract](../frame-presentation.md) states that limitation explicitly.

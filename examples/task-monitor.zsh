@@ -3,6 +3,12 @@
 emulate -R zsh
 setopt nounset
 typeset monitor_root=${0:A:h:h}
+[[ $# == 0 || ( $# == 1 && $1 == --sync ) ]] || { print -ru2 -- 'usage: task-monitor.zsh [--sync]'; exit 1; }
+typeset -a example_protocol_queue
+typeset example_protocol_current='' protocol_note=''
+typeset -i example_keyboard_active=0
+[[ ${1:-} == --sync ]] && example_protocol_queue=(synchronized_output)
+source "$monitor_root/examples/input-protocols.zsh" || exit 1
 module_path=("$monitor_root/.build/modules")
 zmodload zdraw || exit 1
 source "$monitor_root/lib/zdraw-panel.zsh" || exit 1
@@ -63,7 +69,7 @@ function monitor-render {
   visible=0
   if (( rows < 8 || columns < 24 )); then
     zdraw-label stdscr "$(( rows > 1 ? 1 : 0 ))" 0 "$columns" 'q quit; resize to explore' normal bg=canvas || return
-    zdraw refresh stdscr
+    zdraw stage stdscr && zdraw present
     return
   fi
   zdraw-tabs stdscr 1 "$frame[2]" "$frame[4]" "$tab" focus -- Overview Queue History || return
@@ -131,9 +137,9 @@ function monitor-render {
       zdraw-table stdscr "${content[@]}" focus -- "${cells[@]}" || return
     fi
   fi
-  zdraw-label stdscr "$footer[1]" "$footer[2]" "$footer[4]" "Simulated work / $run_state / step $tick" normal fg=muted bg=canvas || return
+  zdraw-label stdscr "$footer[1]" "$footer[2]" "$footer[4]" "Simulated work / $run_state / step $tick${protocol_note:+ / $protocol_note}" normal fg=muted bg=canvas || return
   zdraw-help stdscr "$((footer[1]+1))" "$footer[2]" "$footer[4]" normal -- q quit Space pause Tab view n step r reset t theme g glyphs m mono || return
-  zdraw refresh stdscr
+  zdraw stage stdscr && zdraw present
 }
 
 zdraw init || exit 1
@@ -146,12 +152,14 @@ zdraw init || exit 1
   color_profile=$profile
   zdraw timeout stdscr 250 || exit 1
   zdraw-table-update "${#tasks}" 0 keep || exit 1
+  example-protocol-next
   while true; do
     if (( dirty )); then
       monitor-render || { exit_code=1; break; }
       dirty=0
     fi
     if zdraw event stdscr event "${input_options[@]}"; then
+      if example-protocol-event; then dirty=1; continue; fi
       typeset action=keep
       case $event[type] in
         character)

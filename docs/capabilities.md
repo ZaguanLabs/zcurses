@@ -58,7 +58,7 @@ Each capability has these comma-separated keys:
 | `suspend_resume` | Compiled retained-session handoff implementation. |
 | `streaming_paste` | Recognition of DEC private mode 2004, separately from the compiled paste API. |
 | `focus_events` | Recognition of mode 1004; activation is separate from recognition. |
-| `synchronized_output` | Recognition of mode 2026; its presentation API is not implemented. |
+| `synchronized_output` | Recognition of mode 2026; `sync on` separately configures explicit presentation. |
 | `keyboard_events` | Kitty keyboard protocol recognition; `reported` is its observed decimal flag value. |
 
 `enabled=no` is also used for operations without persistent activation, such as
@@ -67,6 +67,11 @@ configuration while not suspended; it is not confirmation that the peer obeyed
 an enable sequence. A `permanent-reset` report recognizes a mode but does not
 establish that it can be enabled. Applications need the reported state as well
 as recognition before attempting later protocol operations.
+
+For synchronized output, `enabled=yes` means that the active session is configured
+to bracket `present`; the terminal mode is held only during each call. See
+[frame presentation](frame-presentation.md) for boundaries, failure cleanup and
+the distinction between an operation bound and a wall-clock deadline.
 
 These records complement `zdraw_features`, which remains compile-time discovery.
 `capability_evidence` advertises passive inspection; `capability_queries` advertises

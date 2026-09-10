@@ -8,7 +8,7 @@ typeset -i test_ui_frame_number=0
 function zdraw {
   builtin zdraw "$@" || return
   case $1 in
-    refresh)
+    refresh|present)
       (( test_ui_frame_number++ ))
       local -A cells
       if [[ $example == task-monitor ]] && (( tab == 1 && rows >= 9 && columns >= 24 )); then
@@ -96,4 +96,5 @@ function zdraw {
 }
 print -r -u "$report_fd" -- baseline
 read -r -u "$control_fd" acknowledgement
-source "${0:A:h:h}/examples/$example.zsh"
+typeset test_recipe_path=${0:A:h:h}/examples/$example.zsh
+() { source "$test_recipe_path"; } "${@:5}"

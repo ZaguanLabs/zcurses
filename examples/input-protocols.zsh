@@ -23,6 +23,7 @@ function example-protocol-event {
      ${event[phase]-} == (reply|timeout) ]] || return 1
   local operation=focus
   [[ $example_protocol_current == keyboard_events ]] && operation=keyboard
+  [[ $example_protocol_current == synchronized_output ]] && operation=sync
   if [[ $event[phase] == reply ]] && zdraw "$operation" on 2>/dev/null; then
     [[ $operation == keyboard ]] && example_keyboard_active=1
     protocol_note="$operation reporting enabled."

@@ -38,6 +38,8 @@ test: build
 	  "$(ZSH_BIN)" -dfn "$$file" || exit; \
 	done
 	"$(ZSH_BIN)" -dfn tests/presentation.zsh
+	"$(ZSH_BIN)" -dfn tests/sync.zsh
+	"$(ZSH_BIN)" -dfn scripts/portability/frame-source.zsh
 	"$(ZSH_BIN)" -dfn tests/prepared.zsh
 	"$(ZSH_BIN)" -dfn tests/clipping.zsh
 	"$(ZSH_BIN)" -dfn benchmarks/spans.zsh

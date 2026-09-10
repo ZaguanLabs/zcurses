@@ -23,6 +23,7 @@ xitem(tt(zdraw) tt(resizepad) var(pad) var(rows) var(columns))
 xitem(tt(zdraw) tt(viewport) var(pad) var(pad_row) var(pad_column) var(screen_row) var(screen_column) var(rows) var(columns))
 xitem(tt(zdraw) tt(stage) var(targetwin) [ var(targetwin) ... ])
 xitem(tt(zdraw) tt(present))
+xitem(tt(zdraw) tt(sync) tt(on)|tt(off))
 xitem(tt(zdraw) tt(delwin) var(targetwin) )
 xitem(tt(zdraw) tt(refresh) [ var(targetwin) ... ] )
 xitem(tt(zdraw) tt(touch) var(targetwin) ...)
@@ -238,7 +239,41 @@ Inherited tt(refresh) remains available for ordinary windows and also presents
 queued contributions. Bare tt(refresh) adds tt(stdscr) first and can cover a
 viewport. Default input may refresh its window; use tt(event) with tt(norefresh)
 when supported for explicit presentation. No synchronized-output protocol or
-atomic terminal-paint guarantee is implied.
+atomic terminal-paint guarantee is implied by ordinary staging/presentation.
+
+The optional subcommand tt(sync on) configures synchronized output for subsequent
+tt(present) calls. It requires an accepted tt(synchronized_output) query report
+of tt(reset) (mode 2026, report 2). Unknown, unrecognized, already-set and permanent
+states are insufficient; there is no force form. Capability overrides affect
+inspection only. Activation itself writes nothing, reads no input and sends no
+query. Repeated on/off calls are idempotent. tt(sync off) clears configuration and
+retries any outstanding reset. Initialization is required. Status is 0 for success,
+1 for invalid arguments/state or library/I/O failure, and 2 without compiled
+support or sufficient evidence. Check tt(synchronized_output) in tt(zdraw_features).
+
+Configured tt(present) first retries any outstanding reset, then queues Zsh signal
+traps, flushes preceding stdout, writes and flushes tt(CSI ? 2026 h), calls
+tt(doupdate) once, and flushes output. It attempts tt(CSI ? 2026 l) and a final
+flush even after a failed begin or update, before releasing its guard and deferred
+traps. Nested attempts fail. Empty updates still emit a balanced pair (16 bytes).
+There is no callback, input wait or open begin/end interval across successful shell
+commands. Ordinary tt(refresh), implicit input refreshes and tt(resume) repaint
+remain unsynchronized. Use consistent explicit frame boundaries where required.
+
+The region is bounded to one update and marker writes, not a hard wall-clock
+deadline. Blocking curses/stdio writes, process suspension, SIGKILL or a failed
+transport can delay or prevent reset. There is no universal protocol timeout,
+watchdog, replacement signal trap or forced nonblocking descriptor mode. A failed
+reset retains a cleanup obligation for tt(present), tt(sync off), tt(suspend),
+tt(end) or unload to retry. Reset is idempotent; I/O failure cannot establish what
+the peer applied. End/unload make a best-effort attempt and clear state. Failed
+presentation does not roll back curses' screen models or promise atomic painting.
+
+Suspend retains configuration with no open region; resume repaints normally and
+the next explicit tt(present) uses synchronization again. End/unload clear the
+setting and evidence. The capability tt(enabled) field describes configured
+presentation in an active session, not a permanently enabled terminal mode;
+it is tt(no) while suspended and after off/end/unload.
 
 Use tt(delwin) to release a pad and its budget. Deletion does not erase or cancel
 previously staged cells. Failed pad deletion retains its handle and budget for
@@ -745,7 +780,7 @@ terminfo evidence. tt(wide_text), tt(norefresh_events) and tt(suspend_resume)
 report compiled API support; wide text does not establish font or emoji coverage.
 Names tt(streaming_paste), tt(focus_events) and tt(synchronized_output) report
 terminal recognition of modes 2004, 1004 and 2026, independently of compiled API
-support. Synchronized-output activation is not implemented here.
+support. Synchronized-output activation configures tt(present) through tt(sync).
 tt(keyboard_events) reports recognition of the kitty keyboard protocol; its
 tt(reported) field is the accepted decimal flag value, or tt(unknown).
 Before evidence exists, terminal support remains tt(unknown). The tt(enabled)
@@ -1394,6 +1429,7 @@ sitem(tt(event_poll))(Per-call zero initial input timeout.)
 sitem(tt(input_info))(Input descriptor, polling guidance and session input state.)
 sitem(tt(capability_evidence))(Passive support/evidence/state records and record-only overrides.)
 sitem(tt(capability_queries))(Opt-in bounded DEC/kitty requests and exact reply decoding.)
+sitem(tt(synchronized_output))(Evidence-gated mode-2026 markers around explicit presentation.)
 sitem(tt(focus_events))(Opt-in terminal focus reports with explicit mode ownership.)
 sitem(tt(keyboard_events))(Negotiated kitty keyboard subset with bounded event decoding.)
 sitem(tt(input_delay))(Explicit ncurses escape delay with end/unload restoration.)

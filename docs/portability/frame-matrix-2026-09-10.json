@@ -1,0 +1,200 @@
+{
+  "format": "zdraw-frame-matrix-1",
+  "platform": "Linux-6.18.44-desktop-1.mga10-x86_64-with-glibc2.42",
+  "transport": "local PTY with a paused midpoint",
+  "scenarios": [
+    {
+      "backend": "xterm",
+      "version": "XTerm(407)",
+      "mode": "plain",
+      "tested": true,
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "xterm",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "support": "no",
+        "reported": "unrecognized",
+        "query": "replied"
+      },
+      "activation": "off",
+      "partial_changed_bytes": 340943,
+      "final_changed_bytes": 675280,
+      "hashes": {
+        "before": "bffb7e4e9aac28f009b520d9e685f0cc910353f291b7c0b798f3ae29757006d2",
+        "partial": "de9b9093ad97e524eba8ccb7728966513a3203f1b7a4f415a71e5f1876a893ad",
+        "after": "2f246f5471cb636618f05d1198302af42413387e1ab3d841b63d3f0ee5783834"
+      },
+      "wire": {
+        "bytes": 2016,
+        "split": 1008,
+        "producer_interval_ms": 0.251,
+        "held_output_ms": 181.255
+      }
+    },
+    {
+      "backend": "xterm",
+      "version": "XTerm(407)",
+      "mode": "sync",
+      "tested": true,
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "xterm",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "support": "no",
+        "reported": "unrecognized",
+        "query": "replied"
+      },
+      "activation": "declined"
+    },
+    {
+      "backend": "tmux",
+      "version": "tmux next-3.3",
+      "mode": "plain",
+      "tested": true,
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "screen",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "support": "unknown",
+        "reported": "unknown",
+        "query": "timeout"
+      },
+      "activation": "off",
+      "partial_changed_bytes": 324428,
+      "final_changed_bytes": 645920,
+      "hashes": {
+        "before": "19fa5850b17e81b6b84d641ee019e8ea7e97abf3e3473dd4becbd1cdc3d978ee",
+        "partial": "712edc15bdb0aa5f0be3fdb0a09f2ac22595e28534e3770847a73be2b3e61496",
+        "after": "0fdd763568904c7cffc5696273fd0f8e884e05a0e689cf4f2704179cd34ce278"
+      },
+      "wire": {
+        "bytes": 1927,
+        "split": 963,
+        "producer_interval_ms": 0.221,
+        "held_output_ms": 171.208
+      }
+    },
+    {
+      "backend": "tmux",
+      "version": "tmux next-3.3",
+      "mode": "sync",
+      "tested": true,
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "screen",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "support": "unknown",
+        "reported": "unknown",
+        "query": "timeout"
+      },
+      "activation": "declined"
+    },
+    {
+      "backend": "screen",
+      "version": "Screen version 5.0.1 (build on 2025-05-16 15:05:45)",
+      "mode": "plain",
+      "tested": true,
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "screen",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "support": "unknown",
+        "reported": "unknown",
+        "query": "timeout"
+      },
+      "activation": "off",
+      "partial_changed_bytes": 340576,
+      "final_changed_bytes": 675280,
+      "hashes": {
+        "before": "bffb7e4e9aac28f009b520d9e685f0cc910353f291b7c0b798f3ae29757006d2",
+        "partial": "cfc098f072a6ac61780f6325e377702bbebbd0917e0daae70475e5af5e22ccd1",
+        "after": "2f246f5471cb636618f05d1198302af42413387e1ab3d841b63d3f0ee5783834"
+      },
+      "wire": {
+        "bytes": 2014,
+        "split": 1007,
+        "producer_interval_ms": 0.233,
+        "held_output_ms": 181.224
+      }
+    },
+    {
+      "backend": "screen",
+      "version": "Screen version 5.0.1 (build on 2025-05-16 15:05:45)",
+      "mode": "sync",
+      "tested": true,
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "screen",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "support": "unknown",
+        "reported": "unknown",
+        "query": "timeout"
+      },
+      "activation": "declined"
+    },
+    {
+      "backend": "kitty",
+      "version": "kitty 0.44.0 created by Kovid Goyal",
+      "mode": "plain",
+      "tested": true,
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "xterm-kitty",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "support": "yes",
+        "reported": "reset",
+        "query": "replied"
+      },
+      "activation": "off",
+      "partial_changed_bytes": 808595,
+      "final_changed_bytes": 1595580,
+      "hashes": {
+        "before": "bff3bdf9a379a38f5604ffb1ea23d980da4a2260fef43586b9254dbe88637b12",
+        "partial": "68064550e150c42e70f22697dc8c4c01d73a260fb05e29122d4f00296119f651",
+        "after": "6675ef6f9cc2a52fd8c798dcfda3e9cfb1b364b3184ccf59a8fa8bcee89333bc"
+      },
+      "wire": {
+        "bytes": 4278,
+        "split": 2139,
+        "producer_interval_ms": 0.28,
+        "held_output_ms": 181.23
+      }
+    },
+    {
+      "backend": "kitty",
+      "version": "kitty 0.44.0 created by Kovid Goyal",
+      "mode": "sync",
+      "tested": true,
+      "evidence": {
+        "zsh": "5.9.2",
+        "term": "xterm-kitty",
+        "locale": "C.UTF-8",
+        "curses_version": "6.5",
+        "support": "yes",
+        "reported": "reset",
+        "query": "replied"
+      },
+      "activation": "enabled",
+      "partial_changed_bytes": 0,
+      "final_changed_bytes": 1595580,
+      "hashes": {
+        "before": "bff3bdf9a379a38f5604ffb1ea23d980da4a2260fef43586b9254dbe88637b12",
+        "partial": "bff3bdf9a379a38f5604ffb1ea23d980da4a2260fef43586b9254dbe88637b12",
+        "after": "6675ef6f9cc2a52fd8c798dcfda3e9cfb1b364b3184ccf59a8fa8bcee89333bc"
+      },
+      "wire": {
+        "bytes": 4294,
+        "split": 2147,
+        "producer_interval_ms": 0.25,
+        "held_output_ms": 181.222
+      }
+    }
+  ]
+}

@@ -60,6 +60,8 @@ See the [recorded terminal and curses matrix](docs/portability/README.md) for
 verified configurations and unknown results.
 [Enhanced input](docs/enhanced-input.md) adds optional focus reporting and a bounded
 kitty keyboard subset; the event inspector and form accept `--focus --keyboard`.
+[Synchronized presentation](docs/frame-presentation.md) optionally brackets the
+final `present` update; try the task monitor with `--sync` on a supporting terminal.
 
 [Editable inputs and forms](docs/inputs-and-forms.md) add Unicode-aware movement,
 selection, bounded streaming paste, validation and field navigation. Try the
@@ -258,6 +260,7 @@ unknown, so the application chooses its fallback policy.
 | `input_info` | Input descriptor, polling guidance and session input state |
 | `capability_evidence` | Passive capability records with evidence sources and explicit overrides |
 | `capability_queries` | Opt-in bounded mode queries through the existing event owner |
+| `synchronized_output` | Evidence-gated mode-2026 markers around explicit `present` calls |
 | `focus_events` | Opt-in terminal focus reports with explicit ownership |
 | `keyboard_events` | Negotiated kitty keyboard subset with key actions, modifiers and text |
 | `input_delay` | Explicit ncurses escape-decoder delay with end/unload restoration |

@@ -204,6 +204,10 @@ static const char *zdraw_query_states[4] = {"never", "never", "never", "never"};
 static void zdraw_query_cleanup(void);
 static void zdraw_query_cancel(void);
 #ifdef ZDRAW_QUERIES
+static int zdraw_sync_on, zdraw_sync_applied, zdraw_presenting;
+#endif
+static int zdraw_sync_reset(void);
+#ifdef ZDRAW_QUERIES
 # define ZDRAW_ENHANCED 1
 static int zdraw_focus_owned[2];
 static int zdraw_focus_keys[2], zdraw_focus_on, zdraw_focus_applied;
@@ -1379,7 +1383,75 @@ zccmd_stage(const char *nam, char **args)
 static int
 zccmd_present(UNUSED(const char *nam), UNUSED(char **args))
 {
+#ifdef ZDRAW_QUERIES
+    int result;
+    if (zdraw_presenting || zdraw_sync_reset())
+        return 1;
+    if (zdraw_sync_on) {
+        /* No shell callback or input wait is allowed inside the wire frame.
+         * Queue Zsh traps until the reset has been attempted, including errors. */
+        queue_signals();
+        zdraw_presenting = 1;
+        result = fflush(stdout) == EOF;
+        if (!result) {
+            /* Even a failed flush can have enabled the peer: always reset. */
+            zdraw_sync_applied = 1;
+            result = fputs("\033[?2026h", stdout) == EOF || fflush(stdout) == EOF;
+            if (!result)
+                result = doupdate() == ERR;
+            if (fflush(stdout) == EOF)
+                result = 1;
+            if (zdraw_sync_reset())
+                result = 1;
+        }
+        zdraw_presenting = 0;
+        unqueue_signals();
+        return result;
+    }
+#endif
     return doupdate() == ERR;
+}
+
+static int
+zdraw_sync_reset(void)
+{
+#ifdef ZDRAW_QUERIES
+    if (zdraw_sync_applied) {
+        if (fputs("\033[?2026l", stdout) == EOF || fflush(stdout) == EOF)
+            return 1;
+        zdraw_sync_applied = 0;
+    }
+#endif
+    return 0;
+}
+
+static int
+zccmd_sync(const char *nam, char **args)
+{
+#ifdef ZDRAW_QUERIES
+    if (zdraw_presenting)
+        return 1;
+    if (!strcmp(args[0], "off")) {
+        zdraw_sync_on = 0;
+        return zdraw_sync_reset();
+    }
+    if (strcmp(args[0], "on"))
+        return 1;
+    if (zdraw_sync_on)
+        return 0;
+    if (zdraw_query_reports[2] != 2) {
+        zwarnnam(nam, "sync needs an observed reset synchronized_output mode");
+        return 2;
+    }
+    if (!isatty(0) || !isatty(1) || zdraw_sync_reset())
+        return 1;
+    zdraw_sync_on = 1;
+    return 0;
+#else
+    (void)nam;
+    (void)args;
+    return 2;
+#endif
 }
 
 /* Decode the same printable characters for measurement and styled drawing.
@@ -2274,6 +2346,8 @@ zccmd_suspend(const char *nam, UNUSED(char **args))
 #endif
     if (def_prog_mode() == ERR)
         return 1;
+    if (zdraw_sync_reset())
+        return 1;
     gettyinfo(&curses_tty_state);
     if (zdraw_enhanced_pause())
         return 1;
@@ -2386,6 +2460,10 @@ zccmd_endwin(UNUSED(const char *nam), UNUSED(char **args))
     LinkNode stdscr_win = zdraw_getwindowbyname("stdscr");
 
     if (stdscr_win) {
+        zdraw_sync_reset();
+#ifdef ZDRAW_QUERIES
+        zdraw_sync_on = zdraw_sync_applied = zdraw_presenting = 0;
+#endif
         zdraw_enhanced_cleanup();
         zdraw_query_cleanup();
 #ifdef ZDRAW_PASTE
@@ -4073,6 +4151,10 @@ zccmd_capabilities(const char *nam, char **args)
     enabled[6] = zdraw_focus_applied ? "yes" : "no";
     enabled[8] = zdraw_keyboard_applied ? "yes" : "no";
 #endif
+#ifdef ZDRAW_QUERIES
+    compiled[7] = "yes";
+    enabled[7] = zdraw_sync_on && !zdraw_suspended ? "yes" : "no";
+#endif
     if (active) {
         support[0] = zc_has_colors ? "yes" : "no";
         source[0] = "curses";
@@ -4929,6 +5011,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
         {"viewport", zccmd_viewport, 7, 7},
         {"stage", zccmd_stage, 1, -1},
         {"present", zccmd_present, 0, 0},
+        {"sync", zccmd_sync, 1, 1},
 	{"delwin", zccmd_delwin, 1, 1},
 	{"refresh", zccmd_refresh, 0, -1},
 	{"move", zccmd_move, 3, 3},
@@ -5105,6 +5188,7 @@ zdraw_featuresgetfn(UNUSED(Param pm))
         "capability_evidence",
 #ifdef ZDRAW_QUERIES
         "capability_queries",
+        "synchronized_output",
         "focus_events",
         "keyboard_events",
 #endif

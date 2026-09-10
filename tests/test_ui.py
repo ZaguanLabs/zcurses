@@ -45,7 +45,10 @@ class UITests(unittest.TestCase):
     def test_task_monitor_recipe(self):
         self.interactive_example('task-monitor')
 
-    def interactive_example(self, example):
+    def test_synchronized_task_monitor_recipe(self):
+        self.interactive_example('task-monitor', '--sync')
+
+    def interactive_example(self, example, *options):
         control_r, control_w = os.pipe()
         report_r, report_w = os.pipe()
         pid, terminal = pty.fork()
@@ -60,7 +63,7 @@ class UITests(unittest.TestCase):
                 os.environ.pop(name, None)
             os.execl(test_features.ZSH, test_features.ZSH, '-df',
                      str(test_features.ROOT / 'tests/gallery.zsh'),
-                     str(report_w), str(control_r), os.environ.get('ZDRAW_GALLERY_CAPTURE', ''), example)
+                     str(report_w), str(control_r), os.environ.get('ZDRAW_GALLERY_CAPTURE', ''), example, *options)
         os.close(control_r)
         os.close(report_w)
         pending, screen = bytearray(), bytearray()
@@ -102,6 +105,9 @@ class UITests(unittest.TestCase):
             original = termios.tcgetattr(terminal)
             if example == 'task-monitor':
                 self.assertEqual(advance(), 'monitor 24 100 1 0 0 0 1 dark auto 256 1 0'.split())
+                if options:
+                    self.assertNotIn(b'\x1b[?2026h', screen)
+                    self.assertEqual(advance(b'\x1b[?2026;2$y'), 'monitor 24 100 1 0 0 0 1 dark auto 256 1 0'.split())
                 self.assertEqual(advance()[5], '1')  # idle timeout advances simulated work
                 self.assertEqual(advance(b' ')[4:6], ['1', '1'])
                 self.assertEqual(advance(b'n')[5], '2')
@@ -133,6 +139,9 @@ class UITests(unittest.TestCase):
                 reaped = True
                 self.assertEqual(os.waitstatus_to_exitcode(status), 0, bytes(screen[-4000:]))
                 self.assertEqual(termios.tcgetattr(terminal), original)
+                if options:
+                    self.assertGreater(screen.count(b'\x1b[?2026h'), 100)
+                    self.assertEqual(screen.count(b'\x1b[?2026h'), screen.count(b'\x1b[?2026l'))
                 return
             if example == 'table-inspector':
                 self.assertEqual(advance(), 'inspector 24 100 split table dark 1 0'.split())
