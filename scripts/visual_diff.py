@@ -13,6 +13,10 @@ def load(path):
     if path.stat().st_size > 8 * 1024 * 1024:
         raise ValueError('fixture exceeds 8 MiB')
     data = json.loads(path.read_text(encoding='ascii'))
+    return validate(data)
+
+
+def validate(data):
     if not isinstance(data, dict):
         raise ValueError('fixture must be an object')
     if data.get('format') != 'zdraw-ui-fixture-1' or data.get('layout') != 'readback':

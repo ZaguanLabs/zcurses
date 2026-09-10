@@ -24,7 +24,7 @@ class SnapshotTests(unittest.TestCase):
                     prefix=f'snapshot-{mode}-', dir=ROOT / '.build') as tmp:
                 variant = source.replace('#include <stdio.h>', '#include <stdio.h>\n' + definitions, 1)
                 if mode == 'move_failure':
-                    variant = variant.replace('wmove(copy, y, x) == ERR', '(x == 3 || wmove(copy, y, x) == ERR)', 1)
+                    variant = variant.replace('wmove(copy, y, x) == ERR', '(x == 3 || wmove(copy, y, x) == ERR)')
                 elif mode == 'cell_limit':
                     variant = variant.replace('#define ZDRAW_SNAPSHOT_CELLS 65536', '#define ZDRAW_SNAPSHOT_CELLS 8', 1)
                 elif mode == 'byte_limit':

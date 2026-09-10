@@ -3704,16 +3704,90 @@ zdraw_snapshot_pair(LinkList info, char *key, char *value, size_t *bytes)
     return 0;
 }
 
+/* Public readback does not expose portable wide-cell continuation flags.
+ * Infer only complete equal-cell runs bounded by unlike cells on BOTH sides.
+ * Clipped/shared edges and malformed runs remain explicitly unknown. */
+static char *
+zdraw_record_value(LinkList record, const char *key)
+{
+    LinkNode node;
+    for (node = firstnode(record); node;) {
+        char *name = (char *)getdata(node);
+        incnode(node);
+        if (!strcmp(name, key)) return (char *)getdata(node);
+        incnode(node);
+    }
+    return "";
+}
+
+static int
+zdraw_record_width(LinkList record)
+{
+    char *text = zdraw_record_value(record, "text");
+    int width, result, wide = 0;
+    convchar_t wc;
+    if (!strcmp(zdraw_record_value(record, "encoding"), "multibyte")) wide = 1;
+    MB_METACHARINIT();
+    result = zdraw_text_next(&text, wide, &wc, &width);
+    return result ? 0 : width;
+}
+
+static int
+zdraw_same_cell(LinkList a, LinkList b)
+{
+    return !strcmp(zdraw_record_value(a, "text"), zdraw_record_value(b, "text")) &&
+        !strcmp(zdraw_record_value(a, "attribute_bits"), zdraw_record_value(b, "attribute_bits")) &&
+        !strcmp(zdraw_record_value(a, "pair"), zdraw_record_value(b, "pair"));
+}
+
+static void
+zdraw_occupancy(LinkList *cells, int cols)
+{
+    int x = 0, end, width, i, base;
+    unsigned long supported = 0;
+    const struct zdraw_namenumberpair *entry;
+    for (entry = zdraw_attributes; entry->name; entry++)
+        supported |= entry->number;
+    while (x < cols) {
+        width = zdraw_record_width(cells[x]);
+        end = x + 1;
+        if (width > 1)
+            while (end < cols && zdraw_same_cell(cells[x], cells[end])) end++;
+        for (i = x; i < end; i++) {
+            const char *kind = "unknown", *source = "unknown";
+            base = -1;
+            if (width == 1) {
+                kind = "single"; source = "readback"; base = i;
+            } else if (width > 1 && x > 0 && end < cols && (end-x) % width == 0) {
+                base = x + ((i-x) / width) * width;
+                kind = i == base ? "base" : "continuation";
+                source = "inferred";
+            }
+            addlinknode(cells[i], "style_supported");
+            addlinknode(cells[i], (strtoul(zdraw_record_value(cells[i], "attribute_bits"),
+                NULL, 10) & ~supported) ? "no" : "yes");
+            addlinknode(cells[i], "occupancy"); addlinknode(cells[i], (void *)kind);
+            addlinknode(cells[i], "occupancy_source"); addlinknode(cells[i], (void *)source);
+            zdraw_colorinfo_value(cells[i], "base_column", base);
+            zdraw_colorinfo_value(cells[i], "cell_width", width ? width : -1);
+        }
+        x = end;
+    }
+}
+
 static int
 zccmd_snapshot(const char *nam, char **args)
 {
     LinkNode node, field;
     LinkList info, cell;
     WINDOW *win, *copy;
+    LinkList *line = NULL;
+    int occupancy = args[2] != NULL;
     int rows, cols, y, x, cursor_y, cursor_x, result = 0;
     size_t bytes = 0;
     char key[3 * DIGBUFSIZE + 32];
 
+    if (occupancy && strcmp(args[2], "occupancy")) return 1;
     if (zdraw_association(nam, args[1]))
         return 1;
     node = zdraw_validate_window(args[0], ZDRAW_USED);
@@ -3752,9 +3826,20 @@ zccmd_snapshot(const char *nam, char **args)
     }
     if (bytes > ZDRAW_SNAPSHOT_BYTES)
         result = 1;
+    if (occupancy) line = (LinkList *)zhalloc((size_t)cols * sizeof(*line));
     for (y = 0; y < rows && !result; y++) {
+        if (occupancy) {
+            for (x = 0; x < cols; x++) {
+                if (wmove(copy, y, x) == ERR || zdraw_cell_record(nam, copy, &line[x])) {
+                    result = 1; break;
+                }
+            }
+            if (result) break;
+            zdraw_occupancy(line, cols);
+        }
         for (x = 0; x < cols && !result; x++) {
-            if (wmove(copy, y, x) == ERR || zdraw_cell_record(nam, copy, &cell)) {
+            if (occupancy) cell = line[x];
+            else if (wmove(copy, y, x) == ERR || zdraw_cell_record(nam, copy, &cell)) {
                 result = 1;
                 break;
             }
@@ -5460,7 +5545,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"mouse", zccmd_mouse, 0, -1},
 	{"querychar", zccmd_querychar, 1, 2},
         {"cellinfo", zccmd_cellinfo, 2, 2},
-        {"snapshot", zccmd_snapshot, 2, 2},
+        {"snapshot", zccmd_snapshot, 2, 3},
 	{"touch", zccmd_touch, 1, -1},
 	{"resize", zccmd_resize, 2, 3},
 	{NULL, (zccmd_t)0, 0, 0}
@@ -5564,6 +5649,7 @@ zdraw_featuresgetfn(UNUSED(Param pm))
         "resource_info",
         "cell_inspection",
         "window_snapshots",
+        "cell_occupancy",
         "staged_refresh",
 #ifdef HAVE_MVWIN
         "window_movement",

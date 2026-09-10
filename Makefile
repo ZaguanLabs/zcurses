@@ -13,6 +13,9 @@ test: build
 	"$(ZSH_BIN)" -dfn tests/colorinfo.zsh
 	"$(ZSH_BIN)" -dfn tests/cellinfo.zsh
 	"$(ZSH_BIN)" -dfn tests/snapshot.zsh
+	"$(ZSH_BIN)" -dfn tests/screen.zsh
+	"$(ZSH_BIN)" -dfn lib/zdraw-screen.zsh
+	"$(ZSH_BIN)" -dfn scripts/replay-recipe.zsh
 	"$(ZSH_BIN)" -dfn tests/fill.zsh
 	"$(ZSH_BIN)" -dfn tests/copy.zsh
 	"$(ZSH_BIN)" -dfn tests/restyle.zsh

@@ -67,7 +67,7 @@ xitem(tt(zdraw) tt(mouse) [ tt(delay) var(num) | [tt(+)|tt(-)]tt(motion) ])
 xitem(tt(zdraw) tt(timeout) var(targetwin) var(intval))
 xitem(tt(zdraw) tt(querychar) var(targetwin) [ var(param) ])
 xitem(tt(zdraw) tt(cellinfo) var(targetwin) var(association))
-xitem(tt(zdraw) tt(snapshot) var(targetwin) var(association))
+xitem(tt(zdraw) tt(snapshot) var(targetwin) var(association) [ tt(occupancy) ])
 xitem(tt(zdraw) tt(copy) var(sourcewin) var(source_row) var(source_column) var(targetwin) var(row) var(column) var(rows) var(columns))
 xitem(tt(zdraw) tt(overlay) var(sourcewin) var(source_row) var(source_column) var(targetwin) var(row) var(column) var(rows) var(columns))
 xitem(tt(zdraw) tt(restyle) var(targetwin) var(row) var(column) var(rows) var(columns) var(style))
@@ -1481,8 +1481,24 @@ Each coordinate has all ten tt(cellinfo) fields under keys of the form
  tt(row,column,field), with zero-based decimal coordinates. For example,
  tt(frame[2,5,text]) is the cell text at row 2, column 5. Encoding and color
 limitations are identical to tt(cellinfo). On ncurses, wide-character text is
-repeated at occupied continuation columns; no leading-cell or grapheme metadata
-is inferred. Concatenating cell text is not a way to reconstruct a rendered row.
+repeated at occupied continuation columns; by default no leading-cell or grapheme
+metadata is inferred. Concatenating cell text is not a way to reconstruct a rendered row.
+
+The optional final argument tt(occupancy), advertised by tt(cell_occupancy),
+adds tt(occupancy), tt(occupancy_source), tt(base_column), tt(cell_width) and
+ tt(style_supported) to every coordinate. Printable single-column cells report
+ tt(single), tt(readback) and their own base column. Wide equal-text/style/pair
+runs bounded on both sides by different cells and divisible by the system width
+report tt(base) or tt(continuation), with source tt(inferred). This is conservative
+inference from public readback, not access to authoritative library flags.
+Runs touching either horizontal edge, clipped/shared edges and invalid or partial
+runs report tt(unknown) for occupancy, source and base. Width is the first stored
+character's positive system width, or tt(unknown). Corrupted wide storage may be
+indistinguishable from complete runs; this metadata does not prove rendering.
+The tt(style_supported) field is tt(yes) if every non-color attribute bit has a
+supported style name, otherwise tt(no), including alternate-character-set flags.
+Default snapshots retain their original fields. The same cell and byte limits
+apply to the optional fields. No grapheme segmentation is performed.
 
 The versioned record is for inspection and comparison, not terminal-image capture,
 restoration or a binary curses-window dump. Compare format, dimensions and the
@@ -1546,6 +1562,7 @@ sitem(tt(region_copy))(Bounded opaque copies of retained rectangles.)
 sitem(tt(transparent_copy))(Bounded region copying with plain spaces as transparent holes.)
 sitem(tt(region_fill))(Styled rectangle fills using single-column tiles.)
 sitem(tt(window_snapshots))(Bounded capture of retained window cells into an association.)
+sitem(tt(cell_occupancy))(Optional conservative cell occupancy and style metadata in snapshots.)
 sitem(tt(cell_inspection))(Structured readback of the current retained cell.)
 sitem(tt(wide_cell_inspection))(Complete stored complex-character text, including combining marks.)
 sitem(tt(colorinfo))(Runtime color information through tt(colorinfo).)

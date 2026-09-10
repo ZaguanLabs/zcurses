@@ -75,6 +75,9 @@ combines them with responsive chapter navigation.
 
 [Visual regression tooling](docs/visual-regression.md) exports portable readback
 fixtures and compares text, styles and geometry, with optional HTML reports.
+[Recording and restoration](docs/recording-and-restoration.md) adds explicit PTY
+input/resize replay, optional snapshot occupancy metadata and a separate bounded
+text-screen format with symbolic styles.
 
 **`zdraw geometry array`** queries the controlling terminal's current rows
 and columns without a subprocess or screen update. The read-only
@@ -257,6 +260,7 @@ unknown, so the application chooses its fallback policy.
 | `custom_borders` | Eight-character borders, including printable ASCII |
 | `wide_borders` | Unicode borders through `setcchar` and `wborder_set` |
 | `window_snapshots` | Bounded capture of retained window cells into an association |
+| `cell_occupancy` | Optional conservative occupancy metadata in snapshots |
 | `cell_inspection` | Structured readback of the current retained cell |
 | `wide_cell_inspection` | Complete complex-character text, including stored combining marks |
 | `colorinfo` | Runtime color capabilities and allocation information |
@@ -1349,8 +1353,14 @@ coordinates. For example, `frame[2,5,text]`, `frame[2,5,attributes]` and
 `frame[2,5,color]` describe the cell at row 2, column 5. All ten `cellinfo` fields
 are included, with identical meanings and encoding/color limitations. Readback
 on ncurses repeats a wide character's stored text at its occupied continuation
-columns; the snapshot does not infer leading cells or grapheme boundaries.
+columns; the default snapshot does not infer leading cells or grapheme boundaries.
 Do not concatenate each coordinate's `text` to reconstruct a rendered row.
+
+An optional final `occupancy` argument adds conservative occupancy, provenance,
+base-column, cell-width and supported-style metadata. Wide cells at clipped or
+shared edges remain unknown; interior wide runs are explicitly inferred. See
+[recording and restoration](docs/recording-and-restoration.md) for these fields
+and the separate `zdraw-screen-1` single-column restoration contract.
 
 This versioned record supports inspection and comparisons. It is not a terminal
 image, a restore command or a portable binary curses-window dump. To compare
