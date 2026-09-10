@@ -3621,6 +3621,107 @@ zccmd_textpos(const char *nam, char **args)
     return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
 }
 
+#define ZDRAW_WRAP_BYTES 1048576
+#define ZDRAW_WRAP_LINES 4096
+
+/* Output ranges refer to original bytes and unwrapped columns. The strings
+ * remain metafied until normal parameter assignment; do not re-encode them. */
+static void
+zdraw_wrap_line(LinkList info, int index, char *start, char *end,
+                int byte_start, int byte_end, int column_start, int column_end)
+{
+    static const char *fields[] = {
+        "byte_start", "byte_end", "column_start", "column_end", "width"
+    };
+    int values[5], i;
+    char key[64], *text;
+    size_t len = end - start;
+    text = zhalloc(len + 1);
+    memcpy(text, start, len);
+    text[len] = '\0';
+    sprintf(key, "%d,text", index);
+    addlinknode(info, dupstring(key));
+    addlinknode(info, text);
+    values[0] = byte_start;
+    values[1] = byte_end;
+    values[2] = column_start;
+    values[3] = column_end;
+    values[4] = column_end - column_start;
+    for (i = 0; i < 5; i++) {
+        sprintf(key, "%d,%s", index, fields[i]);
+        zdraw_event_number(info, key, values[i]);
+    }
+}
+
+/* Greedy column wrapping of one printable logical line. A boundary is emitted
+ * only before a spacing character, keeping every zero-width suffix with its
+ * base. Partial results never reach the destination parameter. */
+static int
+zccmd_textwrap(const char *nam, char **args)
+{
+    LinkList info;
+    char *str = args[1], *start = str, *before, *p;
+    int budget, cw, result, wide = 0, nlines = 0;
+    int bytes = 0, width = 0, start_byte = 0, start_column = 0;
+    convchar_t wc;
+    if (zdraw_association(nam, args[0]))
+        return 1;
+    if (zdraw_nonnegative(args[2], &budget) || !budget) {
+        zwarnnam(nam, "textwrap expects a positive decimal column budget");
+        return 1;
+    }
+    info = newlinklist();
+#ifdef MULTIBYTE_SUPPORT
+    wide = 1;
+#endif
+    MB_METACHARINIT();
+    while (*str) {
+        before = str;
+        result = zdraw_text_next(&str, wide, &wc, &cw);
+        if (result || (!cw && !width) || width > INT_MAX - cw) {
+            zwarnnam(nam, "textwrap requires printable text with a spacing character before zero-width characters");
+            return result == 2 ? 2 : 1;
+        }
+        if (cw > budget) {
+            zwarnnam(nam, "textwrap character exceeds the column budget");
+            return 1;
+        }
+        if (cw > budget - (width - start_column)) {
+            /* Reserve a slot for the nonempty line now starting. */
+            if (nlines >= ZDRAW_WRAP_LINES - 1) {
+                zwarnnam(nam, "textwrap exceeds the line limit");
+                return 1;
+            }
+            zdraw_wrap_line(info, nlines++, start, before, start_byte, bytes,
+                            start_column, width);
+            start = before;
+            start_byte = bytes;
+            start_column = width;
+        }
+        for (p = before; p < str; p++) {
+            if (bytes == ZDRAW_WRAP_BYTES) {
+                zwarnnam(nam, "textwrap exceeds the source byte limit");
+                return 1;
+            }
+            if (*p == Meta)
+                p++;
+            bytes++;
+        }
+        width += cw;
+    }
+    zdraw_wrap_line(info, nlines++, start, str, start_byte, bytes,
+                    start_column, width);
+    addlinknode(info, "format");
+    addlinknode(info, "zdraw-textwrap-1");
+    zdraw_event_number(info, "columns", budget);
+    zdraw_event_number(info, "line_count", nlines);
+    zdraw_event_number(info, "total_bytes", bytes);
+    zdraw_event_number(info, "total_width", width);
+    zdraw_event_number(info, "byte_limit", ZDRAW_WRAP_BYTES);
+    zdraw_event_number(info, "line_limit", ZDRAW_WRAP_LINES);
+    return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
 static int
 zccmd_resize(const char *nam, char **args)
 {
@@ -3721,6 +3822,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"colorinfo", zccmd_colorinfo, 1, 1},
 	{"textinfo", zccmd_textinfo, 2, 3},
         {"textpos", zccmd_textpos, 4, 4},
+        {"textwrap", zccmd_textwrap, 3, 3},
 	{"truecolor", zccmd_truecolor, 1, 1},
 	{"char", zccmd_char, 2, 2},
 	{"string", zccmd_string, 2, 2},
@@ -3775,6 +3877,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
     if (zcsc->cmd != zccmd_init && zcsc->cmd != zccmd_endwin &&
 	zcsc->cmd != zccmd_geometry && zcsc->cmd != zccmd_colorinfo &&
 	zcsc->cmd != zccmd_textinfo && zcsc->cmd != zccmd_textpos &&
+        zcsc->cmd != zccmd_textwrap &&
 	!zdraw_getwindowbyname("stdscr")) {
 	zwarnnam(nam, "command `%s' can't be used before `zdraw init'",
 		 zcsc->name);
@@ -3842,6 +3945,7 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 #endif
 	"custom_borders",
 	"textinfo",
+        "text_wrapping",
         "text_positions",
         "structured_events",
 #ifdef NCURSES_VERSION

@@ -244,6 +244,31 @@ selection policy and conversion from screen coordinates. The standalone
 spans and structured keyboard/mouse events, redrawing only after a relevant event.
 
 
+## Wrapped source ranges
+
+`textwrap` scans one printable logical line using the shared text decoder. A
+positive-width character that would overflow the current row closes that row
+before its own source bytes. Zero-width suffixes therefore remain attached even
+when the preceding base exactly filled the row. No units, spaces or bytes are
+discarded. Overwide units and controls fail instead of introducing implicit
+replacement, word-breaking or multiline policy.
+
+Each completed row contributes its original metafied substring, decoded source
+byte endpoints, unwrapped column endpoints and width to a temporary list. Byte
+counting skips internal Meta escapes. The single pass needs no per-character map
+or repeated rescanning of suffixes. Source bytes are capped at 1 MiB and rows at
+4096, bounding text and per-row metadata independently. Assignment happens only
+after successful validation, so failures cannot publish partial rows. All storage
+is per-call; end/unload has no new persistent state to release.
+
+Headless tests compare rows to repeated `textinfo` clipping, rejoin the input and
+check every boundary through `textpos`. Explicit cases cover exact-width combining
+suffixes, wide units, empty text, ASCII fallback, locale changes, byte/row limits,
+target validation and discarded partial results. A PTY composition test calls
+the query while a frame is queued and verifies input/presentation remain unchanged.
+The reflow example keeps a selection attached to an original byte while width
+changes move its row boundaries. Layout and scrolling policy stay in Zsh.
+
 ## Retained-cell inspection
 
 `cellinfo` reads the current cursor cell without moving it. This avoids changing

@@ -207,6 +207,7 @@ unknown, so the application chooses its fallback policy.
 | `clipped_spans` | Styled-span drawing with one shared column budget |
 | `textinfo` | Headless text measurement and prefix clipping; printable ASCII always supported |
 | `text_positions` | Headless mapping between source byte offsets and displayed columns |
+| `text_wrapping` | Bounded headless column wrapping with original source ranges |
 | `wide_text` | Locale-based multibyte measurement/clipping, independent of wide curses support |
 
 Read the array as a set: order is unspecified, and future names should be ignored
@@ -556,6 +557,76 @@ mouse input selects a complete unit:
 .build/zsh/Src/zsh -df examples/hit-test.zsh
 .build/zsh/Src/zsh -df examples/hit-test.zsh --mouse
 ```
+
+### Wrapped text and source ranges
+
+```zsh
+typeset -A wrapped
+zdraw textwrap wrapped $'ăe\u0301界b' 3
+# Row 0: ăé, width 2, original bytes [0,5), original columns [0,2)
+# Row 1: 界b, width 3, original bytes [5,9), original columns [2,5)
+print -r -- "$wrapped[0,text]"
+```
+
+`zdraw textwrap association text columns` greedily wraps **one printable logical
+line** into complete clipping units. Each positive-width character keeps its
+following zero-width characters, using the same decoder and width policy as
+`textinfo` and `textpos`. A row ends before the next unit that would exceed the
+budget. Spaces are retained exactly; words can cross row boundaries. Tabs,
+newlines and other controls are rejected. Applications own logical-line splitting,
+word-breaking and indentation policy.
+
+The budget is a positive literal decimal integer through `INT_MAX`. A unit wider
+than the budget fails the whole query; it is never split, dropped or placed on an
+overwide row. Empty text produces one empty row. An exact fit does not produce
+an extra trailing row. The query accepts at most **1,048,576 original bytes**
+and returns at most **4,096 rows**. These limits bound temporary result storage,
+including internal escaped strings and hash entries, rather than exact peak bytes.
+
+The ordinary writable association is replaced, or created if absent, with:
+
+| Key | Meaning |
+| --- | --- |
+| `format` | `zdraw-textwrap-1` |
+| `columns` | Requested per-row column budget |
+| `line_count` | Number of output rows, including one for empty text |
+| `total_bytes`, `total_width` | Original encoded byte length and unwrapped display width |
+| `byte_limit`, `line_limit` | Compiled input-byte and output-row limits |
+| `N,text` | Original text belonging to zero-based row `N` |
+| `N,byte_start`, `N,byte_end` | Half-open source byte range for row `N` |
+| `N,column_start`, `N,column_end` | Half-open column range in the unwrapped source |
+| `N,width` | Display width of row `N`; the difference between its column endpoints |
+
+Byte offsets count original encoded bytes, not Zsh character indices or internal
+escapes. Concatenating row texts in order reconstructs the input exactly. The
+ranges are contiguous even when a row leaves unused columns before a wide unit.
+For a hit in row `N`, add its `column_start` to the row-local column and query
+the original text with `textpos`; validate against `N,width` first so a click
+in unused space does not select the next row. Source byte offsets can also keep
+a selection anchored while reflow changes the row boundaries.
+
+The complete result is prepared before assignment. Invalid text, excess rows or
+bytes, and invalid arguments leave the destination unchanged or absent. Status
+is 0 on success, 1 for those errors or assignment failure, and 2 for non-ASCII
+input on a build without `wide_text`. Check `text_wrapping` for the command.
+It works without `init` or a terminal, reads no input, changes no drawing state,
+and never presents a pending frame. It scans the input once and stores only row
+ranges and returned text, with no persistent module cache.
+
+These are clipping units, not grapheme clusters or Unicode word boundaries.
+Widths follow the current locale and `MULTIBYTE` setting; terminal shaping may
+differ. As with `textinfo`, analysis does not enforce curses' combining-character
+storage limit. Recompute when the text, width or locale changes.
+
+Run the [reflow example](examples/wrapping.zsh) with the matching shell:
+
+```sh
+.build/zsh/Src/zsh -df examples/wrapping.zsh
+```
+
+`+`/`-` adjust width, up/down select a row, and `q` exits. Terminal resizing
+reflows the paragraph while retaining the selected source byte. The example
+also handles terminals too small to display the body.
 
 ### Clipped styled spans
 

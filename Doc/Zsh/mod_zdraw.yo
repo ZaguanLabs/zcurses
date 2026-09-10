@@ -33,6 +33,7 @@ xitem(tt(zdraw) tt(geometry) var(array))
 xitem(tt(zdraw) tt(colorinfo) var(association))
 xitem(tt(zdraw) tt(textinfo) var(association) var(text) [ var(columns) ])
 xitem(tt(zdraw) tt(textpos) var(association) var(text) tt(column)|tt(byte) var(offset))
+xitem(tt(zdraw) tt(textwrap) var(association) var(text) var(columns))
 xitem(tt(zdraw) tt(truecolor) tt(on)|tt(off))
 xitem(tt(zdraw) tt(char) var(targetwin) var(character) )
 xitem(tt(zdraw) tt(string) var(targetwin) var(string) )
@@ -57,7 +58,8 @@ xitem(tt(zdraw) tt(copy) var(sourcewin) var(source_row) var(source_column) var(t
 xitem(tt(zdraw) tt(restyle) var(targetwin) var(row) var(column) var(rows) var(columns) var(style))
 xitem(tt(zdraw) tt(fill) var(targetwin) var(row) var(column) var(rows) var(columns) var(style) var(tile))
 item(tt(zdraw) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
-Manipulate curses windows.  Except for tt(geometry), tt(colorinfo), tt(textinfo) and tt(textpos), uses of
+Manipulate curses windows. Except for tt(geometry), tt(colorinfo), tt(textinfo),
+tt(textpos) and tt(textwrap), uses of
 this command should be
 bracketed by `tt(zdraw init)' to initialise use of curses, and
 `tt(zdraw end)' to end it; omitting `tt(zdraw end)' can cause
@@ -411,6 +413,52 @@ zero-width joiner stays with its preceding base and the next positive-width
 character starts another unit. Terminal emoji shaping and curses storage limits
 are not modeled. To hit-test clipped text, query the prefix from tt(textinfo)
 and subtract the drawing origin from the mouse's screen coordinates.
+
+The subcommand tt(textwrap) greedily wraps one printable logical line into rows
+within a positive literal decimal column budget, at most tt(INT_MAX). Clipping
+units and widths follow tt(textinfo): a spacing character keeps its following
+zero-width characters. A row ends before the next unit that would exceed the
+budget. A unit wider than the budget fails the whole query. Spaces are retained
+exactly; words may cross rows. Tabs, newlines and other controls are rejected.
+Applications own logical-line splitting, word-breaking and indentation policy.
+
+Empty text returns one empty row. An exact fit does not add a trailing empty row.
+Input is limited to 1048576 original encoded bytes and output to 4096 rows.
+These bounds limit result storage but do not specify exact peak bytes for
+internal escaped strings, temporary storage and hash entries. The ordinary
+writable association is replaced or created with:
+startsitem()
+sitem(tt(format))(tt(zdraw-textwrap-1).)
+sitem(tt(columns))(Requested per-row column budget.)
+sitem(tt(line_count))(Number of rows, including one for empty text.)
+sitem(tt(total_bytes), tt(total_width))(Original byte length and unwrapped width.)
+sitem(tt(byte_limit), tt(line_limit))(Compiled input-byte and output-row limits.)
+sitem(var(N)tt(,text))(Original text for zero-based row var(N).)
+sitem(var(N)tt(,byte_start), var(N)tt(,byte_end))(Half-open source byte range.)
+sitem(var(N)tt(,column_start), var(N)tt(,column_end))(Half-open column range in
+the unwrapped source.)
+sitem(var(N)tt(,width))(Row width, the difference between its column endpoints.)
+endsitem()
+
+Byte offsets count original encoded bytes, not shell character indices or
+internal escapes. Concatenating rows in order reconstructs the input exactly.
+Ranges remain contiguous even when a row leaves unused columns before a wide
+unit. To hit-test a row, first validate the local column against that row's width,
+then add its tt(column_start) and query the original text with tt(textpos).
+Source byte offsets can retain a selection across reflow.
+
+All rows are prepared before assignment. Invalid input, excess bytes or rows,
+and invalid arguments leave the destination unchanged or absent. Status is 0 on
+success, 1 for those errors or assignment failure, and 2 for non-ASCII input on
+a build without tt(wide_text). Check tt(text_wrapping) for the command. It needs
+no tt(init) or terminal, reads no input, changes no drawing state and does not
+present queued frames. It scans the input once, retaining only row ranges and
+returned text with no persistent cache.
+
+These are clipping units, not Unicode grapheme clusters or word boundaries.
+The current locale and tt(MULTIBYTE) setting determine widths; terminal shaping
+can differ. Analysis does not enforce curses' combining-character storage limit.
+Recompute after changing the text, budget or locale.
 
 
 The subcommand tt(truecolor) accepts exactly tt(on) or tt(off).  It enables or
@@ -1081,6 +1129,7 @@ sitem(tt(prepared_rows))(Immutable session-scoped styled rows with clipping and 
 sitem(tt(styled_spans))(Single-row styled text batching.)
 sitem(tt(clipped_spans))(Styled-span drawing with one column budget.)
 sitem(tt(textinfo))(Headless text measurement and prefix clipping.)
+sitem(tt(text_wrapping))(Bounded headless column wrapping with original source ranges.)
 sitem(tt(text_positions))(Headless mapping between byte offsets and displayed columns.)
 sitem(tt(wide_text))(Locale-based multibyte measurement and clipping, independent
 of wide curses support.)

@@ -7,7 +7,7 @@ A completed first milestone does not complete the broader direction.
 
 Implemented first milestones (2026-09-09): [structured input](../README.md#structured-input)
 and [prepared styled rows](../README.md#prepared-styled-rows), followed by opt-in
-`event ... norefresh` on ncurses and headless `textpos` hit-testing. The 52-test suite passes against the matching
+`event ... norefresh` on ncurses and headless text geometry. The 54-test suite passes against the matching
 Zsh 5.9.2 shell, including optional builds. The new paths also pass ASan/UBSan checks
 with leak detection disabled. The native manual
 builds and the exported patch applies in a dry run. See the
@@ -114,7 +114,11 @@ selection, highlighting and scrolling without implementing editor policy in C.
   with headless `textpos` queries, end boundaries and complete clipping units.
 - [x] Define wide-cell hit-testing: either occupied column selects the complete
   clipping unit and its source bytes.
-- [ ] Return source ranges for wrapped lines.
+- [x] Return source ranges for column-wrapped printable logical lines, with
+  complete clipping units, byte/row limits and atomic result assignment.
+  Verify reconstruction and hit-testing boundaries; provide a source-anchored
+  [reflow example](../examples/wrapping.zsh).
+- [ ] Consider word-breaking and multiline source-range policies separately.
 - [ ] Explore optional grapheme-aware cursor/clipping boundaries.
 - [x] Keep clipping units, terminal width policy and curses storage limits
   distinct; document that `textpos` does not provide grapheme segmentation.

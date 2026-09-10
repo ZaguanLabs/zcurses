@@ -9,6 +9,7 @@ check() { "$@" || fail "$*"; }
 reject() { "$@" 2>/dev/null && fail "unexpected success: $*"; return 0; }
 step() { print -r -u "$report_fd" -- "$1"; read -r -u "$control_fd" || fail 'control EOF'; }
 typeset -A event=(sentinel yes)
+typeset -A wrapped
 step baseline
 check zdraw init
 {
@@ -19,6 +20,8 @@ check zdraw init
   check zdraw spans stdscr 2 0 '' FRAMEHEADER
   check zdraw stage stdscr
   check zdraw viewport canvas 30 50 4 0 1 12
+  check zdraw textwrap wrapped 'Headless query during composition' 8
+  [[ $wrapped[0,text] == 'Headless' ]] || fail 'active-session wrapping'
   step staged
   # The parent queued X before releasing this barrier. Rejected pad input
   # must neither consume it nor reveal the staged frame.
