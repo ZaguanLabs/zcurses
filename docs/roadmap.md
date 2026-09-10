@@ -172,11 +172,16 @@ Full interactive subprocess emulation is a separate, much larger project.
 
 Extend compiled-feature/runtime-state separation with the origin of each claim.
 
-- [ ] Define capability status, evidence source and enabled-state fields.
-- [ ] Distinguish build checks, terminfo, replies and application overrides.
-- [ ] Preserve `unknown` for unanswered or ambiguous queries.
-- [ ] Route opt-in queries through the input owner with bounded reply handling.
+- [x] Define capability status, evidence source and enabled-state fields.
+- [x] Distinguish build checks, terminfo, replies and application overrides.
+- [x] Preserve `unknown` for unanswered or ambiguous queries.
+- [x] Route opt-in queries through the input owner with bounded reply handling.
 - [ ] Test fallbacks through multiplexers and remote connections.
+
+Delivered in [implementation milestone 3](implementation-plan.md#3-capability-evidence-and-portability).
+The [recorded matrix](portability/README.md) covers real xterm/tmux/screen sessions
+and simulated slow/unresponsive transport. The remaining remote-connection entry
+requires actual SSH coverage; it is not implied by the PTY simulations.
 
 ## 8. Suspend and resume
 

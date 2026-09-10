@@ -137,26 +137,54 @@ refresh and terminal paint latency. Retain this evidence for milestone 7.
 Establish trustworthy reporting before introducing more negotiated protocols.
 Read-only inspection and active negotiation must be distinct operations.
 
-- [ ] Define capability records separating support status, evidence source and
+- [x] Define capability records separating support status, evidence source and
   enabled state. Preserve `unknown`; distinguish compiled support, terminfo,
   observed replies and explicit application overrides.
-- [ ] Implement passive inspection using existing evidence without writing
+- [x] Implement passive inspection using existing evidence without writing
   queries, consuming input or enabling terminal modes.
-- [ ] Define and implement bounded, explicit query handling through the existing
+- [x] Define and implement bounded, explicit query handling through the existing
   input owner: fragmented replies, timeouts, unsolicited/late replies, unrelated
   keystrokes, cancellation, suspend/resume and cleanup.
-- [ ] Create a reproducible compatibility matrix recording terminal, multiplexer,
+- [x] Create a reproducible compatibility matrix recording terminal, multiplexer,
   curses, Zsh and locale versions. Record untested combinations honestly; include
   a remote/slow connection scenario and interruption cases.
-- [ ] Expand real-shell job-control tests around explicit suspend/resume, including
+- [x] Expand real-shell job-control tests around explicit suspend/resume, including
   foreground/background transitions and applications' signal/trap ownership.
-- [ ] Investigate no-refresh input on another curses implementation; enable it
+- [x] Investigate no-refresh input on another curses implementation; enable it
   only with equivalent presentation evidence, otherwise retain the unsupported
   result and document the tested limitation.
 
 **Completion:** an inspector explains both what is known and why, while failed or
 unanswered negotiation preserves usable input and cleanup. This does not imply
 support for every terminal or curses implementation.
+
+**Completed 2026-09-10 — implementation commit `5601ecb`.**
+The [capability guide](capabilities.md) specifies passive records with independent
+compiled support, evidence, record-only overrides and module activation. Explicit
+DECRQM requests for paste, focus and synchronized output use exact reply keys in
+the existing curses decoder; there is one pending request and one attempt per
+mode per session. Unanswered requests stay unknown. No focus or synchronized-output
+activation was introduced. The inspector begins passively and lets applications
+exercise queries and overrides deliberately.
+
+Verification: all 89 tests passed against the selected public Zsh 5.9.2 source
+release and matching built shell. Coverage includes fragmented/late/invalid
+reports, all five reply values, registration rollback, optional builds, paste,
+cleanup, inspector resize and application-owned signal traps through interactive
+`bg`/`fg`. Background resume now refuses to change terminal modes where terminal
+process groups are available. Changed Zsh files passed parse checks; the native
+manual builds and the exported integration patch passes a dry run against the
+public source release. Final local log: `.build/capabilities-final-make-test.log`.
+
+The [portability record](portability/README.md) includes reproducible real xterm,
+tmux and screen observations plus controlled slow/unresponsive PTY scenarios.
+Actual SSH sessions and other emulator configurations are explicitly untested.
+The separate pinned NetBSD curses build passed byte and wide-character input-pad
+presentation probes. Full alternate-library module integration, resize and the
+retained-window suite remain unverified, so the native no-refresh gate stays
+ncurses-only (status 2 elsewhere). This completes the requested investigation;
+widening that gate is a separately bounded portability follow-up, not a claim of
+shipped NetBSD module support.
 
 ## 4. Focus and richer keyboard events
 
