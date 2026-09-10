@@ -618,22 +618,70 @@ solve native inline drawing.
 Separate a portable character-based preview from terminal image placement. Each
 can ship independently if its own contract is satisfied.
 
-- [ ] Prototype an optional adapter for bounded Unicode/ASCII image mosaics using
+- [x] Prototype an optional adapter for bounded Unicode/ASCII image mosaics using
   a documented external converter; do not make it a core runtime dependency.
-- [ ] Define maximum input/output sizes, palette limits, invalid output handling,
+- [x] Define maximum input/output sizes, palette limits, invalid output handling,
   placeholder/alt text, clipping and cancellation for the adapter.
-- [ ] Design one opt-in terminal image-placement experiment with explicit upload,
+- [x] Design one opt-in terminal image-placement experiment with explicit upload,
   placement, replacement, deletion and ownership of resources.
-- [ ] Investigate Unicode image placeholders against curses storage and width
+- [x] Investigate Unicode image placeholders against curses storage and width
   limits; test redraw, scrolling, overlays, resize and multiplexer behavior.
-- [ ] Verify suspend/resume, end/unload, interrupted uploads and resource cleanup;
+- [x] Verify suspend/resume, end/unload, interrupted uploads and resource cleanup;
   retain the text preview when terminal support is unavailable or uncertain.
-- [ ] Publish a working preview example and the evidence for accepting, narrowing
+- [x] Publish a working preview example and the evidence for accepting, narrowing
   or deferring the native placement API.
 
 **Completion:** the text-preview adapter is usable on its documented baseline.
 Native image placement remains experimental until its retained-screen lifecycle
 is demonstrated; merely emitting an image escape sequence is not completion.
+
+**Completed 2026-09-10 — implementation commit `187c39b`.**
+The [image-preview guide](image-previews.md) documents the optional ImageMagick 7
+converter and caller-owned `zdraw-image-1` raster. The
+[preview example](../examples/image-preview.zsh) decodes once before curses starts,
+then draws retained colored half blocks or ASCII density cells. It supports
+monochrome/theme colors, viewport cropping on resize, a missing-image placeholder,
+suspend/resume and cancellation. Drawing/export owns no converter, timer,
+descriptor or terminal protocol. The native module is unchanged.
+
+Input is limited to regular PNG/JPEG files of 8 MiB, at most 4096 pixels per side
+and 4,194,304 pixels total. Output is at most 4096 cells, 8192 sampled pixels and
+24,576 raw RGB bytes. A five-second conversion deadline, private decoder policy,
+bounded stdout reader and signal cleanup constrain the optional worker. A fixed
+16-color palette bounds half-block drawing to 256 ordered color pairs; warmed
+redraws allocate no additional pairs. Invalid packets leave prior raster state
+unchanged. Alt text is required and limited to 256 encoded bytes.
+
+The separate opt-in [placement fixture](../scripts/portability/image-source.zsh)
+uses one private image ID and quiet, bounded kitty graphics transfers in fresh
+terminals. The [recorded matrix](portability/image-matrix-2026-09-10.json) includes
+48 captures across Kitty 0.44.0, Kitty through tmux `next-3.3`, Kitty through
+Screen 5.0.1 and XTerm(407). Full row/column/high-ID combining marks round-trip
+through the selected ncurses cells at one column per placeholder. Direct Kitty
+and tmux display copied, covered, replaced and resized images. Direct Kitty
+resumes successfully; the tmux profile does not restore the image after resume.
+Neither restores visible image data after the interrupted-transfer reupload.
+Screen/direct-APC and xterm show no test-image pixels. Every profile has zero
+test-image pixels at suspend, end and unload capture points; this is visible
+cleanup evidence, not proof of all terminal-side memory being released.
+
+**Native placement API deferred:** quiet uploads do not establish acknowledged
+readiness/error ownership; interruption recovery and multiplexer redisplay remain
+unreliable. Curses has no image-resource registry or automatic image cleanup at
+session boundaries. The fixture coordinates deletion explicitly, and its fixed
+ID is only suitable for a fresh private terminal. These are concrete lifecycle
+gaps, so the experiment stays research and the ordinary text preview remains
+the usable baseline. Completing this milestone does not claim native image
+placement support in `zdraw`.
+
+Verification: all **137 tests passed** against the selected public Zsh 5.9.2 source
+release and matching built shell. Ten new tests cover conversion/byte/dimension
+limits, literal filenames, PNG/JPEG decoding, cancellation and worker reaping,
+atomic data loading, palette allocation, ASCII-only builds, resize, missing-image
+fallback, suspend/resume, terminal restoration, full placeholder storage and
+owned protocol cleanup on interruption/signals. Changed Zsh files pass parse
+checks. All 48 capture hashes were verified. Final log:
+`.build/image-final-make-test.log`.
 
 ## 13. Scaled text
 
