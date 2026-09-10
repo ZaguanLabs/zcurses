@@ -65,19 +65,32 @@ Start with a small chart vocabulary that fits the existing styling model. This
 adds more value initially than collecting many graph types. Reuse existing meters
 for single-value progress rather than building a duplicate meter component.
 
-- [ ] Define bounded numeric-series input, literal numeric validation, missing
+- [x] Define bounded numeric-series input, literal numeric validation, missing
   samples, fixed versus automatic scale, constant ranges and negative values.
-- [ ] Implement independently loadable sparklines and compact bar charts, with
+- [x] Implement independently loadable sparklines and compact bar charts, with
   shared theme roles and per-instance color/marker overrides.
-- [ ] Provide ASCII and Unicode renderings of the same data, with deliberate
+- [x] Provide ASCII and Unicode renderings of the same data, with deliberate
   empty, one-sample, narrow-viewport and out-of-range behavior.
-- [ ] Add a task-monitor recipe view showing bounded history, current values,
+- [x] Add a task-monitor recipe view showing bounded history, current values,
   units and scale labels; keep sampling and history ownership in the application.
-- [ ] Verify geometry and scaling headlessly, add retained-cell/visual fixtures,
+- [x] Verify geometry and scaling headlessly, add retained-cell/visual fixtures,
   and exercise resize, monochrome and fallback modes in the recipe.
 
 **Completion:** the same bounded series can be displayed and restyled in a small
 or large rectangle without changing application data or enabling a protocol.
+
+**Completed 2026-09-10 — implementation commit `cb7a0f7`.**
+The [compact-chart guide](compact-charts.md) documents the bounded signed-integer
+series, zero-inclusive automatic scales, fixed-scale clipping, missing samples,
+customizable ASCII/Unicode markers and projection helper. The task monitor's
+History tab owns a maximum of 96 samples and shows per-task gains with units.
+
+Verification: all 78 tests passed using `ZSH_BUILD_ROOT` set to the selected
+public Zsh 5.9.2 source tree and its matching built shell. Coverage includes an
+ASCII-only module variant, monochrome, new dark/light chart fixtures, PTY resize
+and reset, and clipping at a zero endpoint or one-column viewport. The final run
+is recorded locally in `.build/charts-final-make-test.log`; logs under `.build/`
+are not required to reproduce the tests. Changed Zsh files passed parse checks.
 
 ## 2. Character canvas
 
