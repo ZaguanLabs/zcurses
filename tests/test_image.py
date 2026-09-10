@@ -22,10 +22,11 @@ preview = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(preview)
 
 
-def png(width=2, height=2):
+def png(width=2, height=2, colors=((255, 255, 255),)):
     def chunk(kind, data):
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
-    raw = b''.join(b'\0' + bytes((255, 255, 255)) * width for _ in range(height))
+    row = b''.join(bytes(colors[x % len(colors)]) for x in range(width))
+    raw = b''.join(b'\0' + row for _ in range(height))
     return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0)) +
             chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
 
@@ -46,12 +47,12 @@ class ImageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=test_features.ROOT / '.build') as directory:
             image = Path(directory) / '-$(do-not-execute) [0].png'
             image.write_bytes(png())
-            packet = preview.convert(image, 1, 2)
+            packet = preview.convert(image, 1, 2, palette='ansi16')
             self.assertEqual(packet, 'zdraw-image-1 1 2\nff\nff\n')
             jpeg = Path(directory) / 'sample.jpg'
             subprocess.run(['magick', 'PNG:' + str(image.resolve()), str(jpeg)], check=True,
                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=5)
-            self.assertEqual(preview.convert(jpeg, 1, 2), packet)
+            self.assertEqual(preview.convert(jpeg, 1, 2, palette='ansi16'), packet)
             image.write_bytes(b'\x89PNG\r\n\x1a\n' + b'\0' * 30)
             with self.assertRaises(ValueError):
                 preview.convert(image, 1, 2)
@@ -70,6 +71,27 @@ class ImageTests(unittest.TestCase):
                 preview.read_image(image)
             with self.assertRaises(ValueError):
                 preview.convert(image, 65, 128)
+
+    @unittest.skipUnless(shutil.which('magick'), 'optional ImageMagick 7 converter unavailable')
+    def test_adaptive_palette_preserves_dark_surfaces_and_accents(self):
+        colors = ((0, 0, 0), (28, 28, 28), (48, 48, 48), (95, 135, 215),
+                  (215, 175, 0), (0, 175, 95), (238, 238, 238))
+        with tempfile.TemporaryDirectory(dir=test_features.ROOT / '.build') as directory:
+            image = Path(directory) / 'dark-ui.png'
+            image.write_bytes(png(7, 2, colors))
+            lines = preview.convert(image, 1, 7).splitlines()
+            self.assertEqual(lines[0], 'zdraw-image-2 1 7')
+            palette = list(map(int, lines[1].removeprefix('palette=').split(',')))
+            self.assertEqual(len(palette), 16)
+            self.assertTrue(all(16 <= color <= 255 for color in palette))
+            decoded = [preview.EXTENDED[palette[int(pixel, 16)] - 16] for pixel in lines[2]]
+            self.assertEqual(decoded, list(colors))
+            self.assertEqual(lines[2], lines[3])
+            # Complex inputs still fit the packet and per-image pair budgets.
+            image.write_bytes(png(128, 64, tuple((i*2, (i*41)%256, (i*83)%256) for i in range(128))))
+            packet = preview.convert(image, 32, 128)
+            self.assertLessEqual(len(packet), 8500)
+            self.assertEqual(len(packet.splitlines()), 66)
 
     def test_converter_output_deadline_and_reaping(self):
         with tempfile.TemporaryDirectory(dir=test_features.ROOT / '.build') as directory:

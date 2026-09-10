@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Optional PNG/JPEG -> bounded zdraw-image-1 data, using ImageMagick 7."""
+"""Optional PNG/JPEG -> bounded retained image data, using ImageMagick 7."""
 import argparse
 import os
 from pathlib import Path
@@ -18,6 +18,9 @@ PALETTE = ((0, 0, 0), (128, 0, 0), (0, 128, 0), (128, 128, 0),
            (0, 0, 128), (128, 0, 128), (0, 128, 128), (192, 192, 192),
            (128, 128, 128), (255, 0, 0), (0, 255, 0), (255, 255, 0),
            (0, 0, 255), (255, 0, 255), (0, 255, 255), (255, 255, 255))
+LEVELS = (0, 95, 135, 175, 215, 255)
+EXTENDED = tuple((r, g, b) for r in LEVELS for g in LEVELS for b in LEVELS) + tuple(
+    (8 + 10 * i,) * 3 for i in range(24))
 POLICY = '''<policymap>
 <policy domain="delegate" rights="none" pattern="*"/>
 <policy domain="filter" rights="none" pattern="*"/>
@@ -112,9 +115,11 @@ def bounded_process(command, *, env, cwd, expected, timeout=5):
         process.stdout.close()
 
 
-def convert(filename, rows, columns):
+def convert(filename, rows, columns, palette='adaptive'):
     if not (1 <= rows <= 64 and 1 <= columns <= 128 and rows * columns <= 4096):
         raise ValueError('preview must fit 1–64 rows, 1–128 columns and 4096 cells')
+    if palette not in ('adaptive', 'ansi16'):
+        raise ValueError('invalid palette')
     kind, data = read_image(filename)
     executable = shutil.which('magick')
     if executable is None:
@@ -131,14 +136,29 @@ def convert(filename, rows, columns):
                    '-limit', 'disk', '0', '-limit', 'thread', '1', '-limit', 'time', '5',
                    f'{kind}:{root / "input.bin"}[0]', '-auto-orient', '-background', '#000000',
                    '-alpha', 'remove', '-alpha', 'off', '-colorspace', 'sRGB',
-                   '-resize', size, '-gravity', 'center', '-extent', size, '-depth', '8', 'RGB:-']
+                   '-resize', size, '-gravity', 'center', '-extent', size]
+        if palette == 'adaptive':
+            command += ['+dither', '-colors', '16']
+        command += ['-depth', '8', 'RGB:-']
         rgb = bounded_process(command, env=env, cwd=directory, expected=rows * columns * 6)
-    indices = []
-    for offset in range(0, len(rgb), 3):
-        pixel = rgb[offset:offset + 3]
-        index = min(range(16), key=lambda i: sum((pixel[c] - PALETTE[i][c]) ** 2 for c in range(3)))
-        indices.append(format(index, 'x'))
-    return f'zdraw-image-1 {rows} {columns}\n' + '\n'.join(
+    pixels = [rgb[offset:offset + 3] for offset in range(0, len(rgb), 3)]
+    if palette == 'ansi16':
+        lookup = {pixel: min(range(16), key=lambda i: sum((pixel[c] - PALETTE[i][c]) ** 2 for c in range(3)))
+                  for pixel in set(pixels)}
+        header = f'zdraw-image-1 {rows} {columns}\n'
+    else:
+        unique = sorted(set(pixels))
+        if len(unique) > 16:
+            raise ValueError('converter exceeded its palette limit')
+        # Avoid terminal-customized ANSI colors; retain dark grays in 232–255.
+        mapped = {pixel: 16 + min(range(240), key=lambda i: sum((pixel[c] - EXTENDED[i][c]) ** 2 for c in range(3)))
+                  for pixel in unique}
+        colors = sorted(set(mapped.values()))
+        lookup = {pixel: colors.index(mapped[pixel]) for pixel in unique}
+        colors += [colors[-1]] * (16 - len(colors))
+        header = f'zdraw-image-2 {rows} {columns}\npalette=' + ','.join(map(str, colors)) + '\n'
+    indices = [format(lookup[pixel], 'x') for pixel in pixels]
+    return header + '\n'.join(
         ''.join(indices[start:start + columns]) for start in range(0, len(indices), columns)) + '\n'
 
 
@@ -147,6 +167,7 @@ def main():
     parser.add_argument('image', type=Path)
     parser.add_argument('--rows', type=int, default=24)
     parser.add_argument('--columns', type=int, default=80)
+    parser.add_argument('--palette', choices=('adaptive', 'ansi16'), default='adaptive')
     args = parser.parse_args()
     interrupted_status = 130
     def interrupted(signum, _frame):
@@ -155,7 +176,7 @@ def main():
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupted)
     try:
-        packet = convert(args.image, args.rows, args.columns)
+        packet = convert(args.image, args.rows, args.columns, args.palette)
         sys.stdout.write(packet)
     except KeyboardInterrupt:
         return interrupted_status

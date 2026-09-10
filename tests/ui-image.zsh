@@ -85,6 +85,29 @@ check zdraw init
   check zdraw resourceinfo resources_after
   [[ $resources_before[cached_color_pairs] == $resources_after[cached_color_pairs] ]] || fail 'palette redraw growth'
   check zdraw delwin palette
+  # Extended image colors preserve dark surfaces, independent of ANSI colors.
+  packet=$'zdraw-image-2 2 4\npalette=234,236,255,16,16,16,16,16,16,16,16,16,16,16,16,16\n0000\n0000\n2222\n2222'
+  check zdraw-image-load "$packet" 'Dark surface and light footer'
+  check zdraw-image-rows
+  [[ $reply[1] == '    ' && $reply[2] == '%%%%' ]] || fail 'adaptive ASCII luminance'
+  check zdraw-image-draw sample 0 0 1 2 normal fit=contain palette=auto
+  check zdraw snapshot sample after
+  if [[ $2 == wide ]]; then
+    [[ $after[0,0,color] == 234/255 ]] || fail 'contain lost lower image half or adaptive colors'
+  else [[ $after[0,0,text] == = ]] || fail 'adaptive ASCII fallback'; fi
+  check zdraw-image-draw sample 0 0 4 8 normal fit=contain palette=ascii colors=theme
+  check zdraw snapshot sample before
+  [[ $before[2,2,text] == % && $before[2,5,text] == % && $before[2,1,text] == ' ' && $before[3,2,text] == ' ' ]] || fail 'contain centering'
+  saved="${(j:|:)${(@kv)zdraw_ui_image}}"
+  for key in '234,236' '234,236,999,16,16,16,16,16,16,16,16,16,16,16,16,16' '234,236,x=1,16,16,16,16,16,16,16,16,16,16,16,16,16'; do
+    reject zdraw-image-load "${packet/234,236,255,16,16,16,16,16,16,16,16,16,16,16,16,16/$key}" Sample
+    [[ "${(j:|:)${(@kv)zdraw_ui_image}}" == "$saved" ]] || fail 'adaptive load not atomic'
+  done
+  reject zdraw-image-draw sample 0 0 1 2 normal fit=invalid
+  zdraw_ui_image[palette]='evil'
+  reject zdraw-image-draw sample 0 0 1 2 normal
+  check zdraw snapshot sample after
+  for key in "${(@k)before}"; do [[ $after[$key] == "$before[$key]" ]] || fail "invalid palette changed $key"; done
   check zdraw-image-load $'zdraw-image-1 1 2\nff\nff' Sample
 } always {
   zdraw end

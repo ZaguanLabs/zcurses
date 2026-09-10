@@ -683,6 +683,16 @@ owned protocol cleanup on interruption/signals. Changed Zsh files pass parse
 checks. All 48 capture hashes were verified. Final log:
 `.build/image-final-make-test.log`.
 
+Image-quality follow-up: the default converter now retains an adaptive palette
+using extended terminal colors, including dark grays. The example retains up to
+128 columns and fits the whole image on resize. Legacy packets and default
+cropping remain supported. Regression coverage checks palette validation, dark
+surfaces, colored accents, ASCII fallback and containment. Character mosaics still
+cannot preserve screenshot text at its original resolution. All **138 tests
+passed** against the matching Zsh 5.9.2 build; changed Zsh files pass parse
+checks. The actual example was visually checked in a private xterm session.
+Test log: `.build/image-quality-final-make-test.log`.
+
 ## 13. Scaled text
 
 Keep this last: it affects geometry, repainting, hit-testing and retained-screen

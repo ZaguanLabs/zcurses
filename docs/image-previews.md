@@ -21,9 +21,10 @@ magick -size 160x96 'gradient:#183650-#efb76d' .build/preview.png
 
 The example converts once before initializing curses. `g` switches between
 automatic glyphs and ASCII; `m` switches image colors to the theme; `s` exercises
-suspend/resume; `q` or Escape exits. Resize crops the retained image and clears the
-remaining viewport; it does not invoke the converter again. An unavailable
-converter or rejected input produces an `[Image unavailable]` placeholder. The
+suspend/resume; `q` or Escape exits. The example retains a 128-column, 32-row
+preview and centers it in the available space. Resize scales it down to keep the
+whole image visible and clears the remaining viewport; it does not invoke the
+converter again. An unavailable converter or rejected input produces an `[Image unavailable]` placeholder. The
 example uses a fixed caption, so a filename cannot become terminal control text.
 
 ## Compose it with an application
@@ -44,8 +45,8 @@ zdraw-image-rows || return
 # reply contains printable ASCII rows, also usable after module unload.
 
 # Inside an initialized session, after choosing a theme:
-zdraw-ui-theme dark 16
-zdraw-image-draw stdscr 2 2 16 64 normal palette=auto colors=image
+zdraw-ui-theme dark 256
+zdraw-image-draw stdscr 2 2 16 64 normal palette=auto colors=image fit=contain
 ```
 
 Public calls:
@@ -54,11 +55,13 @@ Public calls:
 | --- | --- |
 | `zdraw-image-load packet alt-text` | Validates complete data and atomically replaces `zdraw_ui_image`; failure preserves its prior value. Requires native text validation. |
 | `zdraw-image-rows` | Validates the retained raster and replaces caller-owned `reply` with ASCII density rows. Does not require an initialized or loaded module. |
-| `zdraw-image-draw win y x rows columns state [tokens...]` | Validates data, geometry and tokens before drawing; clears the viewport, then crops the raster from its upper-left corner. Preserves the window's cursor and current style. Does not present. |
+| `zdraw-image-draw win y x rows columns state [tokens...]` | Validates data, geometry and tokens before drawing; clears the viewport, then crops from the upper-left by default or centers and scales down with `fit=contain`. Preserves the window's cursor and current style. Does not present. |
 
-Use `palette=auto`, `ascii` or `block`, and `colors=image` or `theme`. Automatic
-mode selects half blocks only when a one-column block character and at least
-16 colors are available. A monochrome theme, `NO_COLOR`, insufficient colors or
+Use `palette=auto`, `ascii` or `block`, `colors=image` or `theme`, and
+`fit=crop` (default) or `contain`. Containment preserves aspect ratio to cell
+precision, samples pixel centers when shrinking, and never enlarges the raster.
+Automatic mode selects half blocks only when a one-column block character and
+at least 16 colors are available. A monochrome theme, `NO_COLOR`, insufficient colors or
 an ASCII-only build selects ASCII. Explicit `palette=block` returns status 2 when
 unsupported. Invalid input returns 1. Native allocation/write errors retain the
 native partial-write behavior; a multirow drawing operation is not transactional.
@@ -70,12 +73,13 @@ background. Half blocks use the upper/lower pixel colors as foreground/backgroun
 Borders, padding and alignment belong in an enclosing panel/layout; the renderer
 rejects those tokens rather than silently ignoring them.
 
-The retained association has `format=zdraw-image-1`, `rows`, `columns`, `alt`, and
-one `N,pixels` hexadecimal string for each pixel row, numbered from 1. There are
-two pixel rows per terminal row. The reader revalidates dimensions and every
-pixel before arithmetic or drawing. Applications can keep multiple associations
-and bind the desired one through normal Zsh dynamic scope. `_zi_*` and `_zui_*`
-names are reserved implementation locals. Loaded data owns no native resources,
+The retained association has `format=zdraw-image-2` (or legacy `zdraw-image-1`),
+`rows`, `columns`, `alt`, and one `N,pixels` hexadecimal string for each pixel
+row, numbered from 1. There are two pixel rows per terminal row. Version 2 also has a `palette` field containing
+16 comma-separated terminal color indices. The reader revalidates dimensions,
+palette entries and every pixel before arithmetic or drawing. Applications can
+keep multiple associations and bind the desired one through normal Zsh dynamic
+scope. `_zi_*` and `_zui_*` names are reserved implementation locals. Loaded data owns no native resources,
 descriptors, worker, input reader, timer or protocol state.
 
 ## Conversion contract
@@ -83,13 +87,22 @@ descriptors, worker, input reader, timer or protocol state.
 The converter writes only a complete ASCII packet to stdout:
 
 ```text
-zdraw-image-1 1 4
+zdraw-image-2 1 4
+palette=16,234,236,255,16,16,16,16,16,16,16,16,16,16,16,16
 0123
-cdef
+3210
 ```
 
-The header gives terminal rows and columns. Exactly twice that many pixel rows
-follow, each containing exactly `columns` lowercase hexadecimal palette indices.
+The header gives terminal rows and columns. Version 2 requires a `palette=` line
+with exactly 16 decimal terminal indices in 16–255 (duplicates are allowed).
+Exactly twice the header row count of pixel rows follow, each containing exactly
+`columns` lowercase hexadecimal palette indices. The converter defaults to
+version 2, choosing up to 16 image colors and mapping them to the standard xterm
+color cube and grayscale ramp. This preserves dark grays that ANSI black loses.
+Terminals with fewer than 256 colors use an approximate ANSI fallback.
+
+The loader still accepts version 1 without a palette line. Generate that legacy
+fixed ANSI palette using `--palette ansi16`.
 One final newline is accepted. Extra records, controls, missing pixels and invalid
 indices are rejected. The packet is data; never `source` or `eval` it.
 
@@ -102,8 +115,8 @@ indices are rejected. The packet is data; never `source` or `eval` it.
 | Converter output | Exactly six RGB bytes per terminal cell; at most 24,576 bytes. Supervisor reads no more than this budget plus one byte before rejecting excess output. |
 | Packet | At most 8500 characters accepted by the loader. Converter output is smaller than this bound. |
 | Alt text | Required, nonempty printable text, at most 256 encoded bytes. The caller chooses where to display it. |
-| Palette | Fixed 16 RGB targets, nearest squared RGB distance, no dithering. Terminal indices 0–15 may differ from those targets under user-customized terminal palettes. |
-| Color pairs | At most 256 ordered foreground/background combinations for half blocks, or 16 image foregrounds per chosen ASCII background. Warm redraws reuse cached pairs. |
+| Palette | Adaptive quantization to at most 16 colors, then nearest squared RGB distance to standard xterm indices 16–255; no dithering. Legacy `ansi16` uses fixed RGB targets for indices 0–15. Terminal palette customization can affect either mode. |
+| Color pairs | Per image: at most 256 ordered foreground/background combinations for half blocks, or 16 image foregrounds per chosen ASCII background, plus viewport styling. Warm redraws reuse cached pairs. Different adaptive palettes can allocate more cached pairs across images, subject to the native cache limit. |
 | Time | One five-second converter deadline; timeout kills and reaps the owned process group. |
 | Decoder policy | 128 MiB pixel-cache budget, no mapped/disk cache, one thread, five-second internal time limit, four-image internal list limit. Decoder operations can need temporary images; only frame zero is requested. |
 | Cleanup | Private temporary directory, removed on success, failure, SIGINT or SIGTERM. No output packet on conversion failure/cancellation. Exit 130/143 for those signals. |
@@ -119,7 +132,11 @@ Images are auto-oriented, flattened onto black, converted to sRGB, scaled to fit
 the sampled pixel rectangle and centered with black padding. The geometry assumes
 roughly two square image pixels per terminal cell vertically. Unusual font/cell
 aspect ratios need caller-selected dimensions. Color management, transparency,
-photographic detail and terminal palette customization can affect fidelity.
+photographic detail and terminal palette customization can affect fidelity. This
+is a character mosaic, not a full-resolution image viewer: small text, thin lines
+and subtle colored details in screenshots lose detail during downsampling. A
+256-color terminal improves dark-background contrast but cannot recover that
+detail. Native image rendering remains subject to the research limits below.
 
 Keep conversion out of a drawing callback. The example is deliberately synchronous
 before curses starts. An application that needs asynchronous previews owns its
