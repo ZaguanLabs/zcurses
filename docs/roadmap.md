@@ -5,6 +5,10 @@ set of candidates, not a promise to implement every item. Check an item only
 when its implementation, documentation and relevant verification are complete.
 A completed first milestone does not complete the broader direction.
 
+The [incremental implementation plan](implementation-plan.md) orders the remaining
+work by usefulness and dependencies, and records companion-layer work that already
+covers some older entries below. Use that plan for the next milestone checklist.
+
 The native exploration batch stopped after application integration (2026-09-10):
 streaming paste, suspend/resume, asynchronous input integration and colored command
 output. Remaining unchecked items are deferred candidates, not follow-on work for
