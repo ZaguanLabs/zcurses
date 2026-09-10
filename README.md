@@ -45,6 +45,10 @@ combines them with a queue table and controllable simulated progress:
 .build/zsh/Src/zsh -df examples/task-monitor.zsh
 ```
 
+[Editable inputs and forms](docs/inputs-and-forms.md) add Unicode-aware movement,
+selection, bounded streaming paste, validation and field navigation. Try the
+[connection form](examples/form.zsh); pass `--paste` to opt into bracketed paste.
+
 [Visual regression tooling](docs/visual-regression.md) exports portable readback
 fixtures and compares text, styles and geometry, with optional HTML reports.
 

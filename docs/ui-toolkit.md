@@ -433,7 +433,8 @@ idle input timeout. Large datasets may warrant a future measured optimization.
 - [x] Task-monitor recipe with simulated progress, pause, reset and view changes.
 - [x] Tabs, status badges, meters and whole-item help rows.
 - [x] [Portable visual fixtures and reviewable diffs](visual-regression.md), with theme/density baselines.
-- [ ] Separate proposals for inputs/forms and semantic document rendering.
+- [x] [Editable inputs and forms](inputs-and-forms.md): selection, streaming paste, validation and focus.
+- [ ] Semantic document rendering with wrapping and navigation.
 
 The unchecked items remain follow-ups, as do the experimental ideas in the
 research report. This first toolkit does not require adopting an application
