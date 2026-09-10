@@ -81,6 +81,9 @@ Try the task monitor with `--motion` or `--reduced-motion`.
 [Inline shell interaction](docs/inline-shell.md) experiments with a short ZLE
 picker below the prompt, optional asynchronous choices and restored editor state.
 Try `.build/zsh/Src/zsh -df scripts/inline-shell.zsh` in a terminal.
+[Image previews](docs/image-previews.md) convert PNG/JPEG files into retained
+colored half blocks or ASCII mosaics, with optional ImageMagick conversion and
+explicit resource bounds. Native image placement remains a documented experiment.
 [Recording and restoration](docs/recording-and-restoration.md) adds explicit PTY
 input/resize replay, optional snapshot occupancy metadata and a separate bounded
 text-screen format with symbolic styles.

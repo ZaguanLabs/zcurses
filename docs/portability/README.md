@@ -5,6 +5,24 @@ they do not establish universal terminal compatibility. All module tests used th
 matching public Zsh 5.9.2 build, ncurses 6.5 (header patch 20250802), Linux x86-64,
 and `C.UTF-8`. Kernel/libc details are in the recorded JSON.
 
+## Image placement experiment
+
+The [image-preview guide](../image-previews.md#native-placement-research) describes
+the bounded adapter and the separate opt-in placement experiment. The
+[image matrix](image-matrix-2026-09-10.json) records 12 visual lifecycle captures
+per profile, plus native placeholder readback. Images were displayed by Kitty
+0.44.0 directly and through tmux `next-3.3` with DCS passthrough, including copied
+and covered cells. Resume through that tmux profile and reupload after an
+interrupted transfer failed to restore visible images. The Screen/direct-APC and
+xterm profiles produced no test-image pixels. These are rendering observations,
+not support flags inferred from environment variables.
+
+The ordinary mosaic preview uses curses cells and remains the usable default.
+Native placement is deferred pending acknowledged upload/error ownership,
+reliable repaint/recovery, and session resource cleanup. See the guide for exact
+commands, captured configurations and limits; this experiment does not add an
+image protocol to the native module.
+
 ## Real emulator and multiplexer matrix
 
 The driver starts a private Xvfb display, launches real xterm processes, and uses

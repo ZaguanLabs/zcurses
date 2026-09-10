@@ -7,6 +7,12 @@ build:
 	+ZDRAW_MAKE="$(MAKE)" "$(ZSH_BIN)" -df scripts/build.zsh
 
 test: build
+	"$(ZSH_BIN)" -dfn lib/zdraw-image.zsh
+	"$(ZSH_BIN)" -dfn lib/ui/image.zsh
+	"$(ZSH_BIN)" -dfn examples/image-preview.zsh
+	"$(ZSH_BIN)" -dfn scripts/portability/image-source.zsh
+	"$(ZSH_BIN)" -dfn tests/ui-image.zsh
+	"$(ZSH_BIN)" -dfn tests/image-recipe.zsh
 	"$(ZSH_BIN)" -dfn scripts/build.zsh
 	"$(ZSH_BIN)" -dfn scripts/inline-shell.zsh
 	"$(ZSH_BIN)" -dfn examples/inline-picker.zsh
