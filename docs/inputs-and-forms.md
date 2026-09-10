@@ -35,7 +35,7 @@ Source `lib/zdraw-input.zsh` and declare an ordinary writable association
 
 | Call | Behavior |
 | --- | --- |
-| `zdraw-input-init text [byte-limit]` | Replace state; caret and anchor at end. Default limit 4096, allowed 0–32767. |
+| `zdraw-input-init text [byte-limit [cell\|grapheme]]` | Replace state; caret and anchor at end. Default limit 4096, allowed 0–32767. |
 | `zdraw-input-edit insert text` | Replace the selection, or insert at the caret. |
 | `zdraw-input-edit left\|right\|home\|end` | Move and collapse selection. Left/right first collapse a nonempty selection to that edge. |
 | `zdraw-input-edit select-left\|select-right\|select-home\|select-end\|select-all` | Extend selection or select the complete value. |
@@ -43,10 +43,13 @@ Source `lib/zdraw-input.zsh` and declare an ordinary writable association
 | `zdraw-input window y x columns states [utilities…]` | Paint one row, scroll horizontally to the caret, highlight selection and show a software caret in `focus` state. |
 
 State keys are `text`, `cursor`, `anchor`, `limit`, `paste_active`, `paste_failed`
-and `paste_buffer`. Cursor/anchor are zero-based **source byte offsets** at native
-`textpos` boundaries. Movement/deletion keeps a positive-width base with its
+and `paste_buffer`, plus optional `boundary`. Cursor/anchor are zero-based **source byte offsets** at native
+`textpos` boundaries. By default, movement/deletion keeps a positive-width base with its
 following zero-width characters; this is the module's clipping-unit policy, not
-full Unicode grapheme segmentation. UTF-8 text requires a matching locale and
+full Unicode grapheme segmentation. Opt in with a final `grapheme` argument to
+`zdraw-input-init`; forms preserve `zdraw_ui_form[index,boundary]=grapheme`.
+See [Unicode boundaries](unicode-boundaries.md) for the pinned policy, byte anchors,
+whole-unit viewport clipping and terminal-width limitations. UTF-8 text requires a matching locale and
 wide-text support. Tabs, line breaks, control characters and invalid encoding
 are rejected. There is no multiline, password masking, undo history or clipboard
 ownership in this API.

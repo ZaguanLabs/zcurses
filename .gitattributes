@@ -1,0 +1,3 @@
+
+# Preserve the checksum-pinned Unicode conformance data byte for byte.
+tests/unicode/GraphemeBreakTest.txt -whitespace

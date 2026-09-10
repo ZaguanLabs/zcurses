@@ -41,6 +41,7 @@ function _zdraw_ui_form_load {
   for _zui_key in text cursor anchor limit paste_active paste_failed paste_buffer; do
     zdraw_ui_input[$_zui_key]=${zdraw_ui_form[$1,$_zui_key]-}
   done
+  zdraw_ui_input[boundary]=${zdraw_ui_form[$1,boundary]:-cell}
 }
 
 function zdraw-form-action {

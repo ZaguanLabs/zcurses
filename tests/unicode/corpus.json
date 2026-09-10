@@ -1,0 +1,169 @@
+[
+  {
+    "name": "ascii",
+    "text": "AB",
+    "codepoints": "U+0041 U+0042",
+    "units": [
+      "A",
+      "B"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "combining",
+    "text": "é",
+    "codepoints": "U+0065 U+0301",
+    "units": [
+      "é"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "many-marks",
+    "text": "á́́́́́́́",
+    "codepoints": "U+0061 U+0301 U+0301 U+0301 U+0301 U+0301 U+0301 U+0301 U+0301",
+    "units": [
+      "á́́́́́́́"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "modifier",
+    "text": "👍🏽",
+    "codepoints": "U+1F44D U+1F3FD",
+    "units": [
+      "👍🏽"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "zwj-profession",
+    "text": "👩‍💻",
+    "codepoints": "U+1F469 U+200D U+1F4BB",
+    "units": [
+      "👩‍💻"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "family",
+    "text": "👨‍👩‍👧‍👦",
+    "codepoints": "U+1F468 U+200D U+1F469 U+200D U+1F467 U+200D U+1F466",
+    "units": [
+      "👨‍👩‍👧‍👦"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "flag",
+    "text": "🇳🇴",
+    "codepoints": "U+1F1F3 U+1F1F4",
+    "units": [
+      "🇳🇴"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "odd-flags",
+    "text": "🇳🇴🇺",
+    "codepoints": "U+1F1F3 U+1F1F4 U+1F1FA",
+    "units": [
+      "🇳🇴",
+      "🇺"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "emoji-selector",
+    "text": "❤️",
+    "codepoints": "U+2764 U+FE0F",
+    "units": [
+      "❤️"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "text-selector",
+    "text": "❤︎",
+    "codepoints": "U+2764 U+FE0E",
+    "units": [
+      "❤︎"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "keycap",
+    "text": "1️⃣",
+    "codepoints": "U+0031 U+FE0F U+20E3",
+    "units": [
+      "1️⃣"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "ambiguous",
+    "text": "·Ω─",
+    "codepoints": "U+00B7 U+03A9 U+2500",
+    "units": [
+      "·",
+      "Ω",
+      "─"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "cjk",
+    "text": "界",
+    "codepoints": "U+754C",
+    "units": [
+      "界"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "hangul-jamo",
+    "text": "각",
+    "codepoints": "U+1100 U+1161 U+11A8",
+    "units": [
+      "각"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "indic-conjunct",
+    "text": "क्ष",
+    "codepoints": "U+0915 U+094D U+0937",
+    "units": [
+      "क्ष"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "spacing-mark",
+    "text": "का",
+    "codepoints": "U+0915 U+093E",
+    "units": [
+      "का"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "zero-width-space",
+    "text": "a​b",
+    "codepoints": "U+0061 U+200B U+0062",
+    "units": [
+      "a​",
+      "b"
+    ],
+    "printable_query": true
+  },
+  {
+    "name": "leading-mark",
+    "text": "́",
+    "codepoints": "U+0301",
+    "units": [
+      "́"
+    ],
+    "printable_query": false
+  }
+]

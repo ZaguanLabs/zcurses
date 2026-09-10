@@ -44,6 +44,9 @@ test: build
 	"$(ZSH_BIN)" -dfn examples/stacking.zsh
 	"$(ZSH_BIN)" -dfn examples/overlays.zsh
 	"$(ZSH_BIN)" -dfn scripts/portability/frame-source.zsh
+	"$(ZSH_BIN)" -dfn tests/unicode-edit.zsh
+	"$(ZSH_BIN)" -dfn tests/unicode-draw.zsh
+	"$(ZSH_BIN)" -dfn scripts/portability/unicode-source.zsh
 	"$(ZSH_BIN)" -dfn tests/resources.zsh
 	"$(ZSH_BIN)" -dfn benchmarks/components.zsh
 	"$(ZSH_BIN)" -dfn tests/prepared.zsh
@@ -74,7 +77,7 @@ clean:
 # Export an additive Zsh integration patch, leaving zsh/curses untouched.
 patch:
 	@cat patches/zdraw-build.patch
-	@for file in Src/Modules/zdraw.c Src/Modules/zdraw.mdd Src/Modules/zdraw_keys.awk Doc/Zsh/mod_zdraw.yo; do \
+	@for file in Src/Modules/zdraw.c Src/Modules/zdraw.mdd Src/Modules/zdraw_keys.awk Src/Modules/zdraw_grapheme.h Src/Modules/zdraw_grapheme_data.h Doc/Zsh/mod_zdraw.yo; do \
 	  diff -u --label /dev/null --label b/$$file /dev/null $$file; result=$$?; \
 	  test $$result -le 1 || exit $$result; \
 	done

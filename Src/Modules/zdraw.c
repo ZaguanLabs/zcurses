@@ -57,6 +57,13 @@
 #include <limits.h>
 #include <time.h>
 #include <locale.h>
+#ifdef HAVE_LANGINFO_H
+# include <langinfo.h>
+#endif
+#if defined(MULTIBYTE_SUPPORT) && defined(HAVE_NL_LANGINFO) && defined(CODESET)
+# define ZDRAW_GRAPHEME 1
+# include "zdraw_grapheme.h"
+#endif
 
 #if defined(HAVE_SETCCHAR) && defined(HAVE_GETCCHAR) && defined(HAVE_WADD_WCHNSTR) && \
     defined(HAVE_WGETBKGRND) && defined(HAVE_WBKGRNDSET) && \
@@ -4966,6 +4973,39 @@ zccmd_colorinfo(const char *nam, char **args)
 }
 
 
+/* Explicit per-call policy; never change the shell locale or module defaults.
+ * The optional Unicode policy has a one-MiB original-byte bound. */
+static int
+zdraw_text_policy(const char *nam, const char *policy, char *text, int *grapheme)
+{
+    *grapheme = 0;
+    if (!policy || !strcmp(policy, "cell")) return 0;
+    if (strcmp(policy, "grapheme")) {
+        zwarnnam(nam, "text boundary policy must be cell or grapheme");
+        return 1;
+    }
+#ifdef ZDRAW_GRAPHEME
+    {
+        const char *codeset = nl_langinfo(CODESET);
+        size_t bytes = 0;
+        if (!isset(MULTIBYTE) || (strcmp(codeset, "UTF-8") && strcmp(codeset, "UTF8")))
+            return 2;
+        while (*text) {
+            if (++bytes > 1048576) {
+                zwarnnam(nam, "grapheme text exceeds the one-MiB byte limit");
+                return 1;
+            }
+            if (*text++ == Meta) text++;
+        }
+        *grapheme = 1;
+        return 0;
+    }
+#else
+    (void)text;
+    return 2;
+#endif
+}
+
 /* Headless width/clip query. Validation, including the discarded suffix,
  * precedes assignment, so invalid text cannot be hidden behind a small budget. */
 static int
@@ -4973,9 +5013,12 @@ zccmd_textinfo(const char *nam, char **args)
 {
     Param pm;
     LinkList info;
-    char *str = args[1], *end = str, *prefix;
+    char *str = args[1], *end = str, *prefix, *before;
     int budget = INT_MAX, width = 0, total = 0, keeping = 1, have_base = 0;
-    int cw, result, wide = 0;
+    int cw, result, wide = 0, grapheme = 0, boundary, group_width = 0;
+#ifdef ZDRAW_GRAPHEME
+    struct zdraw_grapheme_state state = {0};
+#endif
     size_t bytes;
     convchar_t wc;
 
@@ -4993,26 +5036,42 @@ zccmd_textinfo(const char *nam, char **args)
 	zwarnnam(nam, "textinfo expects a nonnegative decimal column budget");
 	return 1;
     }
+    result = zdraw_text_policy(nam, args[2] ? args[3] : NULL, args[1], &grapheme);
+    if (result) return result;
 #ifdef MULTIBYTE_SUPPORT
     wide = 1;
 #endif
     MB_METACHARINIT();
-    while (*str) {
-	result = zdraw_text_next(&str, wide, &wc, &cw);
-	if (result || (!cw && !have_base) || total > INT_MAX - cw) {
-	    zwarnnam(nam, "textinfo requires printable text with a spacing character before zero-width characters");
-	    return result == 2 ? 2 : 1;
-	}
-	total += cw;
-	if (cw) {
-	    have_base = 1;
-	    if (cw > budget - width)
-		keeping = 0;
-	}
-	if (keeping) {
-	    width += cw;
-	    end = str;
-	}
+    for (;;) {
+        before = str;
+        cw = 0;
+        boundary = 0;
+        if (*str) {
+            result = zdraw_text_next(&str, wide, &wc, &cw);
+            if (result || (!cw && !have_base) || total > INT_MAX - cw) {
+                zwarnnam(nam, "textinfo requires printable text with a spacing character before zero-width characters");
+                return result == 2 ? 2 : 1;
+            }
+            boundary = cw != 0;
+#ifdef ZDRAW_GRAPHEME
+            if (grapheme) {
+                boundary = zdraw_grapheme_break(&state, (unsigned int)wc);
+                /* Preserve the native spacing-character/zero-width unit. */
+                boundary = boundary && cw;
+            }
+#endif
+        }
+        if (boundary || !*before) {
+            if (keeping && group_width <= budget - width) {
+                width += group_width;
+                end = before;
+            } else keeping = 0;
+            group_width = 0;
+        }
+        if (!*before) break;
+        group_width += cw;
+        total += cw;
+        if (cw) have_base = 1;
     }
     bytes = end - args[1];
     prefix = zhalloc(bytes + 1);
@@ -5026,6 +5085,12 @@ zccmd_textinfo(const char *nam, char **args)
     zdraw_colorinfo_value(info, "width", width);
     zdraw_colorinfo_value(info, "total_width", total);
     zdraw_colorinfo_value(info, "truncated", *end != '\0');
+#ifdef ZDRAW_GRAPHEME
+    if (grapheme) {
+        addlinknode(info, "policy"); addlinknode(info, "grapheme");
+        addlinknode(info, "unicode_version"); addlinknode(info, ZDRAW_GRAPHEME_VERSION);
+    }
+#endif
     return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
 }
 
@@ -5038,7 +5103,10 @@ zccmd_textpos(const char *nam, char **args)
     LinkList info;
     char *str = args[1], *group = str, *before, *p;
     char *hit = NULL, *end = NULL, *prefix, *text;
-    int offset, by_byte, wide = 0, cw, result;
+    int offset, by_byte, wide = 0, cw, result, grapheme = 0, boundary;
+#ifdef ZDRAW_GRAPHEME
+    struct zdraw_grapheme_state state = {0};
+#endif
     int bytes = 0, width = 0, group_byte = 0, group_col = 0;
     int hit_byte = 0, end_byte = 0, hit_col = 0, end_col = 0;
     int have_base = 0, at_end = 0;
@@ -5059,6 +5127,8 @@ zccmd_textpos(const char *nam, char **args)
         zwarnnam(nam, "textpos expects a nonnegative decimal offset");
         return 1;
     }
+    result = zdraw_text_policy(nam, args[4], args[1], &grapheme);
+    if (result) return result;
 #ifdef MULTIBYTE_SUPPORT
     wide = 1;
 #endif
@@ -5073,9 +5143,16 @@ zccmd_textpos(const char *nam, char **args)
                 return result == 2 ? 2 : 1;
             }
         }
+        boundary = cw != 0;
+#ifdef ZDRAW_GRAPHEME
+        if (grapheme && *before) {
+            boundary = zdraw_grapheme_break(&state, (unsigned int)wc);
+            boundary = boundary && cw;
+        }
+#endif
         /* Finish the preceding group before counting the next base. Validate
          * the rest of the text even after finding the requested position. */
-        if (cw || !*before) {
+        if (boundary || !*before) {
             if (have_base && offset >= (by_byte ? group_byte : group_col) &&
                 offset < (by_byte ? bytes : width)) {
                 hit = group;
@@ -5136,6 +5213,12 @@ zccmd_textpos(const char *nam, char **args)
     zdraw_colorinfo_value(info, "total_bytes", bytes);
     zdraw_colorinfo_value(info, "total_width", width);
     zdraw_colorinfo_value(info, "at_end", at_end);
+#ifdef ZDRAW_GRAPHEME
+    if (grapheme) {
+        addlinknode(info, "policy"); addlinknode(info, "grapheme");
+        addlinknode(info, "unicode_version"); addlinknode(info, ZDRAW_GRAPHEME_VERSION);
+    }
+#endif
     return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
 }
 
@@ -5341,8 +5424,8 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"geometry", zccmd_geometry, 1, 1},
 	{"colorinfo", zccmd_colorinfo, 1, 1},
         {"resourceinfo", zccmd_resourceinfo, 1, 1},
-	{"textinfo", zccmd_textinfo, 2, 3},
-        {"textpos", zccmd_textpos, 4, 4},
+	{"textinfo", zccmd_textinfo, 2, 4},
+        {"textpos", zccmd_textpos, 4, 5},
         {"textwrap", zccmd_textwrap, 3, 3},
 	{"truecolor", zccmd_truecolor, 1, 1},
 	{"char", zccmd_char, 2, 2},
@@ -5511,6 +5594,9 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 	"textinfo",
         "text_wrapping",
         "text_positions",
+#ifdef ZDRAW_GRAPHEME
+        "grapheme_boundaries",
+#endif
         "structured_events",
         "event_poll",
         "input_info",

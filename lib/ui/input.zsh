@@ -1,4 +1,4 @@
-# Byte positions refer to native textpos units, not Unicode grapheme clusters.
+# Byte anchors use the field's explicit boundary policy (cell by default).
 function _zdraw_ui_bytes {
   emulate -L zsh
   local LC_ALL=C
@@ -7,14 +7,25 @@ function _zdraw_ui_bytes {
 
 function zdraw-input-init {
   emulate -L zsh
-  [[ $# -ge 1 && $# -le 2 && ${(t)zdraw_ui_input} == (association|association-local) ]] || return 1
-  local _zui_limit=${2:-4096}
+  [[ $# -ge 1 && $# -le 3 && ${(t)zdraw_ui_input} == (association|association-local) ]] || return 1
+  local _zui_limit=${2:-4096} _zui_boundary=${3:-cell}
   local -A _zui_pos
   _zdraw_ui_uint "$_zui_limit" || return 1
-  zdraw textpos _zui_pos "$1" byte 0 || return
+  [[ $_zui_boundary == (cell|grapheme) ]] || return 1
+  zdraw textpos _zui_pos "$1" byte 0 "$_zui_boundary" || return
   (( _zui_pos[total_bytes] <= 10#$_zui_limit )) || return 1
   zdraw_ui_input=(text "$1" cursor "$_zui_pos[total_bytes]" anchor "$_zui_pos[total_bytes]"
     limit "$((10#$_zui_limit))" paste_active 0 paste_failed 0 paste_buffer '')
+  [[ $_zui_boundary == cell ]] || zdraw_ui_input[boundary]=$_zui_boundary
+  return 0
+}
+
+# Resolve per-field policy at every query; no process-global mode or cache.
+function _zdraw_ui_input_pos {
+  emulate -L zsh
+  local _zui_boundary=${zdraw_ui_input[boundary]:-cell}
+  [[ $_zui_boundary == (cell|grapheme) ]] || return 1
+  zdraw textpos "$@" "$_zui_boundary"
 }
 
 # Populate the caller's scratch positions only after lexical validation.
@@ -26,8 +37,8 @@ function _zdraw_ui_input_state {
     _zdraw_ui_uint "${zdraw_ui_input[$_zui_key]-}" || return 1
   done
   [[ ${zdraw_ui_input[paste_active]-} == [01] && ${zdraw_ui_input[paste_failed]-} == [01] ]] || return 1
-  zdraw textpos _zui_cursor "${zdraw_ui_input[text]-}" byte "$zdraw_ui_input[cursor]" || return
-  zdraw textpos _zui_anchor "${zdraw_ui_input[text]-}" byte "$zdraw_ui_input[anchor]" || return
+  _zdraw_ui_input_pos _zui_cursor "${zdraw_ui_input[text]-}" byte "$zdraw_ui_input[cursor]" || return
+  _zdraw_ui_input_pos _zui_anchor "${zdraw_ui_input[text]-}" byte "$zdraw_ui_input[anchor]" || return
   (( _zui_cursor[byte_start] == 10#$zdraw_ui_input[cursor] &&
      _zui_anchor[byte_start] == 10#$zdraw_ui_input[anchor] &&
      _zui_cursor[total_bytes] <= 10#$zdraw_ui_input[limit] ))
@@ -49,7 +60,7 @@ function zdraw-input-edit {
     left|select-left)
       if [[ $_zui_action == left ]] && (( _zui_lo != _zui_hi )); then _zui_c=$_zui_lo
       elif (( _zui_c )); then
-        zdraw textpos _zui_new "$zdraw_ui_input[text]" byte "$((_zui_c-1))" || return
+        _zdraw_ui_input_pos _zui_new "$zdraw_ui_input[text]" byte "$((_zui_c-1))" || return
         _zui_c=$_zui_new[byte_start]
       fi ;;
     right|select-right)
@@ -63,17 +74,17 @@ function zdraw-input-edit {
         clear) _zui_lo=0 _zui_hi=$_zui_cursor[total_bytes] ;;
         backspace)
           if (( _zui_lo == _zui_hi && _zui_lo > 0 )); then
-            zdraw textpos _zui_new "$zdraw_ui_input[text]" byte "$((_zui_lo-1))" || return
+            _zdraw_ui_input_pos _zui_new "$zdraw_ui_input[text]" byte "$((_zui_lo-1))" || return
             _zui_lo=$_zui_new[byte_start]
           fi ;;
         delete) (( _zui_lo == _zui_hi )) && _zui_hi=$_zui_cursor[byte_end] ;;
       esac
-      zdraw textpos _zui_left "$zdraw_ui_input[text]" byte "$_zui_lo" || return
-      zdraw textpos _zui_right "$zdraw_ui_input[text]" byte "$_zui_hi" || return
+      _zdraw_ui_input_pos _zui_left "$zdraw_ui_input[text]" byte "$_zui_lo" || return
+      _zdraw_ui_input_pos _zui_right "$zdraw_ui_input[text]" byte "$_zui_hi" || return
       _zui_candidate="$_zui_left[prefix]$_zui_insert$_zui_right[text]$_zui_right[remainder]"
       _zdraw_ui_bytes "$_zui_left[prefix]$_zui_insert"
       _zui_c=$REPLY
-      zdraw textpos _zui_new "$_zui_candidate" byte "$_zui_c" || return
+      _zdraw_ui_input_pos _zui_new "$_zui_candidate" byte "$_zui_c" || return
       (( _zui_new[total_bytes] <= 10#$zdraw_ui_input[limit] )) || return 1
       # Inserting a base before combining characters may join an existing unit.
       (( _zui_new[byte_start] < _zui_c )) && _zui_c=$_zui_new[byte_end]
@@ -176,22 +187,26 @@ function zdraw-input {
   (( _zui_width < 1 || _zui_width > _zui_w )) && _zui_width=1
   _zui_col=$((_zui_cursor[column_start]+_zui_width-_zui_w))
   if (( _zui_col > 0 )); then
-    zdraw textpos _zui_pos "$zdraw_ui_input[text]" column "$_zui_col" || return
+    _zdraw_ui_input_pos _zui_pos "$zdraw_ui_input[text]" column "$_zui_col" || return
     _zui_start=$_zui_pos[byte_start]
     (( _zui_pos[column_start] < _zui_col )) && _zui_start=$_zui_pos[byte_end]
   fi
-  zdraw textpos _zui_pos "$zdraw_ui_input[text]" byte "$_zui_start" || return
+  _zdraw_ui_input_pos _zui_pos "$zdraw_ui_input[text]" byte "$_zui_start" || return
   _zui_col=$((_zui_cursor[column_start]-_zui_pos[column_start]))
   # Group units into same-style runs; native clipping validates the complete row.
   local _zui_style _zui_run='' _zui_previous=''
+  local -i _zui_rendered=0 _zui_unit_width
   while [[ $_zui_pos[at_end] == 0 ]]; do
+    _zui_unit_width=$((_zui_pos[column_end]-_zui_pos[column_start]))
+    if [[ ${zdraw_ui_input[boundary]:-cell} == grapheme ]] && (( _zui_unit_width > _zui_w-_zui_rendered )); then break; fi
+    (( _zui_rendered += _zui_unit_width ))
     _zui_style=$_zui_base
     (( _zui_pos[byte_start] >= _zui_left && _zui_pos[byte_start] < _zui_right )) && _zui_style=$_zui_selected
     if [[ $_zui_style != $_zui_previous && -n $_zui_run ]]; then
       _zui_spans+=("$_zui_previous" "$_zui_run") _zui_run=''
     fi
     _zui_previous=$_zui_style _zui_run+=$_zui_pos[text]
-    zdraw textpos _zui_pos "$zdraw_ui_input[text]" byte "$_zui_pos[byte_end]" || return
+    _zdraw_ui_input_pos _zui_pos "$zdraw_ui_input[text]" byte "$_zui_pos[byte_end]" || return
     # Only a screenful is needed; avoid walking a long invisible suffix.
     (( _zui_pos[column_start] >= _zui_cursor[column_start] + _zui_w )) && break
   done
@@ -203,6 +218,7 @@ function zdraw-input {
   if [[ ,$_zui_states, == *,focus,* && $_zui_col -ge 0 && $_zui_col -lt $_zui_w ]]; then
     local _zui_glyph=${_zui_cursor[text]:- }
     (( _zui_cursor[column_end]-_zui_cursor[column_start] > _zui_w )) && _zui_glyph=' '
+    if [[ ${zdraw_ui_input[boundary]:-cell} == grapheme ]] && (( _zui_cursor[column_end]-_zui_cursor[column_start] > _zui_w-_zui_col )); then _zui_glyph=' '; fi
     zdraw spansclip "$_zui_win" "$_zui_y" "$((_zui_x+_zui_col))" "$((_zui_w-_zui_col))" "$_zui_caret" "$_zui_glyph" || return
   fi
   return 0

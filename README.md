@@ -291,6 +291,7 @@ unknown, so the application chooses its fallback policy.
 | `wide_spans` | Wide characters and representable combining sequences in spans |
 | `clipped_spans` | Styled-span drawing with one shared column budget |
 | `textinfo` | Headless text measurement and prefix clipping; printable ASCII always supported |
+| `grapheme_boundaries` | Optional Unicode 17 boundary policy for text queries and fields |
 | `text_positions` | Headless mapping between source byte offsets and displayed columns |
 | `text_wrapping` | Bounded headless column wrapping with original source ranges |
 | `wide_text` | Locale-based multibyte measurement/clipping, independent of wide curses support |
@@ -594,6 +595,11 @@ zdraw textpos hit $'e\u0301界b' column 2
 zdraw textpos hit $'e\u0301界b' byte 4
 # The same group, even though byte 4 is inside its UTF-8 encoding.
 ```
+
+An optional final `grapheme` argument groups Unicode sequences for editing;
+`textinfo` accepts it after an explicit column budget. Both retain system cell
+widths and default to the original policy. See the [Unicode boundary guide](docs/unicode-boundaries.md)
+for field opt-in, data provenance, limits and observed terminal differences.
 
 `zdraw textpos association text column|byte offset` maps a position to the
 complete clipping unit containing it. Its unit and validation rules are the

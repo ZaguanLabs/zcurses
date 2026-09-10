@@ -179,3 +179,24 @@ probe does not claim continuous observation, all emulator versions, physical
 refresh timing or behavior when a delay exceeds an emulator's own timeout. A
 blocked writer cannot enforce a portable hard synchronization deadline; the
 [API contract](../frame-presentation.md) states that limitation explicitly.
+
+
+## Unicode boundaries and rendering
+
+Milestone 8 adds an [18-case Unicode corpus](../../tests/unicode/corpus.json),
+[pinned boundary policy](../unicode-boundaries.md), and a
+[raw/native rendering comparison](unicode-matrix-2026-09-10.json) on the same
+private xterm/tmux/screen/kitty matrix. The record separates libc column sums,
+curses cell contents, raw cursor replies and actual screenshots. Width agreement
+alone does not establish correct rendering: Screen shows visible combining/joiner
+problems, while kitty shapes several sequences with advances different from libc.
+Eight [raw and native captures](unicode-captures/) preserve the observations.
+
+```sh
+python3 scripts/portability/unicode-matrix.py \
+  --output .build/portability/unicode-matrix.json \
+  --captures .build/portability/unicode-captures
+```
+
+These optional probes use an explicit input owner for cursor replies and a private
+Xvfb display. The production text-query and editing policy remains passive.

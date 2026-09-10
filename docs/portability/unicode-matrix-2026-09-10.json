@@ -1,0 +1,946 @@
+{
+  "format": "zdraw-unicode-matrix-1",
+  "platform": "Linux-6.18.44-desktop-1.mga10-x86_64-with-glibc2.42",
+  "locale": "C.UTF-8",
+  "unicode_version": "17.0.0",
+  "font": "monospace (fontconfig fallback); xterm size 12, kitty size 12",
+  "shell": "zsh 5.9.2 (x86_64-pc-linux-gnu)",
+  "scenarios": [
+    {
+      "backend": "xterm",
+      "version": "XTerm(407)",
+      "tested": true,
+      "captures": {
+        "raw": {
+          "file": "xterm-raw.png",
+          "sha256": "a0de8660ccd7ff9e71f17d59eaa7343180edef9ec0f362d94c6f881b617d21e2"
+        },
+        "native": {
+          "file": "xterm-native.png",
+          "sha256": "c27bf3aa5663872743db4dc5669ea21bbe52c12712948d5910b0ebed17ed3835"
+        }
+      },
+      "evidence": [
+        {
+          "name": "ascii",
+          "cursor_reply": "1b5b333b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "name": "combining",
+          "cursor_reply": "1b5b343b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "é"
+          ]
+        },
+        {
+          "name": "many-marks",
+          "cursor_reply": "1b5b353b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 1,
+          "stored_cells": null
+        },
+        {
+          "name": "modifier",
+          "cursor_reply": "1b5b363b333052",
+          "raw_columns": 4,
+          "query_status": 0,
+          "width": 4,
+          "draw_status": 0,
+          "stored_cells": [
+            "👍",
+            "👍",
+            "🏽",
+            "🏽"
+          ]
+        },
+        {
+          "name": "zwj-profession",
+          "cursor_reply": "1b5b373b333052",
+          "raw_columns": 4,
+          "query_status": 0,
+          "width": 4,
+          "draw_status": 0,
+          "stored_cells": [
+            "👩‍",
+            "👩‍",
+            "💻",
+            "💻"
+          ]
+        },
+        {
+          "name": "family",
+          "cursor_reply": "1b5b383b333452",
+          "raw_columns": 8,
+          "query_status": 0,
+          "width": 8,
+          "draw_status": 0,
+          "stored_cells": [
+            "👨‍",
+            "👨‍",
+            "👩‍",
+            "👩‍",
+            "👧‍",
+            "👧‍",
+            "👦",
+            "👦"
+          ]
+        },
+        {
+          "name": "flag",
+          "cursor_reply": "1b5b393b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "🇳",
+            "🇴"
+          ]
+        },
+        {
+          "name": "odd-flags",
+          "cursor_reply": "1b5b31303b323952",
+          "raw_columns": 3,
+          "query_status": 0,
+          "width": 3,
+          "draw_status": 0,
+          "stored_cells": [
+            "🇳",
+            "🇴",
+            "🇺"
+          ]
+        },
+        {
+          "name": "emoji-selector",
+          "cursor_reply": "1b5b31313b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "❤️"
+          ]
+        },
+        {
+          "name": "text-selector",
+          "cursor_reply": "1b5b31323b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "❤︎"
+          ]
+        },
+        {
+          "name": "keycap",
+          "cursor_reply": "1b5b31333b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "1️⃣"
+          ]
+        },
+        {
+          "name": "ambiguous",
+          "cursor_reply": "1b5b31343b323952",
+          "raw_columns": 3,
+          "query_status": 0,
+          "width": 3,
+          "draw_status": 0,
+          "stored_cells": [
+            "·",
+            "Ω",
+            "─"
+          ]
+        },
+        {
+          "name": "cjk",
+          "cursor_reply": "1b5b31353b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "界",
+            "界"
+          ]
+        },
+        {
+          "name": "hangul-jamo",
+          "cursor_reply": "1b5b31363b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "각",
+            "각"
+          ]
+        },
+        {
+          "name": "indic-conjunct",
+          "cursor_reply": "1b5b31373b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "क्",
+            "ष"
+          ]
+        },
+        {
+          "name": "spacing-mark",
+          "cursor_reply": "1b5b31383b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "क",
+            "ा"
+          ]
+        },
+        {
+          "name": "zero-width-space",
+          "cursor_reply": "1b5b31393b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "a​",
+            "b"
+          ]
+        },
+        {
+          "name": "leading-mark",
+          "cursor_reply": "1b5b32303b323652",
+          "raw_columns": 0,
+          "query_status": 1,
+          "width": null,
+          "stored_cells": null
+        }
+      ]
+    },
+    {
+      "backend": "tmux",
+      "version": "tmux next-3.3",
+      "tested": true,
+      "captures": {
+        "raw": {
+          "file": "tmux-raw.png",
+          "sha256": "422ea530c4d5837733187eb68ef660fa43fba80ce84fd1839c932e42b853f0ea"
+        },
+        "native": {
+          "file": "tmux-native.png",
+          "sha256": "69b763487592469b2bd28cbedb88d1f05f6a7759cb456db1d24ddfc68590b943"
+        }
+      },
+      "evidence": [
+        {
+          "name": "ascii",
+          "cursor_reply": "1b5b333b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "name": "combining",
+          "cursor_reply": "1b5b343b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "é"
+          ]
+        },
+        {
+          "name": "many-marks",
+          "cursor_reply": "1b5b353b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 1,
+          "stored_cells": null
+        },
+        {
+          "name": "modifier",
+          "cursor_reply": "1b5b363b333052",
+          "raw_columns": 4,
+          "query_status": 0,
+          "width": 4,
+          "draw_status": 0,
+          "stored_cells": [
+            "👍",
+            "👍",
+            "🏽",
+            "🏽"
+          ]
+        },
+        {
+          "name": "zwj-profession",
+          "cursor_reply": "1b5b373b333052",
+          "raw_columns": 4,
+          "query_status": 0,
+          "width": 4,
+          "draw_status": 0,
+          "stored_cells": [
+            "👩‍",
+            "👩‍",
+            "💻",
+            "💻"
+          ]
+        },
+        {
+          "name": "family",
+          "cursor_reply": "1b5b383b333452",
+          "raw_columns": 8,
+          "query_status": 0,
+          "width": 8,
+          "draw_status": 0,
+          "stored_cells": [
+            "👨‍",
+            "👨‍",
+            "👩‍",
+            "👩‍",
+            "👧‍",
+            "👧‍",
+            "👦",
+            "👦"
+          ]
+        },
+        {
+          "name": "flag",
+          "cursor_reply": "1b5b393b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "🇳",
+            "🇴"
+          ]
+        },
+        {
+          "name": "odd-flags",
+          "cursor_reply": "1b5b31303b323952",
+          "raw_columns": 3,
+          "query_status": 0,
+          "width": 3,
+          "draw_status": 0,
+          "stored_cells": [
+            "🇳",
+            "🇴",
+            "🇺"
+          ]
+        },
+        {
+          "name": "emoji-selector",
+          "cursor_reply": "1b5b31313b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "❤️"
+          ]
+        },
+        {
+          "name": "text-selector",
+          "cursor_reply": "1b5b31323b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "❤︎"
+          ]
+        },
+        {
+          "name": "keycap",
+          "cursor_reply": "1b5b31333b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "1️⃣"
+          ]
+        },
+        {
+          "name": "ambiguous",
+          "cursor_reply": "1b5b31343b323952",
+          "raw_columns": 3,
+          "query_status": 0,
+          "width": 3,
+          "draw_status": 0,
+          "stored_cells": [
+            "·",
+            "Ω",
+            "─"
+          ]
+        },
+        {
+          "name": "cjk",
+          "cursor_reply": "1b5b31353b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "界",
+            "界"
+          ]
+        },
+        {
+          "name": "hangul-jamo",
+          "cursor_reply": "1b5b31363b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "각",
+            "각"
+          ]
+        },
+        {
+          "name": "indic-conjunct",
+          "cursor_reply": "1b5b31373b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "क्",
+            "ष"
+          ]
+        },
+        {
+          "name": "spacing-mark",
+          "cursor_reply": "1b5b31383b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "क",
+            "ा"
+          ]
+        },
+        {
+          "name": "zero-width-space",
+          "cursor_reply": "1b5b31393b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "a​",
+            "b"
+          ]
+        },
+        {
+          "name": "leading-mark",
+          "cursor_reply": "1b5b32303b323652",
+          "raw_columns": 0,
+          "query_status": 1,
+          "width": null,
+          "stored_cells": null
+        }
+      ]
+    },
+    {
+      "backend": "screen",
+      "version": "Screen version 5.0.1 (build on 2025-05-16 15:05:45)",
+      "tested": true,
+      "captures": {
+        "raw": {
+          "file": "screen-raw.png",
+          "sha256": "52f38d11e2e5c9615fa825fc7dc6b1719daef2449e10f0d00d2572f3168470a5"
+        },
+        "native": {
+          "file": "screen-native.png",
+          "sha256": "76e6315ea26a99ee1c10adfcb170b6748393f18d028362b14d652f6e204843bc"
+        }
+      },
+      "evidence": [
+        {
+          "name": "ascii",
+          "cursor_reply": "1b5b333b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "name": "combining",
+          "cursor_reply": "1b5b343b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "é"
+          ]
+        },
+        {
+          "name": "many-marks",
+          "cursor_reply": "1b5b353b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 1,
+          "stored_cells": null
+        },
+        {
+          "name": "modifier",
+          "cursor_reply": "1b5b363b333052",
+          "raw_columns": 4,
+          "query_status": 0,
+          "width": 4,
+          "draw_status": 0,
+          "stored_cells": [
+            "👍",
+            "👍",
+            "🏽",
+            "🏽"
+          ]
+        },
+        {
+          "name": "zwj-profession",
+          "cursor_reply": "1b5b373b333052",
+          "raw_columns": 4,
+          "query_status": 0,
+          "width": 4,
+          "draw_status": 0,
+          "stored_cells": [
+            "👩‍",
+            "👩‍",
+            "💻",
+            "💻"
+          ]
+        },
+        {
+          "name": "family",
+          "cursor_reply": "1b5b383b333452",
+          "raw_columns": 8,
+          "query_status": 0,
+          "width": 8,
+          "draw_status": 0,
+          "stored_cells": [
+            "👨‍",
+            "👨‍",
+            "👩‍",
+            "👩‍",
+            "👧‍",
+            "👧‍",
+            "👦",
+            "👦"
+          ]
+        },
+        {
+          "name": "flag",
+          "cursor_reply": "1b5b393b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "🇳",
+            "🇴"
+          ]
+        },
+        {
+          "name": "odd-flags",
+          "cursor_reply": "1b5b31303b323952",
+          "raw_columns": 3,
+          "query_status": 0,
+          "width": 3,
+          "draw_status": 0,
+          "stored_cells": [
+            "🇳",
+            "🇴",
+            "🇺"
+          ]
+        },
+        {
+          "name": "emoji-selector",
+          "cursor_reply": "1b5b31313b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "❤️"
+          ]
+        },
+        {
+          "name": "text-selector",
+          "cursor_reply": "1b5b31323b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "❤︎"
+          ]
+        },
+        {
+          "name": "keycap",
+          "cursor_reply": "1b5b31333b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "1️⃣"
+          ]
+        },
+        {
+          "name": "ambiguous",
+          "cursor_reply": "1b5b31343b323952",
+          "raw_columns": 3,
+          "query_status": 0,
+          "width": 3,
+          "draw_status": 0,
+          "stored_cells": [
+            "·",
+            "Ω",
+            "─"
+          ]
+        },
+        {
+          "name": "cjk",
+          "cursor_reply": "1b5b31353b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "界",
+            "界"
+          ]
+        },
+        {
+          "name": "hangul-jamo",
+          "cursor_reply": "1b5b31363b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "각",
+            "각"
+          ]
+        },
+        {
+          "name": "indic-conjunct",
+          "cursor_reply": "1b5b31373b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "क्",
+            "ष"
+          ]
+        },
+        {
+          "name": "spacing-mark",
+          "cursor_reply": "1b5b31383b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "क",
+            "ा"
+          ]
+        },
+        {
+          "name": "zero-width-space",
+          "cursor_reply": "1b5b31393b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "a​",
+            "b"
+          ]
+        },
+        {
+          "name": "leading-mark",
+          "cursor_reply": "1b5b32303b323652",
+          "raw_columns": 0,
+          "query_status": 1,
+          "width": null,
+          "stored_cells": null
+        }
+      ]
+    },
+    {
+      "backend": "kitty",
+      "version": "kitty 0.44.0 created by Kovid Goyal",
+      "tested": true,
+      "captures": {
+        "raw": {
+          "file": "kitty-raw.png",
+          "sha256": "9a71b49a1ad36e9328f37260c4e0f6f318099ce4eed701e06c8336be3901debc"
+        },
+        "native": {
+          "file": "kitty-native.png",
+          "sha256": "58b7ea500bd588cff4e1a7baab696cc25626df52e4e44b6328976c4a3faaf452"
+        }
+      },
+      "evidence": [
+        {
+          "name": "ascii",
+          "cursor_reply": "1b5b333b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "name": "combining",
+          "cursor_reply": "1b5b343b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "é"
+          ]
+        },
+        {
+          "name": "many-marks",
+          "cursor_reply": "1b5b353b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 1,
+          "stored_cells": null
+        },
+        {
+          "name": "modifier",
+          "cursor_reply": "1b5b363b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 4,
+          "draw_status": 0,
+          "stored_cells": [
+            "👍",
+            "👍",
+            "🏽",
+            "🏽"
+          ]
+        },
+        {
+          "name": "zwj-profession",
+          "cursor_reply": "1b5b373b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 4,
+          "draw_status": 0,
+          "stored_cells": [
+            "👩‍",
+            "👩‍",
+            "💻",
+            "💻"
+          ]
+        },
+        {
+          "name": "family",
+          "cursor_reply": "1b5b383b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 8,
+          "draw_status": 0,
+          "stored_cells": [
+            "👨‍",
+            "👨‍",
+            "👩‍",
+            "👩‍",
+            "👧‍",
+            "👧‍",
+            "👦",
+            "👦"
+          ]
+        },
+        {
+          "name": "flag",
+          "cursor_reply": "1b5b393b333052",
+          "raw_columns": 4,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "🇳",
+            "🇴"
+          ]
+        },
+        {
+          "name": "odd-flags",
+          "cursor_reply": "1b5b31303b333052",
+          "raw_columns": 4,
+          "query_status": 0,
+          "width": 3,
+          "draw_status": 0,
+          "stored_cells": [
+            "🇳",
+            "🇴",
+            "🇺"
+          ]
+        },
+        {
+          "name": "emoji-selector",
+          "cursor_reply": "1b5b31313b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "❤️"
+          ]
+        },
+        {
+          "name": "text-selector",
+          "cursor_reply": "1b5b31323b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "❤︎"
+          ]
+        },
+        {
+          "name": "keycap",
+          "cursor_reply": "1b5b31333b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 1,
+          "draw_status": 0,
+          "stored_cells": [
+            "1️⃣"
+          ]
+        },
+        {
+          "name": "ambiguous",
+          "cursor_reply": "1b5b31343b323952",
+          "raw_columns": 3,
+          "query_status": 0,
+          "width": 3,
+          "draw_status": 0,
+          "stored_cells": [
+            "·",
+            "Ω",
+            "─"
+          ]
+        },
+        {
+          "name": "cjk",
+          "cursor_reply": "1b5b31353b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "界",
+            "界"
+          ]
+        },
+        {
+          "name": "hangul-jamo",
+          "cursor_reply": "1b5b31363b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "각",
+            "각"
+          ]
+        },
+        {
+          "name": "indic-conjunct",
+          "cursor_reply": "1b5b31373b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "क्",
+            "ष"
+          ]
+        },
+        {
+          "name": "spacing-mark",
+          "cursor_reply": "1b5b31383b323752",
+          "raw_columns": 1,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "क",
+            "ा"
+          ]
+        },
+        {
+          "name": "zero-width-space",
+          "cursor_reply": "1b5b31393b323852",
+          "raw_columns": 2,
+          "query_status": 0,
+          "width": 2,
+          "draw_status": 0,
+          "stored_cells": [
+            "a​",
+            "b"
+          ]
+        },
+        {
+          "name": "leading-mark",
+          "cursor_reply": "1b5b32303b323652",
+          "raw_columns": 0,
+          "query_status": 1,
+          "width": null,
+          "stored_cells": null
+        }
+      ]
+    }
+  ]
+}
