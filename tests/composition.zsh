@@ -2,13 +2,15 @@
 # Present the real recipe one frame at a time for deterministic PTY assertions.
 emulate -R zsh
 typeset report_fd=$1 control_fd=$2 example=$3
-[[ $example == (form|document|canvas) ]] || exit 1
+[[ $example == (form|document|canvas|capabilities) ]] || exit 1
 function zdraw {
   builtin zdraw "$@" || return
   case $1 in
     refresh)
       if [[ $example == form ]]; then
         print -r -u "$report_fd" -- "frame $rows $columns $zdraw_ui_form[focus] $submitted ${#zdraw_ui_form[1,text]} ${#zdraw_ui_form[1,error]} $zdraw_ui_form[1,paste_active]"
+      elif [[ $example == capabilities ]]; then
+        print -r -u "$report_fd" -- "frame $size[1] $size[2] $next $cap[query_owner] $cap[synchronized_output,support] $cap[synchronized_output,source] $cap[streaming_paste,support] $cap[streaming_paste,enabled]"
       elif [[ $example == canvas ]]; then
         print -r -u "$report_fd" -- "frame $rows $columns $mode $canvas_palette $empty $theme_name $profile $zdraw_ui_canvas[count] ${zdraw_ui_canvas_raster[pixels]:-0}"
       else

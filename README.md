@@ -53,6 +53,12 @@ with bounded numeric series, fixed/automatic scales and ASCII fallbacks. The
 and render the same geometry as ASCII, blocks or Braille. Try the
 [waveform example](examples/canvas.zsh) to compare markers and resize the plot.
 
+[Capability evidence](docs/capabilities.md) separates compiled support, terminal
+reports, application overrides and enabled state. The
+[inspector](examples/capabilities.zsh) starts passively; queries are explicit.
+See the [recorded terminal and curses matrix](docs/portability/README.md) for
+verified configurations and unknown results.
+
 [Editable inputs and forms](docs/inputs-and-forms.md) add Unicode-aware movement,
 selection, bounded streaming paste, validation and field navigation. Try the
 [connection form](examples/form.zsh); pass `--paste` to opt into bracketed paste.
@@ -248,6 +254,8 @@ unknown, so the application chooses its fallback policy.
 | `suspend_resume` | Foreground terminal handoff while retaining drawing resources |
 | `event_poll` | Poll one event without changing the window's configured timeout |
 | `input_info` | Input descriptor, polling guidance and session input state |
+| `capability_evidence` | Passive capability records with evidence sources and explicit overrides |
+| `capability_queries` | Opt-in bounded mode queries through the existing event owner |
 | `input_delay` | Explicit ncurses escape-decoder delay with end/unload restoration |
 | `norefresh_events` | Opt-in event input without refreshing drawing windows (ncurses) |
 | `wide_events` | Locale-based wide-character input; otherwise events contain raw bytes |

@@ -149,3 +149,19 @@ class CompositionTests(unittest.TestCase):
             session.finish()
         finally:
             session.close()
+
+    def test_capability_inspector(self):
+        session = RecipeSession(self, 'capabilities')
+        try:
+            self.assertEqual(session.advance(), ['frame', '24', '80', '1', 'no', 'unknown', 'none', 'unknown', 'no'])
+            self.assertEqual(session.advance(b'o')[5:7], ['yes', 'override'])
+            self.assertEqual(session.advance(b'o')[5:7], ['no', 'override'])
+            self.assertEqual(session.advance(b'o')[5:7], ['unknown', 'override'])
+            self.assertEqual(session.advance(b'o')[5:7], ['unknown', 'none'])
+            self.assertEqual(session.advance(b'p')[3:5], ['2', 'yes'])
+            self.assertEqual(session.advance(b'\x1b[?2004;2$y')[7:], ['yes', 'no'])
+            self.assertEqual(session.advance(size=(1, 20))[1:3], ['1', '20'])
+            self.assertEqual(session.advance(size=(24, 80))[1:3], ['24', '80'])
+            session.finish()
+        finally:
+            session.close()

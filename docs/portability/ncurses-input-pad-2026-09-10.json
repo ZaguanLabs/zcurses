@@ -1,0 +1,16 @@
+[
+  {
+    "input": "byte",
+    "poll_no_frame": true,
+    "key_no_frame": true,
+    "explicit_present": true,
+    "termios_restored": true
+  },
+  {
+    "input": "wide",
+    "poll_no_frame": true,
+    "key_no_frame": true,
+    "explicit_present": true,
+    "termios_restored": true
+  }
+]

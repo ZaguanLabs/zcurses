@@ -208,3 +208,19 @@ state to abandon a stream; no terminal cleanup is needed for this decoder.
 
 This intentionally does not emulate an interactive subprocess terminal. It is
 suited to colored compiler, search and diagnostic output read from a pipe.
+
+
+## Capability queries and foreground continuation
+
+Use [passive capability records](capabilities.md) for evidence without terminal
+I/O. Explicit queries use the same `event` owner as paste and keyboard input;
+handle `type=capability` without treating it as text. Keep external waits finite
+so the next event call can deliver a query timeout. Cancel/off and successful
+suspend do not retry requests; mode replies have no request identifier.
+
+A background continuation must leave the session suspended until foreground
+ownership is restored. On systems with terminal process-group support, `resume`
+returns 1 in the background before changing terminal modes. Applications retain
+signal/trap policy, including explicit suspend before stopping. The
+[portability record](portability/README.md) documents the interactive-shell
+`bg`/`fg` test and the limits of the current terminal matrix.

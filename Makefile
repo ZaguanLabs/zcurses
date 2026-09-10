@@ -34,7 +34,7 @@ test: build
 	"$(ZSH_BIN)" -dfn lib/zdraw-run.zsh
 	"$(ZSH_BIN)" -dfn lib/zdraw-fixture.zsh
 	"$(ZSH_BIN)" -dfn tests/visual.zsh
-	@for file in lib/zdraw-ui.zsh lib/zdraw-panel.zsh lib/zdraw-list.zsh lib/zdraw-layout.zsh lib/zdraw-table.zsh lib/zdraw-tabs.zsh lib/zdraw-meter.zsh lib/zdraw-badge.zsh lib/zdraw-help.zsh lib/zdraw-input.zsh lib/zdraw-form.zsh lib/zdraw-document.zsh lib/zdraw-chart.zsh lib/zdraw-sparkline.zsh lib/zdraw-bars.zsh lib/zdraw-canvas.zsh lib/ui/*.zsh tests/ui*.zsh tests/gallery.zsh tests/composition.zsh examples/gallery.zsh examples/list-detail.zsh examples/table-inspector.zsh examples/task-monitor.zsh examples/form.zsh examples/document.zsh examples/canvas.zsh benchmarks/canvas.zsh; do \
+	@for file in lib/zdraw-ui.zsh lib/zdraw-panel.zsh lib/zdraw-list.zsh lib/zdraw-layout.zsh lib/zdraw-table.zsh lib/zdraw-tabs.zsh lib/zdraw-meter.zsh lib/zdraw-badge.zsh lib/zdraw-help.zsh lib/zdraw-input.zsh lib/zdraw-form.zsh lib/zdraw-document.zsh lib/zdraw-chart.zsh lib/zdraw-sparkline.zsh lib/zdraw-bars.zsh lib/zdraw-canvas.zsh lib/ui/*.zsh tests/ui*.zsh tests/gallery.zsh tests/composition.zsh tests/capabilities.zsh tests/job-control.zsh scripts/portability/terminal.zsh examples/capabilities.zsh examples/gallery.zsh examples/list-detail.zsh examples/table-inspector.zsh examples/task-monitor.zsh examples/form.zsh examples/document.zsh examples/canvas.zsh benchmarks/canvas.zsh; do \
 	  "$(ZSH_BIN)" -dfn "$$file" || exit; \
 	done
 	"$(ZSH_BIN)" -dfn tests/presentation.zsh

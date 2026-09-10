@@ -47,6 +47,9 @@ xitem(tt(zdraw) tt(paste) tt(on)|tt(off))
 xitem(tt(zdraw) tt(suspend))
 xitem(tt(zdraw) tt(resume))
 xitem(tt(zdraw) tt(inputinfo) var(association))
+xitem(tt(zdraw) tt(capabilities) var(association) [ var(name)tt(=)tt(yes)|tt(no)|tt(unknown) ... ])
+xitem(tt(zdraw) tt(query) tt(on)|tt(off)|tt(cancel))
+xitem(tt(zdraw) tt(query) tt(request) var(name) var(milliseconds))
 xitem(tt(zdraw) tt(inputdelay) var(milliseconds))
 xitem(tt(zdraw) tt(spansclip) var(targetwin) var(row) var(column) var(columns) var(style) var(text) [ var(style) var(text) ... ] )
 xitem(tt(zdraw) tt(border) var(targetwin) [ var(left) var(right) var(top) var(bottom) var(top_left) var(top_right) var(bottom_left) var(bottom_right) ] )
@@ -64,7 +67,7 @@ xitem(tt(zdraw) tt(restyle) var(targetwin) var(row) var(column) var(rows) var(co
 xitem(tt(zdraw) tt(fill) var(targetwin) var(row) var(column) var(rows) var(columns) var(style) var(tile))
 item(tt(zdraw) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
 Manipulate curses windows. Except for tt(geometry), tt(colorinfo), tt(textinfo),
-tt(textpos) and tt(textwrap), uses of
+tt(textpos), tt(textwrap) and tt(capabilities), uses of
 this command should be
 bracketed by `tt(zdraw init)' to initialise use of curses, and
 `tt(zdraw end)' to end it; omitting `tt(zdraw end)' can cause
@@ -700,7 +703,8 @@ narrow input returns raw bytes 0--255. Curses key numbers vary by library.
 Character records do not identify unmodified physical keys. This first event
 interface does not distinguish focus, keyboard modifiers or
 press/repeat/release events, and negotiates no modern keyboard protocol.
-Bracketed paste has a separate explicitly enabled record format described below.
+Bracketed paste and capability replies have separate explicitly enabled record
+formats described below.
 
 The existing tt(input) and new tt(event) share the same curses queue and decoder.
 Applications choose which call consumes each item. There is no background reader;
@@ -717,6 +721,78 @@ window's configured timeout on return. It can be combined with tt(mouse) and
 tt(norefresh); all flags are distinct and order-independent. Native escape
 decoding and EINTR behavior still apply, so this is not a hard nonblocking
 deadline. Empty input returns 1 without assigning the destination.
+
+The subcommand tt(capabilities) passively assigns an ordinary writable association
+(or absent parameter), including before initialization or while suspended. It
+opens no terminal, sends no query, reads no input and changes no enabled state.
+The format is tt(zdraw-capabilities-1). Top-level keys are tt(names), tt(session)
+(tt(inactive), tt(active), tt(suspended)), tt(term), tt(locale), tt(curses_version)
+and tt(query_owner). Terminal names describe configuration, not verified identity.
+
+For each name, comma-separated fields are tt(compiled) (tt(yes) or tt(no)),
+tt(support) (tt(yes), tt(no), tt(unknown)), tt(source), tt(evidence_support),
+tt(evidence_source), tt(enabled), tt(reported) and tt(query). Evidence sources are
+tt(none), tt(compiled), tt(curses), tt(terminfo), tt(reply) or tt(override).
+Optional literal var(name)tt(=yes|no|unknown) arguments affect only the returned
+support/source fields; original evidence remains separately available. Overrides
+are not retained and never bypass native availability checks. Unknown names,
+duplicate overrides and invalid values fail before assignment.
+
+Names tt(colors) and tt(truecolor) report the existing session's curses and
+terminfo evidence. tt(wide_text), tt(norefresh_events) and tt(suspend_resume)
+report compiled API support; wide text does not establish font or emoji coverage.
+Names tt(streaming_paste), tt(focus_events) and tt(synchronized_output) report
+terminal recognition of modes 2004, 1004 and 2026, independently of compiled API
+support. Focus and synchronized-output activation are not implemented here.
+Before evidence exists, terminal support remains tt(unknown). The tt(enabled)
+field describes module-owned persistent activation, not terminal confirmation;
+operations with no persistent activation report tt(no).
+
+With an initialized session, tt(query on) reserves fifteen exact seven-bit
+DECRPM replies in the existing curses decoder. It emits nothing and enables no
+terminal mode. tt(query request) accepts one of tt(streaming_paste),
+tt(focus_events), tt(synchronized_output), and literal decimal milliseconds from
+20 through 5000. It writes one DECRQM request and flushes stdout. One request may
+be outstanding; requests during an active paste fail. Each mode may be attempted
+once per session, even after cancellation or a failed write: replies lack request
+identifiers, so a retry could mistake an old reply for a new one.
+
+While ownership is enabled, tt(event) returns tt(type=capability),
+tt(source=decrpm), tt(name), numeric tt(mode), tt(phase), numeric tt(report) and
+empty tt(text). A tt(reply) phase accepts evidence only for the pending mode
+before its monotonic deadline. Report 0 means unrecognized; 1 through 4 mean set,
+reset, permanently set and permanently reset. Recognition does not establish
+that a permanently reset mode can be enabled. The tt(reported) capability field
+records these as tt(unrecognized), tt(set), tt(reset), tt(permanent-set),
+tt(permanent-reset), or tt(unknown) without accepted evidence.
+
+A tt(timeout) event has report -1 and leaves support unknown. Other recognized
+replies are tt(unsolicited) or tt(late) events without changing evidence.
+The tt(query) field is tt(never), tt(pending), tt(replied), tt(timeout),
+tt(cancelled), tt(send-error), or tt(unavailable) for non-queryable entries.
+Inspection can report an expired deadline without consuming its timeout event.
+Only event calls process deadlines; use finite external wait ticks. The initial
+input wait is capped by the deadline, but curses escape decoding and inherited
+signal retries may extend the call. This is an acceptance deadline, not a hard
+execution-time bound. Querying requires ncurses key registration and a monotonic
+clock; check tt(capability_queries). Passive inspection has tt(capability_evidence).
+
+Curses retains its existing decoding for ordinary keys, malformed/unsupported
+reports and fragments that exceed its escape delay. Only exact supported replies
+are intercepted; report-shaped data inside paste remains payload. Replies are
+input bytes, not authenticated evidence. While queries own decoding, tt(input)
+is rejected; use tt(event) and no concurrent shell, ZLE or external reader.
+
+The idempotent tt(query cancel) cancels without a synthetic event or output.
+The idempotent tt(query off) cancels and releases registrations, preserving stored
+evidence and attempt limits. Neither flushes input; later reports after off may
+become ordinary input. Successful tt(suspend) cancels without retry on resume.
+Bytes during a handoff belong to the other foreground owner. tt(end) and unload
+clear registrations, observations and attempts. Repeated active tt(init) preserves
+them. Status is 0 on success, 1 on invalid input/state, collisions or library/I/O
+failure, and 2 for queries without compiled support. On systems supporting
+terminal process groups, background tt(resume) returns 1 before changing modes;
+applications resume after foreground handoff and retain their own signal traps.
 
 The subcommand tt(inputinfo) requires a session and replaces an ordinary writable
 association with input state, without reading or presenting:
@@ -791,7 +867,7 @@ active mouse reporting, calls tt(endwin), and restores the modes saved before
 initialization. Windows, pads, prepared rows and colors remain allocated.
 Repeated suspension is idempotent; active paste must finish first. While suspended,
 drawing, input and tt(init) are rejected. tt(resume), tt(suspend), tt(end),
-tt(inputinfo), geometry/color queries and headless text queries remain available.
+tt(inputinfo), tt(capabilities), geometry/color queries and headless text queries remain available.
 Ending a suspended session frees resources without re-entering the alternate screen.
 
 The subcommand tt(resume) restores program modes, rechecks terminal dimensions,
@@ -1228,6 +1304,8 @@ sitem(tt(streaming_paste))(Opt-in bracketed paste through curses, in bounded byt
 sitem(tt(suspend_resume))(Retained session handoff to foreground commands.)
 sitem(tt(event_poll))(Per-call zero initial input timeout.)
 sitem(tt(input_info))(Input descriptor, polling guidance and session input state.)
+sitem(tt(capability_evidence))(Passive support/evidence/state records and record-only overrides.)
+sitem(tt(capability_queries))(Opt-in bounded DECRQM requests and exact DECRPM event decoding.)
 sitem(tt(input_delay))(Explicit ncurses escape delay with end/unload restoration.)
 sitem(tt(norefresh_events))(Opt-in event input without refreshing drawing windows,
 currently with ncurses.)
