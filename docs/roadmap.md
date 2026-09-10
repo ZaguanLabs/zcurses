@@ -163,13 +163,16 @@ selection, highlighting and scrolling without implementing editor policy in C.
   Verify reconstruction and hit-testing boundaries; provide a source-anchored
   [reflow example](../examples/wrapping.zsh).
 - [ ] Consider word-breaking and multiline source-range policies separately.
-- [ ] Explore optional grapheme-aware cursor/clipping boundaries.
+- [x] Explore optional grapheme-aware cursor/clipping boundaries. The
+  [Unicode 17 terminal profile](unicode-boundaries.md) is explicit per query/field.
 - [x] Keep clipping units, terminal width policy and curses storage limits
-  distinct; document that `textpos` does not provide grapheme segmentation.
+  distinct; retain the default `textpos` policy and document the optional profile.
 - [x] Test combining marks, multibyte byte offsets, wide-cell selection, locale
   changes, ASCII fallback and byte/column round trips; provide a keyboard/mouse
   [hit-testing example](../examples/hit-test.zsh).
-- [ ] Test emoji shaping and width discrepancies across actual terminals.
+- [x] Test emoji shaping and width discrepancies across actual terminals.
+  [Corpus, raw/native captures and matrix](unicode-boundaries.md#corpus-and-real-terminal-evidence)
+  record xterm, tmux, Screen and kitty observations without universal claims.
 
 References: [Unicode segmentation](https://www.unicode.org/reports/tr29/),
 [Unicode width](https://www.unicode.org/reports/tr11/).

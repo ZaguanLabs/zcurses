@@ -407,21 +407,52 @@ integration patch passes its dry run. Final local log:
 Improve evidence and editing behavior without equating segmentation with terminal
 shaping. Keep the current clipping-unit contract available.
 
-- [ ] Add a documented corpus covering combining sequences, emoji modifiers,
+- [x] Add a documented corpus covering combining sequences, emoji modifiers,
   joiners, flags, variation selectors and ambiguous-width characters.
-- [ ] Compare native geometry, retained curses cells and actual rendering on the
+- [x] Compare native geometry, retained curses cells and actual rendering on the
   recorded compatibility matrix; distinguish segmentation, width and storage gaps.
-- [ ] Specify an optional grapheme-boundary policy, its Unicode-data version,
+- [x] Specify an optional grapheme-boundary policy, its Unicode-data version,
   dependency/build implications and relation to native cell-width calculations.
-- [ ] Prototype the policy in text queries and companion field movement/deletion,
+- [x] Prototype the policy in text queries and companion field movement/deletion,
   preserving source byte anchors and the existing default behavior.
-- [ ] Test selection, clipping, document reflow, narrow builds, locale changes and
+- [x] Test selection, clipping, document reflow, narrow builds, locale changes and
   unsupported cases; publish the supported boundary policy and remaining limits.
 
 **Completion:** a tested corpus and bounded optional segmentation implementation
 exist. Do not claim that every emoji shapes correctly merely because its source
 sequence is treated as one editing unit. Existing companion word wrapping remains
 in place; a new native multiline API requires a separate demonstrated need.
+
+**Completed 2026-09-10 — implementation commit `124ccfa`.**
+The [Unicode boundary guide](unicode-boundaries.md) specifies the optional
+Unicode 17.0.0 terminal profile. `textpos` accepts a final `cell|grapheme` policy;
+`textinfo` accepts it after an explicit column budget. The default is unchanged.
+Opted-in fields move, select, delete and clip complete units, preserve byte
+anchors after splices and streamed paste, and retain per-field policy in forms.
+Document reflow keeps its existing source-byte and word-wrapping behavior.
+
+The engine passes all **766** official Unicode 17 extended-grapheme test vectors.
+The terminal adapter preserves native zero-width clipping units and printable
+validation, explicitly requires UTF-8 and `MULTIBYTE`, and bounds optional queries
+to one MiB of original bytes. Checked-in generated tables, source hashes, license
+and a reproducible generator add no runtime library or download dependency.
+
+The [18-case corpus](../tests/unicode/corpus.json),
+[recorded terminal matrix](portability/unicode-matrix-2026-09-10.json) and eight
+[raw/native captures](portability/unicode-captures/) compare system widths,
+retained curses cells, cursor replies and actual pixels in xterm 407,
+xterm/tmux next-3.3, xterm/Screen 5.0.1 and kitty 0.44.0. Observed emoji-width,
+combining-storage and Screen rendering gaps are documented. Grapheme grouping
+does not claim correct glyph shaping or reconcile emulator and curses widths.
+Other emulator versions, actual SSH, IMEs and bidi interaction remain untested.
+
+Verification: all **109 tests passed** against the public Zsh 5.9.2 source release
+and matching shell, including corpus byte/column queries, clipping, selection,
+splice resegmentation, split UTF-8 paste, source anchors, unavailable builds and
+locale/option changes. Generated tables reproduce exactly, changed Zsh files
+parse, the native manual builds, and the additive integration patch passes its
+dry run including both headers. Final local log:
+`.build/unicode-final-make-test.log`.
 
 ## 9. Interaction recording and replay
 
