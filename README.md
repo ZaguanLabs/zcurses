@@ -49,6 +49,10 @@ combines them with a queue table and controllable simulated progress:
 selection, bounded streaming paste, validation and field navigation. Try the
 [connection form](examples/form.zsh); pass `--paste` to opt into bracketed paste.
 
+[Semantic documents](docs/semantic-documents.md) provide styled blocks, word
+wrapping, scrolling and stable anchors across resize. The [reader recipe](examples/document.zsh)
+combines them with responsive chapter navigation.
+
 [Visual regression tooling](docs/visual-regression.md) exports portable readback
 fixtures and compares text, styles and geometry, with optional HTML reports.
 

@@ -106,3 +106,24 @@ class CompositionTests(unittest.TestCase):
             session.finish()
         finally:
             session.close()
+
+    def test_document_recipe(self):
+        session = RecipeSession(self, 'document')
+        try:
+            initial = session.advance()
+            self.assertEqual(initial[:4], ['frame', '24', '80', '1'])
+            self.assertEqual(session.advance(b'n')[5], '4')  # First subheading.
+            chapter = session.advance(b'2')
+            self.assertEqual(chapter[5:7], ['10', '0'])
+            narrow = session.advance(size=(24, 50))
+            self.assertEqual(narrow[5:7], ['10', '0'])
+            self.assertLess(int(narrow[4]), int(chapter[4]))
+            self.assertEqual(session.advance(b't')[-1], 'light')
+            self.assertEqual(session.advance(b'p')[5], '4')
+            self.assertEqual(session.advance(size=(24, 110))[5], '4')
+            self.assertEqual(session.advance(size=(6, 20))[1:3], ['6', '20'])
+            self.assertEqual(session.advance(size=(24, 80))[5], '4')
+            self.assertEqual(session.advance(b'1')[3], '1')
+            session.finish()
+        finally:
+            session.close()

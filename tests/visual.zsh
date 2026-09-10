@@ -8,9 +8,11 @@ source "$root/lib/zdraw-panel.zsh" || exit 1
 source "$root/lib/zdraw-list.zsh" || exit 1
 source "$root/lib/zdraw-meter.zsh" || exit 1
 source "$root/lib/zdraw-fixture.zsh" || exit 1
+source "$root/lib/zdraw-form.zsh" || exit 1
+source "$root/lib/zdraw-document.zsh" || exit 1
 fail() { print -ru2 -- "FAIL: $*"; exit 1; }
 check() { "$@" || fail "$*"; }
-typeset -A zdraw_ui_theme zdraw_ui_list
+typeset -A zdraw_ui_theme zdraw_ui_list zdraw_ui_form zdraw_ui_document
 typeset -a reply content position_before position_after
 typeset zdraw_ui_fixture=sentinel name profile density saved
 check zdraw init
@@ -33,6 +35,20 @@ check zdraw init
         [[ "$position_before" == "$position_after" ]] || fail 'capture moved cursor'
         print -r -- "$zdraw_ui_fixture" > "$ZDRAW_VISUAL_DIR/$name-$profile-$density.json"
       done
+    done
+  done
+  for name in dark light; do
+    for profile in 256 mono; do
+      check zdraw-ui-theme "$name" "$profile"
+      check zdraw-form-init Name '' required Port 443 integer
+      zdraw-form-action validate && fail 'empty name validated'
+      check zdraw-form-action next
+      check zdraw-form-action edit select-all
+      check zdraw-form sample 0 0 6 44 focus
+      check zdraw-document-init 44 guide heading 'A place for good ideas' body paragraph 'Structured content, styled by role and wrapped for the space available.'
+      check zdraw-document sample 6 0 4 44 normal
+      check zdraw-fixture sample
+      print -r -- "$zdraw_ui_fixture" > "$ZDRAW_VISUAL_DIR/$name-$profile-composition.json"
     done
   done
   check zdraw clear sample

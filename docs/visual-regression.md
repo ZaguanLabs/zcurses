@@ -61,3 +61,6 @@ harness. For a different platform or encoding, inspect differences before
 adopting replacement baselines. Screenshots from actual terminals remain useful
 for font rendering and terminal-specific behavior that logical fixtures cannot
 prove.
+
+The checked-in fixtures also cover form validation/selection and semantic document
+roles in dark/light and 256-color/monochrome combinations.

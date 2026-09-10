@@ -1,7 +1,8 @@
 # Optional UI toolkit
 
-The first visual toolkit supplies theme colors, composable styling utilities,
-panels, labels, scrolling lists and tables. Each component is an optional Zsh library.
+The visual toolkit supplies themes, composable styling utilities, panels, labels,
+scrolling lists, tables, editable forms and semantic documents. Each component is
+an optional Zsh library.
 Applications choose their rectangles, data, keymaps and event loops.
 Pure layout helpers now handle fixed/flexible tracks, gaps, insets and centering;
 the [list/detail recipe](recipes/list-detail.md) demonstrates responsive composition.
@@ -54,6 +55,10 @@ source ./lib/zdraw-tabs.zsh   # common helpers plus tabs
 source ./lib/zdraw-badge.zsh  # common helpers plus status badges
 source ./lib/zdraw-meter.zsh  # common helpers plus numeric progress meters
 source ./lib/zdraw-help.zsh   # common helpers plus shortcut rows
+source ./lib/zdraw-input.zsh  # editing, selection, paste and field rendering
+source ./lib/zdraw-form.zsh   # inputs plus validation and form navigation
+source ./lib/zdraw-document.zsh # structured content, wrapping and navigation
+source ./lib/zdraw-fixture.zsh  # portable readback fixture export
 ```
 
 Only source the entries you need. Panel and list loaders include the common
@@ -63,7 +68,8 @@ keep that directory beside the public loaders when distributing the toolkit.
 Loading is passive: it defines functions without loading the native module,
 initializing curses, reading input, allocating colors or enabling protocols.
 Theme resolution and list state updates work without a terminal. Drawing needs
-the native `zdraw` module and an initialized session.
+the native `zdraw` module and an initialized session. Input editing and document
+compilation use native text queries but do not initialize a terminal.
 
 Each function uses local Zsh option emulation. The loaders disable aliases while
 parsing the implementation files. Application options are restored on return.
@@ -251,7 +257,8 @@ caller's existing resolved style.
 
 States are comma-separated tags: `normal`, `focus`, `selected`, `inactive`,
 `disabled`, `empty`, `title`, `header`, `alternate`, `filled`, `track`, `label`,
-`key`. Tags are explicit: `focus` does not implicitly
+`key`, `invalid`, `cursor`, `heading`, `subheading`, `paragraph`, `bullet`,
+`quote`, `code`, `separator`, `spacer`. Tags are explicit: `focus` does not implicitly
 include `normal`. A utility without a condition applies to every state.
 
 ```zsh
@@ -434,8 +441,8 @@ idle input timeout. Large datasets may warrant a future measured optimization.
 - [x] Tabs, status badges, meters and whole-item help rows.
 - [x] [Portable visual fixtures and reviewable diffs](visual-regression.md), with theme/density baselines.
 - [x] [Editable inputs and forms](inputs-and-forms.md): selection, streaming paste, validation and focus.
-- [ ] Semantic document rendering with wrapping and navigation.
+- [x] [Semantic documents](semantic-documents.md): word wrapping, role styles, scrolling, named anchors and resize reflow.
 
-The unchecked items remain follow-ups, as do the experimental ideas in the
-research report. This first toolkit does not require adopting an application
-framework or changing the native module.
+This toolkit checklist is complete. The broader experimental ideas in the
+research report and native roadmap remain separate future work. Using the toolkit
+does not require adopting an application framework or changing the native module.
