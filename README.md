@@ -49,6 +49,10 @@ combines them with a queue table and controllable simulated progress:
 with bounded numeric series, fixed/automatic scales and ASCII fallbacks. The
 [task monitor](examples/task-monitor.zsh) demonstrates bounded history in its third tab.
 
+[Character canvases](docs/character-canvas.md) retain points, lines and rectangles
+and render the same geometry as ASCII, blocks or Braille. Try the
+[waveform example](examples/canvas.zsh) to compare markers and resize the plot.
+
 [Editable inputs and forms](docs/inputs-and-forms.md) add Unicode-aware movement,
 selection, bounded streaming paste, validation and field navigation. Try the
 [connection form](examples/form.zsh); pass `--paste` to opt into bracketed paste.

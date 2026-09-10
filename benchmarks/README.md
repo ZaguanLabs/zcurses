@@ -104,3 +104,57 @@ workload suited to `fill`, not a replacement for multi-style text rows. It measu
 shell and curses execution, not terminal paint time. Every backend emitted the
 same number of terminal bytes in each scenario. Fill removes shell row loops and
 repeated tile/style compilation while retaining curses' normal screen diff.
+
+## Character canvas
+
+Build with the documented public Zsh source release, then run:
+
+```sh
+python3 benchmarks/canvas.py --trials 3 --frames 10
+```
+
+The benchmark uses the matching staged shell/module in a controlled PTY, a
+32-segment integer waveform, and 8×32/16×64 cell grids. ASCII and Braille use the
+same occupancy masks. Each trial creates a fresh shell, builds the scene, warms
+up three frames and times ten frames using Zsh's floating-point `SECONDS`.
+Backend order alternates between trials. Set `ZDRAW_TEST_LOCALE` if `C.UTF-8` is
+unavailable. The script requires Unix PTYs and `wait4`.
+
+- `baseline`: scene, loaded functions and an initialized window, without raster
+  storage; this supplies a whole-shell memory reference, not a useful draw time.
+- `raster`: rebuild the occupancy grid only.
+- `cached`: retain the grid and perform row encoding plus native drawing.
+- `rebuild`: rasterize, encode and draw each frame.
+
+Drawn frames alternate between two foreground colors. They do not call refresh,
+so timings do not measure terminal output transport or emulator paint latency.
+Scene construction is outside timing. Peak RSS covers the whole shell, including
+setup, scene construction, caches and warmup. On Linux the driver reads `VmHWM`
+from `/proc` while the completed child waits for acknowledgement. Other systems
+fall back to `wait4`, which may include launch overhead. Neither counter measures
+canvas allocations in isolation, and differences between fresh processes include
+allocator/library variation. Logical pixels, occupied cells and write attempts
+are reported separately.
+
+A local Linux x86-64 run with the matching Zsh 5.9.2 build and wide curses gave
+these medians (three trials, ten measured frames each):
+
+| Cells | Profile | Raster ms/frame | Cached draw ms/frame | Rebuild + draw ms/frame | Rebuild peak RSS KiB |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 8×32 | ASCII | 9.184 | 6.634 | 15.785 | 4932 |
+| 8×32 | Braille | 9.348 | 7.464 | 16.634 | 4960 |
+| 16×64 | ASCII | 16.800 | 26.319 | 42.875 | 5360 |
+| 16×64 | Braille | 15.997 | 28.319 | 45.041 | 5428 |
+
+Baseline whole-shell peak RSS was 4708–4848 KiB across these cases. The smaller
+raster contained 79 occupied logical pixels in 39 cells; the larger had 155 pixels
+in 83 cells. Both retained 32 source segments. Full trial ranges, platform details
+and logical resource counters are in the
+[recorded JSON](results/canvas-2026-09-10.json).
+
+These measurements support small plots and caching unchanged geometry. They do
+not establish animation performance for arbitrary shapes or large filled scenes.
+Cached drawing still validates/encodes cells in Zsh; native prepared rows are an
+available separate reuse path, but were not timed in this benchmark. Keep these
+results as evidence for the later diagnostics/optimization milestone rather than
+moving the rasterizer into C without an application workload that needs it.

@@ -11,7 +11,7 @@ ROOT, ZSH = test_features.ROOT, test_features.ZSH
 
 
 class ClippingTests(unittest.TestCase):
-    def headless(self, mode='wide', modules=None, fixture='textinfo.zsh', marker='TEXTINFO PASS'):
+    def headless(self, mode='wide', modules=None, fixture='textinfo.zsh', marker='TEXTINFO PASS', timeout=10):
         locales = subprocess.check_output(['locale', '-a'], text=True).splitlines()
         utf8 = os.environ.get('ZDRAW_TEST_LOCALE') or next(
             (x for x in locales if 'utf8' in x.lower().replace('-', '')), None)
@@ -21,7 +21,7 @@ class ClippingTests(unittest.TestCase):
         result = subprocess.run([ZSH, '-df', str(ROOT / 'tests' / fixture),
                                  str(modules or ROOT / '.build/modules'), mode],
                                 env=env, start_new_session=True, stdin=subprocess.DEVNULL,
-                                capture_output=True, text=True, timeout=10)
+                                capture_output=True, text=True, timeout=timeout)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout, marker + '\n')
         self.assertEqual(result.stderr, '')

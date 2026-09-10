@@ -67,3 +67,6 @@ roles in dark/light and 256-color/monochrome combinations.
 
 Chart fixtures include ASCII and Unicode sparklines, signed bars, missing samples
 and out-of-range highlighting across both themes and color profiles.
+
+Canvas fixtures render the same occupancy grid as ASCII, Braille and half-blocks
+in each theme/color combination, so geometry changes can be compared directly.

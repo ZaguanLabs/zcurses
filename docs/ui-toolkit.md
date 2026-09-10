@@ -57,6 +57,7 @@ source ./lib/zdraw-meter.zsh  # common helpers plus numeric progress meters
 source ./lib/zdraw-chart.zsh  # headless numeric series and projection
 source ./lib/zdraw-sparkline.zsh # chart helpers plus one-row history plots
 source ./lib/zdraw-bars.zsh   # chart helpers plus signed bar comparisons
+source ./lib/zdraw-canvas.zsh # retained geometry, rasterization and canvas drawing
 source ./lib/zdraw-help.zsh   # common helpers plus shortcut rows
 source ./lib/zdraw-input.zsh  # editing, selection, paste and field rendering
 source ./lib/zdraw-form.zsh   # inputs plus validation and form navigation
@@ -449,6 +450,7 @@ idle input timeout. Large datasets may warrant a future measured optimization.
 
 This toolkit checklist is complete. Follow-up components are tracked in the
 [incremental implementation plan](implementation-plan.md); see
-[compact charts](compact-charts.md) for sparklines and bar comparisons. The broader experimental ideas in the
+[compact charts](compact-charts.md) for sparklines and bar comparisons, and
+[character canvas](character-canvas.md) for points, lines and rectangles. The broader experimental ideas in the
 research report and native roadmap remain separate future work. Using the toolkit
 does not require adopting an application framework or changing the native module.

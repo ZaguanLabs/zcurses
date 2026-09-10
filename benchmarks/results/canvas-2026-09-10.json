@@ -1,0 +1,297 @@
+{
+  "platform": "Linux-6.18.44-desktop-1.mga10-x86_64-with-glibc2.42",
+  "frames": 10,
+  "trials": 3,
+  "locale": "C.UTF-8",
+  "note": "No refresh in measured frames; RSS is the whole shell when proc-vmhwm is available; wait4 may include launch overhead. Neither measures canvas allocations alone.",
+  "results": [
+    {
+      "rows": 8,
+      "columns": 32,
+      "palette": "ascii",
+      "backend": "baseline",
+      "median_ms_per_frame": 0.011600000000000001,
+      "range_ms_per_frame": [
+        0.0115,
+        0.011600000000000001
+      ],
+      "median_peak_rss_kib": 4768,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 0,
+      "occupied_cells": 0,
+      "writes": 0
+    },
+    {
+      "rows": 8,
+      "columns": 32,
+      "palette": "ascii",
+      "backend": "raster",
+      "median_ms_per_frame": 9.1845,
+      "range_ms_per_frame": [
+        9.0947,
+        9.4175
+      ],
+      "median_peak_rss_kib": 4928,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 79,
+      "occupied_cells": 39,
+      "writes": 110
+    },
+    {
+      "rows": 8,
+      "columns": 32,
+      "palette": "ascii",
+      "backend": "cached",
+      "median_ms_per_frame": 6.6343000000000005,
+      "range_ms_per_frame": [
+        6.633799999999999,
+        6.860199999999999
+      ],
+      "median_peak_rss_kib": 4788,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 79,
+      "occupied_cells": 39,
+      "writes": 110
+    },
+    {
+      "rows": 8,
+      "columns": 32,
+      "palette": "ascii",
+      "backend": "rebuild",
+      "median_ms_per_frame": 15.784799999999999,
+      "range_ms_per_frame": [
+        15.741,
+        16.1663
+      ],
+      "median_peak_rss_kib": 4932,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 79,
+      "occupied_cells": 39,
+      "writes": 110
+    },
+    {
+      "rows": 8,
+      "columns": 32,
+      "palette": "braille",
+      "backend": "baseline",
+      "median_ms_per_frame": 0.012,
+      "range_ms_per_frame": [
+        0.0119,
+        0.0154
+      ],
+      "median_peak_rss_kib": 4768,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 0,
+      "occupied_cells": 0,
+      "writes": 0
+    },
+    {
+      "rows": 8,
+      "columns": 32,
+      "palette": "braille",
+      "backend": "raster",
+      "median_ms_per_frame": 9.3484,
+      "range_ms_per_frame": [
+        9.0821,
+        9.4282
+      ],
+      "median_peak_rss_kib": 4888,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 79,
+      "occupied_cells": 39,
+      "writes": 110
+    },
+    {
+      "rows": 8,
+      "columns": 32,
+      "palette": "braille",
+      "backend": "cached",
+      "median_ms_per_frame": 7.463500000000001,
+      "range_ms_per_frame": [
+        7.2938,
+        7.7177999999999995
+      ],
+      "median_peak_rss_kib": 4908,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 79,
+      "occupied_cells": 39,
+      "writes": 110
+    },
+    {
+      "rows": 8,
+      "columns": 32,
+      "palette": "braille",
+      "backend": "rebuild",
+      "median_ms_per_frame": 16.6344,
+      "range_ms_per_frame": [
+        16.470499999999998,
+        16.900399999999998
+      ],
+      "median_peak_rss_kib": 4960,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 79,
+      "occupied_cells": 39,
+      "writes": 110
+    },
+    {
+      "rows": 16,
+      "columns": 64,
+      "palette": "ascii",
+      "backend": "baseline",
+      "median_ms_per_frame": 0.011600000000000001,
+      "range_ms_per_frame": [
+        0.0113,
+        0.011699999999999999
+      ],
+      "median_peak_rss_kib": 4708,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 0,
+      "occupied_cells": 0,
+      "writes": 0
+    },
+    {
+      "rows": 16,
+      "columns": 64,
+      "palette": "ascii",
+      "backend": "raster",
+      "median_ms_per_frame": 16.8002,
+      "range_ms_per_frame": [
+        16.6767,
+        16.8502
+      ],
+      "median_peak_rss_kib": 5352,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 155,
+      "occupied_cells": 83,
+      "writes": 186
+    },
+    {
+      "rows": 16,
+      "columns": 64,
+      "palette": "ascii",
+      "backend": "cached",
+      "median_ms_per_frame": 26.3193,
+      "range_ms_per_frame": [
+        26.3043,
+        27.369799999999998
+      ],
+      "median_peak_rss_kib": 5196,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 155,
+      "occupied_cells": 83,
+      "writes": 186
+    },
+    {
+      "rows": 16,
+      "columns": 64,
+      "palette": "ascii",
+      "backend": "rebuild",
+      "median_ms_per_frame": 42.874700000000004,
+      "range_ms_per_frame": [
+        42.0724,
+        43.5304
+      ],
+      "median_peak_rss_kib": 5360,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 155,
+      "occupied_cells": 83,
+      "writes": 186
+    },
+    {
+      "rows": 16,
+      "columns": 64,
+      "palette": "braille",
+      "backend": "baseline",
+      "median_ms_per_frame": 0.0114,
+      "range_ms_per_frame": [
+        0.0114,
+        0.011600000000000001
+      ],
+      "median_peak_rss_kib": 4848,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 0,
+      "occupied_cells": 0,
+      "writes": 0
+    },
+    {
+      "rows": 16,
+      "columns": 64,
+      "palette": "braille",
+      "backend": "raster",
+      "median_ms_per_frame": 15.996799999999999,
+      "range_ms_per_frame": [
+        15.9834,
+        16.7122
+      ],
+      "median_peak_rss_kib": 5456,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 155,
+      "occupied_cells": 83,
+      "writes": 186
+    },
+    {
+      "rows": 16,
+      "columns": 64,
+      "palette": "braille",
+      "backend": "cached",
+      "median_ms_per_frame": 28.318599999999996,
+      "range_ms_per_frame": [
+        28.302500000000002,
+        28.9312
+      ],
+      "median_peak_rss_kib": 5236,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 155,
+      "occupied_cells": 83,
+      "writes": 186
+    },
+    {
+      "rows": 16,
+      "columns": 64,
+      "palette": "braille",
+      "backend": "rebuild",
+      "median_ms_per_frame": 45.0409,
+      "range_ms_per_frame": [
+        44.996,
+        46.2484
+      ],
+      "median_peak_rss_kib": 5428,
+      "memory_source": [
+        "proc-vmhwm"
+      ],
+      "pixels": 155,
+      "occupied_cells": 83,
+      "writes": 186
+    }
+  ]
+}

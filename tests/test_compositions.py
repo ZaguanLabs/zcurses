@@ -127,3 +127,25 @@ class CompositionTests(unittest.TestCase):
             session.finish()
         finally:
             session.close()
+
+    def test_canvas_recipe(self):
+        session = RecipeSession(self, 'canvas')
+        try:
+            initial = session.advance()
+            self.assertEqual(initial[:9], ['frame', '24', '80', 'line', 'auto', '0', 'dark', '256', '32'])
+            self.assertGreater(int(initial[9]), 33)
+            ascii_frame = session.advance(b'g')
+            self.assertEqual(ascii_frame[4], 'ascii')
+            self.assertEqual(ascii_frame[9], initial[9])  # Marker selection doesn't change geometry.
+            self.assertEqual(session.advance(b'g')[4], 'block')
+            self.assertEqual(session.advance(b'p')[3], 'point')
+            self.assertEqual(session.advance(b'm')[7], 'mono')
+            self.assertEqual(session.advance(b't')[6], 'light')
+            self.assertEqual(session.advance(b'e')[8:], ['0', '0'])
+            self.assertEqual(session.advance(b'e')[8], '33')
+            self.assertEqual(session.advance(size=(12, 32))[8], '33')
+            self.assertEqual(session.advance(size=(6, 20))[1:3], ['6', '20'])
+            self.assertEqual(session.advance(size=(24, 80))[8], '33')
+            session.finish()
+        finally:
+            session.close()
