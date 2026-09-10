@@ -39,6 +39,10 @@ test: build
 	done
 	"$(ZSH_BIN)" -dfn tests/presentation.zsh
 	"$(ZSH_BIN)" -dfn tests/sync.zsh
+	"$(ZSH_BIN)" -dfn tests/trees.zsh
+	"$(ZSH_BIN)" -dfn tests/overlay.zsh
+	"$(ZSH_BIN)" -dfn examples/stacking.zsh
+	"$(ZSH_BIN)" -dfn examples/overlays.zsh
 	"$(ZSH_BIN)" -dfn scripts/portability/frame-source.zsh
 	"$(ZSH_BIN)" -dfn tests/prepared.zsh
 	"$(ZSH_BIN)" -dfn tests/clipping.zsh

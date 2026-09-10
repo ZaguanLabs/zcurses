@@ -81,6 +81,11 @@
 #define ZDRAW_RESIZE_CELLS 262144
 #define ZDRAW_RESIZE_DIMENSION 32767
 
+#if defined(ZDRAW_WINDOW_RESIZE) && defined(HAVE_WGETBKGRND) && defined(HAVE_WBKGRNDSET)
+# define ZDRAW_WINDOW_TREE 1
+#endif
+#define ZDRAW_TREE_WINDOWS 64
+
 #define ZDRAW_PAD_CELLS 262144
 #define ZDRAW_PAD_TOTAL_CELLS 1048576
 #define ZDRAW_PAD_DIMENSION 32767
@@ -114,6 +119,14 @@ struct zc_win {
     LinkList children;
     ZCWin parent;
 };
+
+#ifdef ZDRAW_WINDOW_TREE
+/* One bounded retired tree at most. Failed deletion is retried before another
+ * rebuild, and children always outlive their backing parent's allocation. */
+static WINDOW *zdraw_tree_retired[ZDRAW_TREE_WINDOWS];
+static int zdraw_tree_parents[ZDRAW_TREE_WINDOWS], zdraw_tree_retired_count;
+#endif
+static int zdraw_tree_collect_retired(void);
 
 struct zdraw_namenumberpair {
     char *name;
@@ -1184,6 +1197,161 @@ zccmd_resizewin(const char *nam, char **args)
 }
 
 static int
+zdraw_tree_collect_retired(void)
+{
+#ifdef ZDRAW_WINDOW_TREE
+    int i, j, blocked, pending = 0;
+    for (i = zdraw_tree_retired_count - 1; i >= 0; i--) {
+        if (!zdraw_tree_retired[i]) continue;
+        blocked = 0;
+        for (j = i + 1; j < zdraw_tree_retired_count; j++)
+            if (zdraw_tree_retired[j] && zdraw_tree_parents[j] == i) blocked = 1;
+        if (!blocked && delwin(zdraw_tree_retired[i]) != ERR)
+            zdraw_tree_retired[i] = NULL;
+        else pending = 1;
+    }
+    if (!pending) zdraw_tree_retired_count = 0;
+    return pending;
+#else
+    return 0;
+#endif
+}
+
+static int
+zccmd_treewin(const char *nam, char **args)
+{
+#ifdef ZDRAW_WINDOW_TREE
+    struct tree_entry {
+        ZCWin w;
+        WINDOW *replacement;
+        int parent, row, col, rows, cols;
+    } entries[ZDRAW_TREE_WINDOWS];
+    LinkNode node, child;
+    ZCWin target, root;
+    int rows, cols, row, col, i, n = 1, j, py, px, cy, cx, oldrows, oldcols;
+    int y, x, result = 1;
+    attr_t attrs;
+    short pair;
+    cchar_t background;
+    if (zdraw_nonnegative(args[1], &rows) || zdraw_nonnegative(args[2], &cols) ||
+        zdraw_nonnegative(args[3], &row) || zdraw_nonnegative(args[4], &col) ||
+        !rows || !cols || rows > ZDRAW_RESIZE_DIMENSION || cols > ZDRAW_RESIZE_DIMENSION ||
+        rows > ZDRAW_RESIZE_CELLS / cols)
+        return 1;
+    node = zdraw_validate_window(args[0], ZDRAW_USED);
+    if (!node) return 1;
+    target = root = (ZCWin)getdata(node);
+    for (i = 0; root->parent; i++, root = root->parent)
+        if (i >= ZDRAW_TREE_WINDOWS) return 1;
+    if (root->flags & (ZCWF_PERMANENT | ZCWF_PAD)) {
+        zwarnnam(nam, "treewin requires a tree rooted in an ordinary owned window");
+        return 1;
+    }
+    if (zdraw_tree_collect_retired()) {
+        zwarnnam(nam, "could not release the previous retired window tree");
+        return 1;
+    }
+    memset(entries, 0, sizeof(entries));
+    entries[0].w = root;
+    entries[0].parent = -1;
+    /* Breadth-first collection bounds both depth and work; no C recursion. */
+    for (i = 0; i < n; i++) {
+        ZCWin w = entries[i].w;
+        getmaxyx(w->win, entries[i].rows, entries[i].cols);
+        getbegyx(w->win, cy, cx);
+        getmaxyx(w->win, oldrows, oldcols);
+        if (oldrows <= 0 || oldcols <= 0 || oldrows > ZDRAW_RESIZE_CELLS / oldcols)
+            return 1;
+        if (w == target) {
+            entries[i].rows = rows; entries[i].cols = cols;
+            entries[i].row = row; entries[i].col = col;
+        } else if (i) {
+            j = entries[i].parent;
+            getbegyx(entries[j].w->win, py, px);
+            /* Existing relative offsets remain fixed when an ancestor moves. */
+            if (cy < py || cx < px || cy - py > INT_MAX - entries[j].row ||
+                cx - px > INT_MAX - entries[j].col) return 1;
+            entries[i].row = entries[j].row + cy - py;
+            entries[i].col = entries[j].col + cx - px;
+        } else {
+            entries[i].row = cy; entries[i].col = cx;
+        }
+        if (!zdraw_window_fits(entries[i].row, entries[i].col, entries[i].rows, entries[i].cols))
+            return 1;
+        if (i) {
+            j = entries[i].parent;
+            py = entries[i].row - entries[j].row; px = entries[i].col - entries[j].col;
+            if (py < 0 || px < 0 || py >= entries[j].rows || px >= entries[j].cols ||
+                entries[i].rows > entries[j].rows - py || entries[i].cols > entries[j].cols - px)
+                return 1;
+        }
+        if (w->children) for (child = firstnode(w->children); child; incnode(child)) {
+            if (n == ZDRAW_TREE_WINDOWS) {
+                zwarnnam(nam, "treewin exceeds the 64-window tree limit");
+                return 1;
+            }
+            entries[n].w = (ZCWin)getdata(child);
+            entries[n++].parent = i;
+        }
+    }
+    /* Prepare independent backing first, then shared views. Live cells and
+     * handles remain untouched until every replacement and mode is ready. */
+    queue_signals();
+    for (i = 0; i < n; i++) {
+        ZCWin w = entries[i].w;
+        WINDOW *replacement;
+        getyx(w->win, y, x);
+        if (y >= entries[i].rows) y = entries[i].rows - 1;
+        if (x >= entries[i].cols) x = entries[i].cols - 1;
+        if (wattr_get(w->win, &attrs, &pair, NULL) == ERR || wgetbkgrnd(w->win, &background) == ERR)
+            goto cleanup;
+        if (!i) {
+            replacement = dupwin(w->win);
+            entries[i].replacement = replacement;
+            if (!replacement || wresize(replacement, entries[i].rows, entries[i].cols) == ERR ||
+                mvwin(replacement, entries[i].row, entries[i].col) == ERR) goto cleanup;
+        } else {
+            replacement = subwin(entries[entries[i].parent].replacement,
+                entries[i].rows, entries[i].cols, entries[i].row, entries[i].col);
+            entries[i].replacement = replacement;
+            if (!replacement) goto cleanup;
+        }
+        wbkgrndset(replacement, &background);
+        if (wattr_set(replacement, attrs, pair, NULL) == ERR || wmove(replacement, y, x) == ERR ||
+            scrollok(replacement, (w->flags & ZCWF_SCROLL) != 0) == ERR) goto cleanup;
+        wtimeout(replacement, w->timeout);
+    }
+    /* Publishing cannot fail. Retirement may fail afterward: retain coherent
+     * new handles and a bounded cleanup obligation instead of dangling children. */
+    for (i = 0; i < n; i++) {
+        zdraw_tree_retired[i] = entries[i].w->win;
+        zdraw_tree_parents[i] = entries[i].parent;
+        entries[i].w->win = entries[i].replacement;
+    }
+    zdraw_tree_retired_count = n;
+    if (zdraw_tree_collect_retired()) {
+        zwarnnam(nam, "treewin applied geometry but old-tree cleanup needs retry");
+        unqueue_signals();
+        return 1;
+    }
+    unqueue_signals();
+    return 0;
+cleanup:
+    for (j = 0; j < n; j++) {
+        zdraw_tree_retired[j] = entries[j].replacement;
+        zdraw_tree_parents[j] = entries[j].parent;
+    }
+    zdraw_tree_retired_count = n;
+    zdraw_tree_collect_retired();
+    unqueue_signals();
+    return result;
+#else
+    (void)nam; (void)args;
+    return 2;
+#endif
+}
+
+static int
 zccmd_addpad(const char *nam, char **args)
 {
 #ifdef ZDRAW_PADS
@@ -1946,12 +2114,12 @@ zccmd_restyle(const char *nam, char **args)
 #define ZDRAW_COPY_CELLS 65536
 
 static int
-zccmd_copy(const char *nam, char **args)
+zdraw_copy_region(const char *nam, char **args, int transparent)
 {
 #if defined(HAVE_COPYWIN) && defined(HAVE_NEWPAD)
     LinkNode node;
     WINDOW *source, *destination, *buffer;
-    int sr, sc, dr, dc, rows, cols, maxrows, maxcols, result;
+    int sr, sc, dr, dc, rows, cols, maxrows, maxcols, result, y, x, start, blank;
 
     if (zdraw_nonnegative(args[1], &sr) ||
         zdraw_nonnegative(args[2], &sc) ||
@@ -1999,17 +2167,68 @@ zccmd_copy(const char *nam, char **args)
      * Opaque copies retain literal blanks and source styles without decoding
      * text or allocating pairs. Never refresh this private pad. */
     result = copywin(source, buffer, sr, sc, 0, 0, rows - 1, cols - 1, 0);
-    if (result != ERR)
+    if (result != ERR && !transparent)
         result = copywin(buffer, destination, 0, 0,
                          dr, dc, dr + rows - 1, dc + cols - 1, 0);
+    else if (result != ERR) {
+        /* Preserve styled spaces as opaque; only a plain pair-zero space is a
+         * hole. Inspect the snapshot, then copy contiguous opaque cell runs. */
+        for (y = 0; y < rows && result != ERR; y++) {
+            start = -1;
+            for (x = 0; x <= cols; x++) {
+                blank = 1;
+                if (x < cols) {
+                    if (wmove(buffer, y, x) == ERR) { result = ERR; break; }
+#if defined(HAVE_WIN_WCH) && defined(HAVE_GETCCHAR)
+                    {
+                        cchar_t cell;
+                        wchar_t text[CCHARW_MAX];
+                        attr_t attrs;
+                        short pair;
+                        if (win_wch(buffer, &cell) == ERR || getcchar(&cell, text, &attrs, &pair, NULL) == ERR) {
+                            result = ERR; break;
+                        }
+                        blank = text[0] == L' ' && !text[1] && attrs == A_NORMAL && pair == 0;
+                    }
+#else
+                    {
+                        chtype cell = winch(buffer);
+                        if (cell == (chtype)ERR) { result = ERR; break; }
+                        blank = cell == (chtype)' ';
+                    }
+#endif
+                }
+                if (!blank && start < 0) start = x;
+                if (blank && start >= 0) {
+                    result = copywin(buffer, destination, y, start, dr + y, dc + start,
+                                     dr + y, dc + x - 1, 0);
+                    start = -1;
+                    if (result == ERR) break;
+                }
+            }
+        }
+    }
     if (delwin(buffer) == ERR)
         result = ERR;
     return result == ERR;
 #else
     (void)nam;
     (void)args;
+    (void)transparent;
     return 2;
 #endif
+}
+
+static int
+zccmd_copy(const char *nam, char **args)
+{
+    return zdraw_copy_region(nam, args, 0);
+}
+
+static int
+zccmd_overlay(const char *nam, char **args)
+{
+    return zdraw_copy_region(nam, args, 1);
 }
 
 static int
@@ -2459,6 +2678,7 @@ zccmd_endwin(UNUSED(const char *nam), UNUSED(char **args))
 {
     LinkNode stdscr_win = zdraw_getwindowbyname("stdscr");
 
+    zdraw_tree_collect_retired();
     if (stdscr_win) {
         zdraw_sync_reset();
 #ifdef ZDRAW_QUERIES
@@ -5008,6 +5228,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
         {"resizepad", zccmd_resizepad, 3, 3},
         {"movewin", zccmd_movewin, 3, 3},
         {"resizewin", zccmd_resizewin, 3, 5},
+        {"treewin", zccmd_treewin, 5, 5},
         {"viewport", zccmd_viewport, 7, 7},
         {"stage", zccmd_stage, 1, -1},
         {"present", zccmd_present, 0, 0},
@@ -5028,6 +5249,7 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"spans", zccmd_spans, 5, -1},
         {"fill", zccmd_fill, 7, 7},
         {"copy", zccmd_copy, 8, 8},
+        {"overlay", zccmd_overlay, 8, 8},
         {"restyle", zccmd_restyle, 6, 6},
         {"prepare", zccmd_prepare, 3, -1},
         {"draw", zccmd_draw, 4, 5},
@@ -5163,6 +5385,9 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 #ifdef ZDRAW_WINDOW_RESIZE
         "window_resize",
 #endif
+#ifdef ZDRAW_WINDOW_TREE
+        "window_trees",
+#endif
 #ifdef ZDRAW_PADS
         "offscreen_pads",
 #endif
@@ -5174,6 +5399,7 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 #endif
 #if defined(HAVE_COPYWIN) && defined(HAVE_NEWPAD)
         "region_copy",
+        "transparent_copy",
 #endif
 #if defined(HAVE_WIN_WCH) && defined(HAVE_GETCCHAR)
         "wide_cell_inspection",

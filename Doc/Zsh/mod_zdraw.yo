@@ -23,6 +23,7 @@ xitem(tt(zdraw) tt(resizepad) var(pad) var(rows) var(columns))
 xitem(tt(zdraw) tt(viewport) var(pad) var(pad_row) var(pad_column) var(screen_row) var(screen_column) var(rows) var(columns))
 xitem(tt(zdraw) tt(stage) var(targetwin) [ var(targetwin) ... ])
 xitem(tt(zdraw) tt(present))
+xitem(tt(zdraw) tt(treewin) var(targetwin) var(rows) var(columns) var(row) var(column))
 xitem(tt(zdraw) tt(sync) tt(on)|tt(off))
 xitem(tt(zdraw) tt(delwin) var(targetwin) )
 xitem(tt(zdraw) tt(refresh) [ var(targetwin) ... ] )
@@ -67,6 +68,7 @@ xitem(tt(zdraw) tt(querychar) var(targetwin) [ var(param) ])
 xitem(tt(zdraw) tt(cellinfo) var(targetwin) var(association))
 xitem(tt(zdraw) tt(snapshot) var(targetwin) var(association))
 xitem(tt(zdraw) tt(copy) var(sourcewin) var(source_row) var(source_column) var(targetwin) var(row) var(column) var(rows) var(columns))
+xitem(tt(zdraw) tt(overlay) var(sourcewin) var(source_row) var(source_column) var(targetwin) var(row) var(column) var(rows) var(columns))
 xitem(tt(zdraw) tt(restyle) var(targetwin) var(row) var(column) var(rows) var(columns) var(style))
 xitem(tt(zdraw) tt(fill) var(targetwin) var(row) var(column) var(rows) var(columns) var(style) var(tile))
 item(tt(zdraw) tt(resize) var(height) var(width) [ tt(endwin) | tt(nosave) | tt(endwin_nosave) ])(
@@ -159,6 +161,42 @@ preserves high color-pair IDs that some tt(dupwin) implementations lose.
 Both commands require tt(init). Status is 0 on success, 1 for invalid arguments,
 surface relationships, bounds, resource limits or library errors, and 2 for
 missing compiled support.
+
+The subcommand tt(treewin) reshapes one member of a shared window tree by
+rebuilding the entire owning tree. Its dimensions are positive literal decimal
+integers and its coordinates are absolute, nonnegative screen coordinates.
+The root must be an owned ordinary window; pads, tt(stdscr), and trees rooted in
+tt(stdscr) are excluded. Independent tt(movewin)/tt(resizewin) behavior is unchanged.
+Every result must fit the current curses screen, and each child must fit its
+immediate parent. Descendants of a moved target retain their relative offsets
+and sizes; other siblings keep their geometry. There is no clipping, scaling or
+reparenting. Grow parents before children; shrink descendants before ancestors.
+
+Root resize retains overlapping backing cells and fills new cells with the root
+background, using native wide-edge behavior. Shrinking discards cells. Moving or
+resizing a child selects a different view of shared parent cells; its former text
+does not move with it. Child backgrounds remain drawing defaults. Each window
+retains its name, registry position, attributes/pair, background, scroll setting
+and timeout, with its own cursor clamped to the new dimensions. No input, staging
+or presentation occurs. Recompose old footprints explicitly. Arbitrary terminal
+resize can alter native window geometry; inspect and repair valid trees or recreate
+them from application state after drastic shrink.
+
+The limit is 64 windows per tree, target dimensions at most 32767, and old/new areas at
+most 262144 cells per window. Collection is iterative. A private backing copy and
+parent-first shared views are prepared before live handles change. Validation,
+allocation and setup failures leave the live tree intact. Zsh traps are deferred
+during construction, publication and retirement. Old children are freed before
+parents. A retirement error returns 1 with a warning that new geometry was applied:
+live handles remain coherent and one bounded retired tree is retained for cleanup.
+Another tt(treewin) retries cleanup before allocating and refuses a rebuild if
+cleanup still fails. Failed candidate cleanup is retained similarly without
+changing live handles. tt(end)/unload make a best-effort attempt; persistent library
+deletion errors cannot guarantee reclamation. These limits are not exact RSS bounds.
+
+Check tt(window_trees), requiring independent resize support plus tt(wgetbkgrnd)
+and tt(wbkgrndset). Status is 0 on complete success, 1 for state/bounds/resources
+or library failure, and 2 without compiled support. Initialization is required.
 
 The subcommand tt(addpad) creates a blank offscreen surface in the window
 namespace. Pads appear in tt(zdraw_windows) and can exceed the terminal size.
@@ -1211,6 +1249,24 @@ allocation and source-staging failures leave the destination untouched. A
 failed destination write can leave a partial copy; there is no rollback.
 A cleanup failure returns 1 even if the destination copy completed.
 
+The subcommand tt(overlay) takes the same arguments and 65536-cell budget as
+tt(copy), but preserves destination cells where the source contains a plain
+space: no attributes, color pair zero, and no combining suffix. Styled or colored
+spaces remain opaque, as do non-space background characters. Classification uses
+stored values, not visual color equality; there is no alpha blending or background
+substitution. tt(copy) remains fully opaque.
+
+The source is snapshotted before writes, including aliased/overlapping copies.
+Opaque runs use native tt(copywin), preserving cursor/current-style/background
+state and allocating no pairs. Wide readers inspect complete stored characters;
+narrow readers compare the packed native cell with an unstyled space and do not
+reconstruct wide Unicode data. Align source/destination/subwindow edges to whole
+glyphs: split-wide edges inherit curses behavior without portable repair.
+No input or presentation occurs. Bounds/allocation/source-copy failures leave the
+target intact; later inspection or run-write failures may leave partial output,
+with no rollback. Cleanup failure returns 1 even if writes completed. Check
+tt(transparent_copy) for tt(copywin) and tt(newpad); statuses match tt(copy).
+
 The subcommand tt(restyle) replaces the stored colors and attributes of a
 rectangle without replacing its character data, spaces or combining marks.
 It takes a complete tt(spans)-style specification: comma-separated attributes
@@ -1402,11 +1458,13 @@ The following feature names are defined:
 startsitem()
 sitem(tt(window_movement))(Move independent ordinary windows.)
 sitem(tt(window_resize))(Resize and optionally reposition independent ordinary windows.)
+sitem(tt(window_trees))(Bounded shared-tree geometry reconstruction.)
 sitem(tt(offscreen_pads))(Bounded offscreen pads and viewport staging.)
 sitem(tt(pad_resize))(Resize public pads while retaining overlap and drawing state.)
 sitem(tt(staged_refresh))(Stage ordinary windows and explicitly present composed frames.)
 sitem(tt(region_restyle))(Replace rectangle styles while retaining character data.)
 sitem(tt(region_copy))(Bounded opaque copies of retained rectangles.)
+sitem(tt(transparent_copy))(Bounded region copying with plain spaces as transparent holes.)
 sitem(tt(region_fill))(Styled rectangle fills using single-column tiles.)
 sitem(tt(window_snapshots))(Bounded capture of retained window cells into an association.)
 sitem(tt(cell_inspection))(Structured readback of the current retained cell.)

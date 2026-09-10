@@ -62,6 +62,8 @@ verified configurations and unknown results.
 kitty keyboard subset; the event inspector and form accept `--focus --keyboard`.
 [Synchronized presentation](docs/frame-presentation.md) optionally brackets the
 final `present` update; try the task monitor with `--sync` on a supporting terminal.
+[Overlays and shared trees](docs/overlays-and-trees.md) add explicit stacking
+recipes, bounded tree geometry and transparent copying that preserves styled blanks.
 
 [Editable inputs and forms](docs/inputs-and-forms.md) add Unicode-aware movement,
 selection, bounded streaming paste, validation and field navigation. Try the
@@ -270,11 +272,13 @@ unknown, so the application chooses its fallback policy.
 | `prepared_rows` | Immutable session-scoped styled rows, with clipping and inspection |
 | `region_fill` | Styled rectangle fills using single-column tiles |
 | `region_copy` | Bounded opaque copies of retained rectangles |
+| `transparent_copy` | Bounded copies with plain spaces as holes and styled blanks opaque |
 | `region_restyle` | Replace rectangle styles while retaining character data |
 | `offscreen_pads` | Bounded offscreen surfaces and viewport staging |
 | `pad_resize` | Resize public pads while retaining overlap and drawing state |
 | `window_movement` | Move independent ordinary windows |
 | `window_resize` | Resize and optionally reposition independent ordinary windows |
+| `window_trees` | Bounded geometry reconstruction for shared window trees |
 | `staged_refresh` | Stage ordinary windows and explicitly present a composed frame |
 | `styled_spans` | Single-row styled text batching |
 | `wide_spans` | Wide characters and representable combining sequences in spans |

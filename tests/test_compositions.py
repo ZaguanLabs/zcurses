@@ -89,6 +89,45 @@ class RecipeSession:
 
 
 class CompositionTests(unittest.TestCase):
+    def test_stacked_windows_recipe(self):
+        session = RecipeSession(self, 'stacking')
+        try:
+            self.assertEqual(session.advance(), ['frame', '4', '12', '1', '0', 'stdscr,lower,upper'])
+            self.assertEqual(session.advance(b' ')[-1], 'stdscr,lower')
+            self.assertEqual(session.advance(b' ')[-1], 'stdscr,lower,upper')
+            self.assertEqual(session.advance(b'r')[-1], 'stdscr,upper,lower')
+            self.assertEqual(session.advance(b'\x1bOC')[2], '13')
+            self.assertEqual(session.advance(size=(6, 20))[-1], 'stdscr')
+            self.assertEqual(session.advance(size=(24, 80))[-1], 'stdscr,upper,lower')
+            session.finish()
+            self.assertIn(b'LOWER / retained', session.output)
+            self.assertIn(b'UPPER / retained', session.output)
+        finally:
+            session.close()
+
+    def test_overlapping_surfaces_recipe(self):
+        session = RecipeSession(self, 'overlays')
+        try:
+            self.assertEqual(session.advance(), 'frame 24 80 5 16 5 24 1 1 0 0 0'.split())
+            self.assertEqual(session.advance(b' ')[7], '0')
+            self.assertEqual(session.advance(b' ')[7], '1')
+            self.assertEqual(session.advance(b't')[8], '0')
+            self.assertEqual(session.advance(b't')[8], '1')
+            self.assertEqual(session.advance(b'r')[9], '1')
+            self.assertEqual(session.advance(b'r')[9], '0')
+            self.assertEqual(session.advance(b'+')[5:7], ['6', '26'])
+            self.assertEqual(session.advance(b'-')[5:7], ['5', '24'])
+            self.assertEqual(session.advance(b'f')[3:7], ['5', '16', '5', '24'])
+            self.assertEqual(session.advance(b'w')[10], '1')
+            self.assertEqual(session.advance(b'v')[11], '1')
+            self.assertEqual(session.advance(b'c')[3:5], ['-1', '-8'])
+            self.assertEqual(session.advance(b'\x1bOB')[3:5], ['0', '-8'])
+            self.assertEqual(session.advance(size=(6, 20))[1:3], ['6', '20'])
+            self.assertEqual(session.advance(size=(24, 80))[10:12], ['1', '1'])
+            session.finish()
+        finally:
+            session.close()
+
     def test_form_recipe(self):
         session = RecipeSession(self, 'form')
         try:
