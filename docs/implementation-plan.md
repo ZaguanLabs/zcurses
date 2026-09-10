@@ -293,24 +293,62 @@ actual SSH and arbitrary terminal versions remain untested.
 Make transient surfaces predictable while retaining application control of modal
 behavior, focus, commands and layout.
 
-- [ ] First demonstrate explicit stacking and hide/show using existing independent
+- [x] First demonstrate explicit stacking and hide/show using existing independent
   windows and presentation order; document the limitations this exposes.
-- [ ] Specify shared window-tree geometry: parent/child constraints, retained
+- [x] Specify shared window-tree geometry: parent/child constraints, retained
   content, cursor clamping, resize ordering and failure behavior; implement and
   test the supported operations without changing independent-window semantics.
-- [ ] Evaluate optional curses panel-library support against the first example.
+- [x] Evaluate optional curses panel-library support against the first example.
   Record whether it solves a demonstrated gap and how its updates would coexist
   with stage/present, refresh and optional synchronized output.
-- [ ] Define transparent-cell copying separately from opaque region copying:
+- [x] Define transparent-cell copying separately from opaque region copying:
   transparent versus styled blank cells, overlap, backgrounds and wide-glyph edges.
   Implement the bounded operation once these semantics are testable.
-- [ ] Add overlapping-surface fixtures and an example covering move, resize,
+- [x] Add overlapping-surface fixtures and an example covering move, resize,
   hide/show, reveal, clipping and injected failure paths.
 
 **Completion:** the supported composition path and tree/region operations have
 clear behavior and tests. If panel-library integration proves unnecessary, record
 that decision rather than adding a second stacking mechanism by default. A native
 panel API, if justified, becomes a separately tracked extension.
+
+**Completed 2026-09-10 — implementation commit `e1d6706`.**
+The [composition guide](overlays-and-trees.md) documents independent stacking,
+shared-tree geometry and transparent regions. The first recipe uses existing
+independent windows and stage order to demonstrate hide/show, reveal and movement.
+The richer recipe adds clipped composition, child views, geometry changes,
+transparent/opaque selection, rejected geometry and optional synchronized output.
+Application visibility, layout, key bindings and focus policy remain in Zsh.
+
+`treewin` reconstructs a bounded owning tree with independent root backing and
+shared descendants, preserving relative offsets, handle names, drawing/input
+state and clamped cursors. Children must fit their parents; moving a child selects
+parent cells rather than carrying separate content. Preparation failures preserve
+the live tree. Post-publication retirement failure reports the applied geometry
+and retains coherent handles plus one bounded cleanup obligation. Pads and trees
+rooted in `stdscr` are outside this API; existing independent-window operations
+retain their restrictions. Drastic terminal shrink can require application-driven
+surface recreation, as the richer recipe demonstrates.
+
+`overlay` snapshots the source before copying opaque runs. Only an unstyled,
+color-zero space is a hole; styled blanks and non-space backgrounds are opaque.
+It retains `copy`'s rectangle budget and aliasing semantics. Split wide-glyph edges
+remain subject to native curses behavior, and a failed run write can leave partial
+output. No alpha blending or portable wide-edge reconstruction is claimed.
+
+The panel-library evaluation concludes that these working explicit composition
+paths do not justify another native stack. Its lifecycle and refresh ownership
+costs, potential future damage-tracking value, and required relationship to
+`present` are recorded. No panel API or performance advantage is claimed.
+
+Verification: all 102 tests passed against public Zsh 5.9.2 and the matching built
+shell. Coverage includes parent/child/grandchild sharing, sibling geometry,
+resource limits, cursor/style/timeout retention, optional implementations,
+construction and retirement failures, aliased transparent copies, styled blanks,
+wide/narrow paths, recipe stacking/reveal, clipping and resize cleanup. Changed
+Zsh files passed parse checks, the native manual builds, and the integration patch
+passes a dry run against the selected public release. Final local log:
+`.build/overlays-final-make-test.log`.
 
 ## 7. Diagnostics and measured optimization
 

@@ -113,9 +113,15 @@ stacked windows support temporary overlays without exposing layout policy in C.
 - [x] Resize public pads with retained overlap, background/style preservation,
   cursor clamping, credited live budgets, failure isolation and explicit
   presentation. Extend the viewport example with growth and truncation.
-- [ ] Define geometry changes for shared window trees.
-- [ ] Explore optional panel-library support for stacking, hiding and showing.
-- [ ] Specify how panel updates and existing refresh operations coexist.
+- [x] Define geometry changes for shared window trees.
+  [Bounded `treewin` reconstruction](overlays-and-trees.md) preserves shared backing,
+  descendant offsets and per-view state, with explicit resize constraints and
+  coherent failure/cleanup behavior.
+- [x] Explore optional panel-library support for stacking, hiding and showing.
+- [x] Specify how panel updates and existing refresh operations coexist.
+  The [panel evaluation](overlays-and-trees.md#panel-library-decision) keeps explicit
+  composition for now; no second native stack is added. Independent stacking and
+  clipped transparent composition recipes demonstrate the supported path.
 - [x] Provide a [panning document and overlay example](../examples/viewports.zsh)
   with terminal resizing and overlap tests. Independent window movement and
   resizing are now covered by the floating-window example above.
@@ -248,7 +254,10 @@ drift and needs its own justification.
   a [moving-highlight example](../examples/restyle.zsh).
 - [x] Define fill bounds and existing-wide-character overlap behavior through
   the shared array writer; verify equivalence to ordinary span writes.
-- [ ] Define transparent-cell semantics for future region copying.
+- [x] Define transparent-cell semantics and implement bounded region copying.
+  `overlay` treats only unstyled pair-zero spaces as holes, preserves styled
+  blanks, and snapshots aliased sources before copying opaque runs. Native
+  wide-edge and partial-write limits are [documented](overlays-and-trees.md).
 - [x] Measure fill against ordinary/prepared row loops and verify surrounding
   cells with snapshots. Record [workload-specific results](../benchmarks/README.md#rectangle-fills)
   and provide a keyboard-driven region example.
