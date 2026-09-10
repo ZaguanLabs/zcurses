@@ -234,8 +234,10 @@ resize, send keys, then compare logical cells and styles.
 - [ ] Represent styles independently of session-specific color-pair numbers.
 - [ ] Extend the existing PTY harness with scripted events and readable diffs.
 - [ ] Define explicitly enabled recording, replay and timing behavior.
-- [ ] Add useful rendering/resource diagnostics without promising unmeasurable
-  terminal-emulator paint times.
+- [x] Add useful rendering/resource diagnostics without promising unmeasurable
+  terminal-emulator paint times. See [passive resource accounting](diagnostics.md)
+  and [component measurements](../benchmarks/README.md#component-boundaries);
+  duplicate canvas validation is removed, while native batching remains deferred.
 
 Start with curses inside a PTY; a separate headless renderer risks behavioral
 drift and needs its own justification.

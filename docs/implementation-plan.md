@@ -354,22 +354,53 @@ passes a dry run against the selected public release. Final local log:
 
 Measure the new applications before adding batching or moving algorithms to C.
 
-- [ ] Define meaningful diagnostics: live resource counts, documented budgets,
+- [x] Define meaningful diagnostics: live resource counts, documented budgets,
   prepared-row reuse and elapsed work at observable boundaries. Distinguish shell
   work, native work and output from unmeasurable emulator paint time.
-- [ ] Add passive resource inspection where missing, with no input reads,
+- [x] Add passive resource inspection where missing, with no input reads,
   protocol activation, hidden refreshes or session-specific path dependencies.
-- [ ] Benchmark charts, canvas, forms, document reflow and overlapping surfaces
+- [x] Benchmark charts, canvas, forms, document reflow and overlapping surfaces
   at representative sizes, including repeated and changing data.
-- [ ] Optimize demonstrated companion-layer costs first, such as redundant
+- [x] Optimize demonstrated companion-layer costs first, such as redundant
   measurement, style resolution or rebuilding unchanged rows; preserve semantics.
-- [ ] Publish before/after results and decide whether native batching or canvas
+- [x] Publish before/after results and decide whether native batching or canvas
   acceleration has enough benefit to justify a separate API proposal.
 
 **Completion:** reproducible measurements explain the important costs, and any
 claimed optimization preserves output and resource behavior. Multi-operation
 batches remain conditional future work unless these measurements justify them;
 record their validation, partial-failure and budget contract before implementation.
+
+**Completed 2026-09-10 — implementation commit `2b77290`.**
+The [diagnostics guide](diagnostics.md) defines passive `resourceinfo` counts and
+budgets, prepared-row creation/draw counters, shared-window accounting and retained
+tree handles. Inspection works headlessly, while suspended and after cleanup,
+without consuming input, presenting a frame or retrying failed retirement.
+
+The [component measurements](../benchmarks/README.md#component-boundaries) cover
+charts, canvas, forms, document reflow, overlapping surfaces and ordinary/prepared
+rows at 8×32 and 16×64, with repeated and changing data. Five trials of twenty
+measured frames separate component work, staging and presentation; all raw samples
+and final retained-cell hashes are checked in. Removing one redundant raster
+validation pass reduces repeated large-canvas work from 28.733 to 17.613 ms
+(38.7%) and changing-canvas work from 56.139 to 45.265 ms (19.4%). Every public
+call still validates the whole raster. All 28 before/after cases retain matching
+snapshot hashes and terminal-output lengths across all five trials.
+
+Decision: defer generic native batching. Native composition is small in these
+workloads; larger/frequently changing canvas scenes warrant a separate measured
+acceleration proposal, distinguishing raster compilation from row encoding.
+No new batch or native canvas contract is introduced. Recorded times include
+shell dispatch and native calls, and do not measure emulator paint latency.
+
+Verification: all **104 tests passed** against the selected public Zsh 5.9.2 source
+release and matching shell. Coverage includes unavailable prepared-row builds,
+failed writes, retained-tree cleanup failures, destination validation, suspension,
+release/reset/reload, queued input and hidden-frame preservation, unchanged
+resources on canvas redraw, malformed final-cell rejection and ASCII fallback.
+Changed Zsh files pass parse checks, the native manual builds, and the additive
+integration patch passes its dry run. Final local log:
+`.build/diagnostics-final-make-test.log`.
 
 ## 8. Unicode interaction accuracy
 
