@@ -75,6 +75,9 @@ combines them with responsive chapter navigation.
 
 [Visual regression tooling](docs/visual-regression.md) exports portable readback
 fixtures and compares text, styles and geometry, with optional HTML reports.
+[Optional motion](docs/optional-motion.md) supplies caller-driven activity markers
+and a finite emphasis transition, with static alternatives and no owned timers.
+Try the task monitor with `--motion` or `--reduced-motion`.
 [Recording and restoration](docs/recording-and-restoration.md) adds explicit PTY
 input/resize replay, optional snapshot occupancy metadata and a separate bounded
 text-screen format with symbolic styles.

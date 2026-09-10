@@ -13,10 +13,13 @@ After building, run from the repository root:
 This example simulates three tasks; it does not launch commands or inspect
 processes. An idle input timeout advances the simulation approximately every
 250 ms. Input activity can delay a step, so the simulation is not a wall-clock
-scheduler. Completed work stops advancing automatically.
+scheduler. Completed work stops advancing automatically. Motion defaults to off;
+pass `--motion` to animate activity and brief status emphasis, or
+`--reduced-motion` to keep a static indicator. Either can be combined with `--sync`.
 
 | Control | Action |
 | --- | --- |
+| `a` | Cycle animated, reduced and off motion modes. |
 | Space or `p` | Pause/resume automatic steps. |
 | Tab or Left/Right | Cycle Overview, Queue and History. |
 | `1`/`2`/`3` | Choose Overview, Queue or History directly. |
@@ -60,7 +63,8 @@ command output, use the existing
 adding a second terminal reader inside a component.
 
 The example redraws when data, view, appearance or geometry changes. Paused and
-completed sessions continue accepting input without repainting on each timeout.
+completed sessions use blocking input after visible transitions settle, avoiding
+idle timeout polling. Pending capability queries keep their bounded input waits.
 The application presents once after drawing its frame and owns cleanup through
 an `always` block.
 
@@ -72,3 +76,8 @@ application's status text without adopting this recipe's event loop.
 See [compact charts](../compact-charts.md) for the shared numeric-series, scale,
 marker and styling contracts. Sampling remains illustrative: steps can be delayed
 by input and should not be labelled as a real-time rate.
+
+See [optional motion](../optional-motion.md) for the state/action API, finite
+style transition, resource limits, resize behavior and signal cleanup. Activity
+occupies one reserved heading cell; status words and progress remain available
+in all modes. The example never moves a focused control to animate it.

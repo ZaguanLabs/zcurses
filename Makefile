@@ -15,6 +15,8 @@ test: build
 	"$(ZSH_BIN)" -dfn tests/snapshot.zsh
 	"$(ZSH_BIN)" -dfn tests/screen.zsh
 	"$(ZSH_BIN)" -dfn lib/zdraw-screen.zsh
+	"$(ZSH_BIN)" -dfn lib/zdraw-motion.zsh
+	"$(ZSH_BIN)" -dfn tests/motion-monitor.zsh
 	"$(ZSH_BIN)" -dfn scripts/replay-recipe.zsh
 	"$(ZSH_BIN)" -dfn tests/fill.zsh
 	"$(ZSH_BIN)" -dfn tests/copy.zsh

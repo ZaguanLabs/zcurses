@@ -18,6 +18,8 @@ the caller's `reply` or `zdraw_ui_style`.
 
 The [task-monitor recipe](recipes/task-monitor.md) combines them with panels,
 layouts and a table in a complete application.
+[Optional motion](optional-motion.md) adds independent activity and finite-emphasis
+helpers using the same utility styles, with explicit static alternatives.
 
 ## Tabs
 

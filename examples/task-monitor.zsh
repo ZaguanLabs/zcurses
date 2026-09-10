@@ -3,11 +3,20 @@
 emulate -R zsh
 setopt nounset
 typeset monitor_root=${0:A:h:h}
-[[ $# == 0 || ( $# == 1 && $1 == --sync ) ]] || { print -ru2 -- 'usage: task-monitor.zsh [--sync]'; exit 1; }
+typeset motion_mode=off monitor_option
+for monitor_option in "$@"; do
+  case $monitor_option in
+    --sync) ;;
+    --motion) motion_mode=on ;;
+    --reduced-motion) motion_mode=reduced ;;
+    --no-motion) motion_mode=off ;;
+    *) print -ru2 -- 'usage: task-monitor.zsh [--sync] [--motion|--reduced-motion|--no-motion]'; exit 1 ;;
+  esac
+done
 typeset -a example_protocol_queue
 typeset example_protocol_current='' protocol_note=''
 typeset -i example_keyboard_active=0
-[[ ${1:-} == --sync ]] && example_protocol_queue=(synchronized_output)
+(( ${argv[(Ie)--sync]} )) && example_protocol_queue=(synchronized_output)
 source "$monitor_root/examples/input-protocols.zsh" || exit 1
 module_path=("$monitor_root/.build/modules")
 zmodload zdraw || exit 1
@@ -20,16 +29,36 @@ source "$monitor_root/lib/zdraw-badge.zsh" || exit 1
 source "$monitor_root/lib/zdraw-help.zsh" || exit 1
 source "$monitor_root/lib/zdraw-sparkline.zsh" || exit 1
 source "$monitor_root/lib/zdraw-bars.zsh" || exit 1
-typeset -A zdraw_ui_theme zdraw_ui_table event colors
+source "$monitor_root/lib/zdraw-motion.zsh" || exit 1
+typeset -A zdraw_ui_theme zdraw_ui_table event colors monitor_activity monitor_settle
 typeset -a reply dimensions input_options tasks=('Index sources' 'Run checks' 'Prepare release')
 typeset -a progress=(0 0 0) rates=(3 2 1) gains=(0 0 0) chart_history=(0)
 typeset theme_name=dark profile=mono color_profile=mono run_state=Running chart_palette=auto
-typeset -i rows columns tab=1 paused=0 tick=0 completed=0 visible=0 dirty=1 exit_code=0
+typeset -i rows columns tab=1 paused=0 tick=0 completed=0 visible=0 dirty=1 exit_code=0 monitor_interrupted=0 monitor_event_result=0
 (( ${zdraw_features[(Ie)norefresh_events]} )) && input_options+=(norefresh)
+
+# Explicit dynamic scope gives each instance independent caller-owned data.
+function monitor-motion {
+  emulate -L zsh
+  local -A zdraw_ui_motion
+  case $1 in
+    activity) zdraw_ui_motion=("${(@kv)monitor_activity}") ;;
+    settle) zdraw_ui_motion=("${(@kv)monitor_settle}") ;;
+    *) return 1 ;;
+  esac
+  if [[ $2 == init ]]; then zdraw-motion-init "$1" "$motion_mode" || return
+  else zdraw-motion-action "$2" || return; fi
+  case $1 in
+    activity) monitor_activity=("${(@kv)zdraw_ui_motion}") ;;
+    settle) monitor_settle=("${(@kv)zdraw_ui_motion}") ;;
+  esac
+}
+monitor-motion activity init || exit 1
+monitor-motion settle init || exit 1
 
 function monitor-step {
   emulate -L zsh
-  local -i i previous average=0
+  local -i i previous average=0 was_completed=$completed
   completed=0
   for (( i=1; i<=${#tasks}; i++ )); do
     previous=$progress[$i]
@@ -42,12 +71,14 @@ function monitor-step {
   chart_history+=("$((average/${#tasks}))")
   (( ${#chart_history} > 96 )) && chart_history=("${chart_history[@]: -96}")
   (( tick++ ))
+  (( completed != was_completed )) && monitor-motion settle restart
+  (( completed == ${#tasks} )) && monitor-motion activity finish
   return 0
 }
 
 function monitor-render {
   emulate -L zsh
-  local -A zdraw_ui_style zdraw_ui_layout zdraw_ui_chart
+  local -A zdraw_ui_style zdraw_ui_layout zdraw_ui_chart zdraw_ui_motion
   local -a frame body footer content cells zdraw_ui_headers zdraw_ui_tracks zdraw_ui_alignments
   local -i i y title_width average=0 label_width chart_width chart_rows
   local title task_state
@@ -66,8 +97,16 @@ function monitor-render {
   if (( frame[4] >= 44 )); then
     zdraw-badge stdscr 0 "$((frame[2]+frame[4]-12))" 12 "$run_state" normal || return
   fi
+  if (( frame[4] >= 44 )); then
+    monitor-motion activity show || return
+    zdraw_ui_motion=("${(@kv)monitor_activity}")
+    zdraw-activity stdscr 0 "$((frame[2]+frame[4]-14))" normal bg=canvas || return
+  else
+    monitor-motion activity hide || return
+  fi
   visible=0
   if (( rows < 8 || columns < 24 )); then
+    monitor-motion settle hide || return
     zdraw-label stdscr "$(( rows > 1 ? 1 : 0 ))" 0 "$columns" 'q quit; resize to explore' normal bg=canvas || return
     zdraw stage stdscr && zdraw present
     return
@@ -137,13 +176,20 @@ function monitor-render {
       zdraw-table stdscr "${content[@]}" focus -- "${cells[@]}" || return
     fi
   fi
-  zdraw-label stdscr "$footer[1]" "$footer[2]" "$footer[4]" "Simulated work / $run_state / step $tick${protocol_note:+ / $protocol_note}" normal fg=muted bg=canvas || return
-  zdraw-help stdscr "$((footer[1]+1))" "$footer[2]" "$footer[4]" normal -- q quit Space pause Tab view n step r reset t theme g glyphs m mono || return
+  zdraw-label stdscr "$footer[1]" "$footer[2]" "$footer[4]" "Simulated work / $run_state / step $tick / motion=$motion_mode${protocol_note:+ / $protocol_note}" normal fg=muted bg=canvas || return
+  monitor-motion settle show || return
+  zdraw_ui_motion=("${(@kv)monitor_settle}")
+  if (( ${zdraw_features[(Ie)region_restyle]} )); then
+    zdraw-settle stdscr "$footer[1]" "$footer[2]" 1 "$footer[4]" normal fg=muted bg=canvas || return
+  fi
+  zdraw-help stdscr "$((footer[1]+1))" "$footer[2]" "$footer[4]" normal -- q quit Space pause a motion Tab view n step r reset t theme g glyphs m mono || return
   zdraw stage stdscr && zdraw present
 }
 
 zdraw init || exit 1
 {
+  trap 'exit_code=130; monitor_interrupted=1' INT
+  trap 'exit_code=143; monitor_interrupted=1' TERM
   zdraw colorinfo colors || exit 1
   if [[ $colors[colors] == <-> && -z ${NO_COLOR:-} ]]; then
     (( colors[colors] >= 8 )) && profile=16
@@ -154,25 +200,46 @@ zdraw init || exit 1
   zdraw-table-update "${#tasks}" 0 keep || exit 1
   example-protocol-next
   while true; do
+    (( monitor_interrupted )) && break
     if (( dirty )); then
-      monitor-render || { exit_code=1; break; }
+      monitor-render || { (( exit_code )) || exit_code=1; break; }
       dirty=0
     fi
-    if zdraw event stdscr event "${input_options[@]}"; then
+    # No timer wakeups when work is paused/complete and no visible effect remains.
+    if (( (!paused && completed < ${#tasks}) )) ||
+       [[ $monitor_settle[phase] == running && $monitor_settle[visible] == 1 ]] ||
+       [[ -n $example_protocol_current ]]; then
+      zdraw timeout stdscr 250 || { (( exit_code )) || exit_code=1; break; }
+    else
+      zdraw timeout stdscr -1 || { (( exit_code )) || exit_code=1; break; }
+    fi
+    (( monitor_interrupted )) && break
+    zdraw event stdscr event "${input_options[@]}"
+    monitor_event_result=$?
+    (( monitor_interrupted )) && break
+    if (( monitor_event_result == 0 )); then
       if example-protocol-event; then dirty=1; continue; fi
       typeset action=keep
       case $event[type] in
         character)
           case $event[text] in
             q|$'\e') break ;;
-            ' '|p) paused=$((!paused)) ;;
+            ' '|p) paused=$((!paused));
+              if (( paused )); then monitor-motion activity pause; else monitor-motion activity resume; fi
+              monitor-motion settle restart ;;
             $'\t') tab=$((tab%3+1)) ;;
             1|2|3) tab=$event[text] ;;
             n) monitor-step ;;
-            r) progress=(0 0 0); gains=(0 0 0); chart_history=(0); tick=0; completed=0 ;;
+            r) progress=(0 0 0); gains=(0 0 0); chart_history=(0); tick=0; completed=0; monitor-motion activity restart;
+              (( paused )) && monitor-motion activity pause
+              monitor-motion settle restart ;;
             t) if [[ $theme_name == dark ]]; then theme_name=light; else theme_name=dark; fi ;;
             g) if [[ $chart_palette == auto ]]; then chart_palette=ascii; else chart_palette=auto; fi ;;
             m) if [[ $profile == mono ]]; then profile=$color_profile; else profile=mono; fi ;;
+            a)
+              case $motion_mode in on) motion_mode=reduced ;; reduced) motion_mode=off ;; off) motion_mode=on ;; esac
+              monitor-motion activity "$motion_mode"
+              monitor-motion settle "$motion_mode" ;;
             j) action=down ;; k) action=up ;;
             *) continue ;;
           esac ;;
@@ -183,18 +250,25 @@ zdraw init || exit 1
           esac ;;
         resize)
           if (( ${zdraw_features[(Ie)resize]} )); then
-            zdraw resize "$event[rows]" "$event[columns]" nosave || { exit_code=1; break; }
+            zdraw resize "$event[rows]" "$event[columns]" nosave || { (( exit_code )) || exit_code=1; break; }
           fi ;;
         *) continue ;;
       esac
-      if (( tab == 2 )); then zdraw-table-update "${#tasks}" "$visible" "$action" || { exit_code=1; break; }; fi
+      if (( tab == 2 )); then zdraw-table-update "${#tasks}" "$visible" "$action" || { (( exit_code )) || exit_code=1; break; }; fi
       dirty=1
-    elif (( !paused && completed < ${#tasks} )); then
-      monitor-step
-      dirty=1
+    else
+      monitor-motion activity advance || { (( exit_code )) || exit_code=1; break; }
+      monitor-motion settle advance || { (( exit_code )) || exit_code=1; break; }
+      (( monitor_activity[changed] || monitor_settle[changed] )) && dirty=1
+      if (( !paused && completed < ${#tasks} )); then
+        monitor-step
+        dirty=1
+      fi
     fi
   done
 } always {
+  monitor-motion activity cancel
+  monitor-motion settle cancel
   zdraw end || exit_code=1
 }
 exit "$exit_code"

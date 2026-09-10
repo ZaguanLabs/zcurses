@@ -14,7 +14,7 @@ import test_features
 
 
 class RecipeSession:
-    def __init__(self, case, example):
+    def __init__(self, case, example, fixture='composition.zsh'):
         self.case = case
         self.control_r, self.control = os.pipe()
         self.report, report_w = os.pipe()
@@ -29,7 +29,7 @@ class RecipeSession:
             for name in ('LINES', 'COLUMNS', 'NO_COLOR'):
                 os.environ.pop(name, None)
             os.execl(test_features.ZSH, test_features.ZSH, '-df',
-                     str(test_features.ROOT / 'tests/composition.zsh'),
+                     str(test_features.ROOT / 'tests' / fixture),
                      str(report_w), str(self.control_r), example)
         os.close(self.control_r)
         os.close(report_w)
