@@ -45,6 +45,10 @@ combines them with a queue table and controllable simulated progress:
 .build/zsh/Src/zsh -df examples/task-monitor.zsh
 ```
 
+[Compact charts](docs/compact-charts.md) add sparklines and signed bar comparisons
+with bounded numeric series, fixed/automatic scales and ASCII fallbacks. The
+[task monitor](examples/task-monitor.zsh) demonstrates bounded history in its third tab.
+
 [Editable inputs and forms](docs/inputs-and-forms.md) add Unicode-aware movement,
 selection, bounded streaming paste, validation and field navigation. Try the
 [connection form](examples/form.zsh); pass `--paste` to opt into bracketed paste.

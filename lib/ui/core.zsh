@@ -99,7 +99,7 @@ function zdraw-ui-style {
   local -A _zui_resolved=(fg default bg default border-fg default
     border none px 0 py 0 align left bold 0 underline 0 reverse 0)
   for _zui_flag in "${_zui_states[@]}"; do
-    [[ $_zui_flag == (normal|focus|selected|inactive|disabled|empty|title|header|alternate|filled|track|label|key|invalid|cursor|heading|subheading|paragraph|bullet|quote|code|separator|spacer) ]] || return 1
+    [[ $_zui_flag == (normal|focus|selected|inactive|disabled|empty|title|header|alternate|filled|track|label|key|invalid|cursor|heading|subheading|paragraph|bullet|quote|code|separator|spacer|positive|negative|axis|missing|clipped) ]] || return 1
   done
   (( ${#_zui_states} )) || return 1
   shift
@@ -113,7 +113,7 @@ function zdraw-ui-style {
       (( ${#_zui_conditions} )) || return 1
       _zui_match=1
       for _zui_flag in "${_zui_conditions[@]}"; do
-        [[ $_zui_flag == (normal|focus|selected|inactive|disabled|empty|title|header|alternate|filled|track|label|key|invalid|cursor|heading|subheading|paragraph|bullet|quote|code|separator|spacer) ]] || return 1
+        [[ $_zui_flag == (normal|focus|selected|inactive|disabled|empty|title|header|alternate|filled|track|label|key|invalid|cursor|heading|subheading|paragraph|bullet|quote|code|separator|spacer|positive|negative|axis|missing|clipped) ]] || return 1
         (( ${_zui_states[(Ie)$_zui_flag]} )) || _zui_match=0
       done
       _zdraw_ui_property "$_zui_property" || return 1

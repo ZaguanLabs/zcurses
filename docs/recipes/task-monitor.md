@@ -1,8 +1,8 @@
 # Task-monitor recipe
 
 The [example](../../examples/task-monitor.zsh) combines tabs, badges, meters,
-help rows, panels, layouts and a table into a small monitor with Overview and
-Queue views.
+help rows, panels, layouts, a table and compact charts into a small monitor with
+Overview, Queue and History views.
 
 After building, run from the repository root:
 
@@ -18,11 +18,14 @@ scheduler. Completed work stops advancing automatically.
 | Control | Action |
 | --- | --- |
 | Space or `p` | Pause/resume automatic steps. |
-| Tab, Left/Right or `1`/`2` | Choose Overview or Queue. |
+| Tab or Left/Right | Cycle Overview, Queue and History. |
+| `1`/`2`/`3` | Choose Overview, Queue or History directly. |
 | Up/Down or `k`/`j` | Select a row in Queue. |
 | `n` | Advance one simulation step, including while paused. |
 | `r` | Reset progress while keeping the current pause setting. |
 | `t` | Switch dark/light theme. |
+| `g` | Switch automatic/ASCII chart glyphs. |
+| `m` | Toggle monochrome and the initial color profile. |
 | `q` or Escape | Quit and restore terminal settings. |
 
 Overview shows completed-task counts, an overall meter and individual task
@@ -30,6 +33,16 @@ meters. The overall percentage is the integer average of task percentages; it
 is an illustrative aggregate, not a duration-weighted estimate. Queue shows
 task names, percentages and states, omitting the state column when space is tight.
 Tabs preserve the application's selected view when resized.
+
+History shows a sparkline of the overall percentage on a fixed 0–100% scale.
+The application owns `chart_history`, retaining at most 96 samples; a narrow
+sparkline shows the newest samples without rescaling. A bar comparison shows each
+task's actual gain in percentage points during the last simulation step on a
+fixed 0–3 scale. Finished tasks have zero gain on subsequent steps. Labels and
+numeric values accompany the plots; the plots themselves remain reusable.
+Reset restores history to one zero sample and clears gains. Short panes omit
+secondary chart labels and comparison rows before hiding the sparkline.
+
 
 The application centers its layout within 112 columns, reserves the heading,
 tabs and footer, and gives the remaining height to a panel. A status badge is
@@ -55,3 +68,7 @@ See the [presentation component guide](../ui-presentation.md) for styling and
 limits. Each piece can be adopted independently. For example, choose different
 meter glyphs, change the selected-tab color, or use a badge next to an existing
 application's status text without adopting this recipe's event loop.
+
+See [compact charts](../compact-charts.md) for the shared numeric-series, scale,
+marker and styling contracts. Sampling remains illustrative: steps can be delayed
+by input and should not be labelled as a real-time rate.

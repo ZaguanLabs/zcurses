@@ -54,6 +54,9 @@ source ./lib/zdraw-table.zsh  # common helpers, layout, selection and tables
 source ./lib/zdraw-tabs.zsh   # common helpers plus tabs
 source ./lib/zdraw-badge.zsh  # common helpers plus status badges
 source ./lib/zdraw-meter.zsh  # common helpers plus numeric progress meters
+source ./lib/zdraw-chart.zsh  # headless numeric series and projection
+source ./lib/zdraw-sparkline.zsh # chart helpers plus one-row history plots
+source ./lib/zdraw-bars.zsh   # chart helpers plus signed bar comparisons
 source ./lib/zdraw-help.zsh   # common helpers plus shortcut rows
 source ./lib/zdraw-input.zsh  # editing, selection, paste and field rendering
 source ./lib/zdraw-form.zsh   # inputs plus validation and form navigation
@@ -258,7 +261,8 @@ caller's existing resolved style.
 States are comma-separated tags: `normal`, `focus`, `selected`, `inactive`,
 `disabled`, `empty`, `title`, `header`, `alternate`, `filled`, `track`, `label`,
 `key`, `invalid`, `cursor`, `heading`, `subheading`, `paragraph`, `bullet`,
-`quote`, `code`, `separator`, `spacer`. Tags are explicit: `focus` does not implicitly
+`quote`, `code`, `separator`, `spacer`, `positive`, `negative`, `axis`, `missing`,
+`clipped`. Tags are explicit: `focus` does not implicitly
 include `normal`. A utility without a condition applies to every state.
 
 ```zsh
@@ -443,6 +447,8 @@ idle input timeout. Large datasets may warrant a future measured optimization.
 - [x] [Editable inputs and forms](inputs-and-forms.md): selection, streaming paste, validation and focus.
 - [x] [Semantic documents](semantic-documents.md): word wrapping, role styles, scrolling, named anchors and resize reflow.
 
-This toolkit checklist is complete. The broader experimental ideas in the
+This toolkit checklist is complete. Follow-up components are tracked in the
+[incremental implementation plan](implementation-plan.md); see
+[compact charts](compact-charts.md) for sparklines and bar comparisons. The broader experimental ideas in the
 research report and native roadmap remain separate future work. Using the toolkit
 does not require adopting an application framework or changing the native module.

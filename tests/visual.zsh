@@ -10,9 +10,11 @@ source "$root/lib/zdraw-meter.zsh" || exit 1
 source "$root/lib/zdraw-fixture.zsh" || exit 1
 source "$root/lib/zdraw-form.zsh" || exit 1
 source "$root/lib/zdraw-document.zsh" || exit 1
+source "$root/lib/zdraw-sparkline.zsh" || exit 1
+source "$root/lib/zdraw-bars.zsh" || exit 1
 fail() { print -ru2 -- "FAIL: $*"; exit 1; }
 check() { "$@" || fail "$*"; }
-typeset -A zdraw_ui_theme zdraw_ui_list zdraw_ui_form zdraw_ui_document
+typeset -A zdraw_ui_theme zdraw_ui_list zdraw_ui_form zdraw_ui_document zdraw_ui_chart
 typeset -a reply content position_before position_after
 typeset zdraw_ui_fixture=sentinel name profile density saved
 check zdraw init
@@ -49,6 +51,19 @@ check zdraw init
       check zdraw-document sample 6 0 4 44 normal
       check zdraw-fixture sample
       print -r -- "$zdraw_ui_fixture" > "$ZDRAW_VISUAL_DIR/$name-$profile-composition.json"
+    done
+  done
+  for name in dark light; do
+    for profile in 256 mono; do
+      check zdraw-ui-theme "$name" "$profile"
+      check zdraw-panel sample 0 0 10 44 ' SIGNAL / -10..10 units ' normal border=ascii
+      check zdraw-chart-series fixed -10 10 -- -15 -10 -5 - 0 5 10 15
+      check zdraw-sparkline sample 1 2 40 normal palette=ascii
+      check zdraw-sparkline sample 2 2 40 normal palette=unicode
+      check zdraw-chart-series fixed -10 10 -- -15 -5 0 - 10
+      check zdraw-bars sample 4 2 5 40 normal palette=ascii track-char='.'
+      check zdraw-fixture sample
+      print -r -- "$zdraw_ui_fixture" > "$ZDRAW_VISUAL_DIR/$name-$profile-charts.json"
     done
   done
   check zdraw clear sample

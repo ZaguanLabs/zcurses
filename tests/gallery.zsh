@@ -26,6 +26,21 @@ function zdraw {
         done
         [[ $test_ui_actual == "$test_ui_expected" ]] || { print -ru2 -- 'FAIL: rendered progress label'; return 1; }
       fi
+      if [[ $example == task-monitor ]] && (( tab == 3 && rows >= 9 && columns >= 24 )); then
+        local -i test_chart_width=$(( columns < 112 ? columns : 112 )) test_chart_x test_chart_c
+        local test_chart_actual=''
+        test_chart_x=$(((columns-test_chart_width)/2+2))
+        builtin zdraw snapshot stdscr cells || return
+        for (( test_chart_c=test_chart_x; test_chart_c<test_chart_x+8; test_chart_c++ )); do
+          test_chart_actual+=$cells[4,$test_chart_c,text]
+        done
+        [[ $test_chart_actual == 'Overall:' ]] || { print -ru2 -- 'FAIL: history title'; return 1; }
+        (( ${#chart_history} <= 96 )) || { print -ru2 -- 'FAIL: unbounded chart history'; return 1; }
+        if [[ $chart_palette == ascii && $chart_history[-1] == 100 ]] && (( rows >= 10 )); then
+          test_chart_c=$((test_chart_x + (${#chart_history} < test_chart_width-4 ? ${#chart_history} : test_chart_width-4) - 1))
+          [[ $cells[5,$test_chart_c,text] == '@' ]] || { print -ru2 -- 'FAIL: last history sample'; return 1; }
+        fi
+      fi
       if [[ $example == (list-detail|table-inspector) && $layout_mode != tiny ]]; then
         local screen='' row_text expected_details
         local -i test_ui_selected
@@ -65,7 +80,7 @@ function zdraw {
         } > "$capture_dir/$example-$test_ui_frame_number.cells"
       fi
       if [[ $example == task-monitor ]]; then
-        print -r -u "$report_fd" -- "monitor $rows $columns $tab $paused $tick $completed $zdraw_ui_table[selected] $theme_name"
+        print -r -u "$report_fd" -- "monitor $rows $columns $tab $paused $tick $completed $zdraw_ui_table[selected] $theme_name $chart_palette $profile ${#chart_history} $chart_history[-1]"
       elif [[ $example == gallery ]]; then
         print -r -u "$report_fd" -- "frame $rows $columns $theme_name $profile $border_index $compact $empty $narrow $list_focus ${zdraw_ui_list[selected]:-0}"
       elif [[ $example == list-detail ]]; then
