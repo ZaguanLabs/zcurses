@@ -167,6 +167,22 @@ static int zc_can_change_color;
 static int zc_truecolor, zc_truecolor_supported;
 static int zc_rgb_min = -1;
 static int zdraw_event_rows, zdraw_event_cols;
+static int zdraw_suspended;
+static int zdraw_terminal_size(int *rows, int *cols);
+#if defined(NCURSES_VERSION) && defined(HAVE_DEFINE_KEY) && \
+    defined(HAVE_KEY_DEFINED) && defined(HAVE_KEYBOUND)
+# define ZDRAW_PASTE 1
+static int zdraw_paste_key, zdraw_paste_active, zdraw_paste_match;
+static struct ttyinfo zdraw_paste_tty_state;
+#endif
+#if defined(HAVE_DEF_PROG_MODE) && defined(HAVE_RESET_PROG_MODE)
+# define ZDRAW_SUSPEND 1
+static int zdraw_saved_mouse;
+#endif
+#if defined(NCURSES_VERSION) && defined(HAVE_GET_ESCDELAY) && defined(HAVE_SET_ESCDELAY)
+# define ZDRAW_INPUT_DELAY 1
+static int zdraw_saved_escape_delay = -1;
+#endif
 
 enum {
     ZCF_MOUSE_ACTIVE = 1 << 0,
@@ -2124,12 +2140,217 @@ zccmd_border(const char *nam, char **args)
 }
 
 
+#ifdef ZDRAW_PASTE
+static int
+zdraw_paste_mode(int on)
+{
+    return fputs(on ? "\033[?2004h" : "\033[?2004l", stdout) == EOF ||
+        fflush(stdout) == EOF;
+}
+
+static void
+zdraw_paste_restore_tty(void)
+{
+    noraw();
+    nl();
+    cbreak();
+    settyinfo(&zdraw_paste_tty_state);
+    gettyinfo(&curses_tty_state);
+}
+#endif
+
+static int
+zccmd_paste(const char *nam, char **args)
+{
+#ifdef ZDRAW_PASTE
+    int code;
+    char *bound;
+    if (!strcmp(args[0], "off")) {
+        if (zdraw_paste_active) {
+            zwarnnam(nam, "finish the active paste before disabling it");
+            return 1;
+        }
+        if (!zdraw_paste_key)
+            return 0;
+        if (zdraw_paste_mode(0))
+            return 1;
+        if (define_key(NULL, zdraw_paste_key) == ERR) {
+            zdraw_paste_mode(1);
+            return 1;
+        }
+        zdraw_paste_restore_tty();
+        zdraw_paste_key = 0;
+        return 0;
+    }
+    if (strcmp(args[0], "on")) {
+        zwarnnam(nam, "paste expects on or off");
+        return 1;
+    }
+    if (zdraw_paste_key)
+        return 0;
+    if (!isatty(0) || !isatty(1) || key_defined("\033[200~")) {
+        zwarnnam(nam, "paste needs terminal stdin/stdout and an unbound start delimiter");
+        return 1;
+    }
+    for (code = KEY_MAX + 1; code < KEY_MAX + 257; code++) {
+        bound = keybound(code, 0);
+        if (!bound)
+            break;
+        free(bound);
+    }
+    if (code == KEY_MAX + 257 || define_key("\033[200~", code) == ERR)
+        return 1;
+    gettyinfo(&zdraw_paste_tty_state);
+    if (raw() == ERR || nonl() == ERR) {
+        zdraw_paste_restore_tty();
+        define_key(NULL, code);
+        return 1;
+    }
+    if (zdraw_paste_mode(1)) {
+        zdraw_paste_mode(0);
+        define_key(NULL, code);
+        zdraw_paste_restore_tty();
+        return 1;
+    }
+    zdraw_paste_key = code;
+    gettyinfo(&curses_tty_state);
+    return 0;
+#else
+    (void)nam; (void)args;
+    return 2;
+#endif
+}
+
+static int
+zccmd_suspend(const char *nam, UNUSED(char **args))
+{
+#ifdef ZDRAW_SUSPEND
+    if (zdraw_suspended)
+        return 0;
+#ifdef ZDRAW_PASTE
+    if (zdraw_paste_active) {
+        zwarnnam(nam, "finish the active paste before suspending");
+        return 1;
+    }
+#endif
+    if (def_prog_mode() == ERR)
+        return 1;
+    gettyinfo(&curses_tty_state);
+#ifdef ZDRAW_PASTE
+    if (zdraw_paste_key && zdraw_paste_mode(0)) {
+        zdraw_paste_mode(1);
+        return 1;
+    }
+#endif
+#ifdef NCURSES_MOUSE_VERSION
+    zdraw_saved_mouse = (zdraw_flags & ZCF_MOUSE_ACTIVE) != 0;
+    mousemask(0, NULL);
+#endif
+    if (!isendwin() && endwin() == ERR) {
+        reset_prog_mode();
+#ifdef ZDRAW_PASTE
+        if (zdraw_paste_key)
+            zdraw_paste_mode(1);
+#endif
+#ifdef NCURSES_MOUSE_VERSION
+        if (zdraw_saved_mouse)
+            mousemask(zdraw_mouse_mask, NULL);
+#endif
+        return 1;
+    }
+    settyinfo(&saved_tty_state);
+    zdraw_suspended = 1;
+    return 0;
+#else
+    (void)nam;
+    return 2;
+#endif
+}
+
+static int
+zccmd_resume(UNUSED(const char *nam), UNUSED(char **args))
+{
+#ifdef ZDRAW_SUSPEND
+#ifdef HAVE_RESIZE_TERM
+    int rows, cols;
+#endif
+    if (!zdraw_suspended)
+        return 0;
+    if (reset_prog_mode() == ERR) {
+        settyinfo(&saved_tty_state);
+        return 1;
+    }
+    settyinfo(&curses_tty_state);
+#ifdef HAVE_RESIZE_TERM
+    if (!zdraw_terminal_size(&rows, &cols) && resize_term(rows, cols) == ERR) {
+        endwin();
+        settyinfo(&saved_tty_state);
+        return 1;
+    }
+#endif
+    /* Restore the retained virtual frame. Applications still own relayout. */
+    clearok(curscr, TRUE);
+    if (doupdate() == ERR) {
+        endwin();
+        settyinfo(&saved_tty_state);
+        return 1;
+    }
+    zdraw_suspended = 0;
+#ifdef NCURSES_MOUSE_VERSION
+    if (zdraw_saved_mouse)
+        mousemask(zdraw_mouse_mask, NULL);
+#endif
+#ifdef ZDRAW_PASTE
+    if (zdraw_paste_key && zdraw_paste_mode(1))
+        return 1;
+#endif
+    return 0;
+#else
+    return 2;
+#endif
+}
+
+static int
+zccmd_inputdelay(const char *nam, char **args)
+{
+#ifdef ZDRAW_INPUT_DELAY
+    int delay;
+    if (zdraw_nonnegative(args[0], &delay) || delay > 1000) {
+        zwarnnam(nam, "inputdelay expects milliseconds from 0 through 1000");
+        return 1;
+    }
+    if (zdraw_saved_escape_delay < 0)
+        zdraw_saved_escape_delay = get_escdelay();
+    return set_escdelay(delay) == ERR;
+#else
+    (void)nam; (void)args;
+    return 2;
+#endif
+}
+
 static int
 zccmd_endwin(UNUSED(const char *nam), UNUSED(char **args))
 {
     LinkNode stdscr_win = zdraw_getwindowbyname("stdscr");
 
     if (stdscr_win) {
+#ifdef ZDRAW_PASTE
+        if (zdraw_paste_key) {
+            if (!zdraw_suspended)
+                zdraw_paste_mode(0);
+            define_key(NULL, zdraw_paste_key);
+            noraw();
+            nl();
+        }
+        if (zdraw_paste_active)
+            flushinp();
+        zdraw_paste_key = zdraw_paste_active = zdraw_paste_match = 0;
+#endif
+#ifdef ZDRAW_INPUT_DELAY
+        if (zdraw_saved_escape_delay >= 0)
+            set_escdelay(zdraw_saved_escape_delay);
+        zdraw_saved_escape_delay = -1;
+#endif
 #ifdef NCURSES_VERSION
         if (zdraw_input_pad) {
             delwin(zdraw_input_pad);
@@ -2142,7 +2363,9 @@ zccmd_endwin(UNUSED(const char *nam), UNUSED(char **args))
             zdraw_prepared_rows = NULL;
         }
 #endif
-	endwin();
+	if (!zdraw_suspended)
+            endwin();
+        zdraw_suspended = 0;
 	/* Restore TTY as it was before zdraw -i */
 	settyinfo(&saved_tty_state);
 	/*
@@ -3232,6 +3455,87 @@ zdraw_pending_resize(char *target)
 }
 
 static int
+zccmd_inputinfo(const char *nam, char **args)
+{
+    LinkList info;
+    if (zdraw_association(nam, args[0]))
+        return 1;
+    info = newlinklist();
+    zdraw_event_number(info, "fd", isatty(0) ? 0 : -1);
+    zdraw_event_number(info, "wait_ms", 20);
+    zdraw_event_number(info, "suspended", zdraw_suspended);
+    addlinknode(info, "queued"); addlinknode(info, "unknown");
+#ifdef ZDRAW_INPUT_DELAY
+    zdraw_event_number(info, "escape_delay_ms", get_escdelay());
+#else
+    addlinknode(info, "escape_delay_ms"); addlinknode(info, "unknown");
+#endif
+#ifdef ZDRAW_PASTE
+    zdraw_event_number(info, "paste_enabled", zdraw_paste_key != 0);
+    zdraw_event_number(info, "paste_active", zdraw_paste_active);
+    zdraw_event_number(info, "paste_pending", zdraw_paste_match);
+#else
+    zdraw_event_number(info, "paste_enabled", 0);
+    zdraw_event_number(info, "paste_active", 0);
+    zdraw_event_number(info, "paste_pending", 0);
+#endif
+    return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
+#ifdef ZDRAW_PASTE
+static int
+zdraw_paste_record(char *target, const char *phase, char *data, int len)
+{
+    LinkList info = newlinklist();
+    addlinknode(info, "type"); addlinknode(info, "paste");
+    addlinknode(info, "phase"); addlinknode(info, dupstring(phase));
+    addlinknode(info, "text"); addlinknode(info, metafy(data, len, META_HEAPDUP));
+    addlinknode(info, "encoding"); addlinknode(info, "byte");
+    addlinknode(info, "source"); addlinknode(info, "bracketed-paste");
+    zdraw_event_number(info, "bytes", len);
+    return !sethparam(target, zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
+}
+
+static int
+zdraw_paste_read(WINDOW *win, int timeout, char *target)
+{
+    static const char marker[] = "\033[201~";
+    char data[4096];
+    int used = 0, reads = 0, ch, ended = 0;
+    keypad(win, FALSE);
+    /* Wait only for the first byte. Never wait to fill a streaming chunk. */
+    while (used <= (int)sizeof(data) - 6 && reads++ < 4096) {
+        ch = wgetch(win);
+        wtimeout(win, 0);
+        if (ch == ERR)
+            break;
+        if (ch > 255)
+            break; /* e.g. KEY_RESIZE: geometry is delivered on the next call. */
+        if (ch == marker[zdraw_paste_match]) {
+            if (++zdraw_paste_match == 6) {
+                zdraw_paste_match = zdraw_paste_active = 0;
+                ended = 1;
+                break;
+            }
+        } else {
+            memcpy(data + used, marker, zdraw_paste_match);
+            used += zdraw_paste_match;
+            zdraw_paste_match = 0;
+            if (ch == '\033')
+                zdraw_paste_match = 1;
+            else
+                data[used++] = (char)ch;
+        }
+    }
+    wtimeout(win, timeout);
+    keypad(win, TRUE);
+    if (!used && !ended)
+        return 1;
+    return zdraw_paste_record(target, ended ? "end" : "data", data, used);
+}
+#endif
+
+static int
 zccmd_event(const char *nam, char **args)
 {
     LinkNode node;
@@ -3241,7 +3545,7 @@ zccmd_event(const char *nam, char **args)
     struct zdraw_input input;
     const struct zdraw_namenumberpair *key;
     char digits[DIGBUFSIZE], *keyname = "", *type = "character";
-    int mouse = 0, norefresh = 0, result, i;
+    int mouse = 0, norefresh = 0, poll = 0, result, i;
     if (zdraw_association(nam, args[1]))
         return 1;
     for (i = 2; args[i]; i++) {
@@ -3249,8 +3553,10 @@ zccmd_event(const char *nam, char **args)
             mouse = 1;
         else if (!strcmp(args[i], "norefresh") && !norefresh)
             norefresh = 1;
+        else if (!strcmp(args[i], "poll") && !poll)
+            poll = 1;
         else {
-            zwarnnam(nam, "event expects distinct mouse and/or norefresh flags");
+            zwarnnam(nam, "event expects distinct mouse, norefresh and/or poll flags");
             return 1;
         }
     }
@@ -3284,10 +3590,29 @@ zccmd_event(const char *nam, char **args)
         input_window = zdraw_input_pad;
     }
 #endif
-    if (zdraw_read_input(nam, input_window, mouse ? 4 : 3, &input)) {
+    if (poll)
+        wtimeout(input_window, 0);
+#ifdef ZDRAW_PASTE
+    if (zdraw_paste_active) {
+        result = zdraw_paste_read(input_window, poll ? 0 : w->timeout, args[1]);
+        wtimeout(input_window, w->timeout);
+        return result;
+    }
+#endif
+    result = zdraw_read_input(nam, input_window, mouse ? 4 : 3, &input);
+    if (poll)
+        wtimeout(input_window, w->timeout);
+    if (result) {
         result = zdraw_pending_resize(args[1]);
         return result >= 0 ? result : 1;
     }
+#ifdef ZDRAW_PASTE
+    if (zdraw_paste_key && input.key == zdraw_paste_key) {
+        zdraw_paste_active = 1;
+        zdraw_paste_match = 0;
+        return zdraw_paste_record(args[1], "begin", "", 0);
+    }
+#endif
     info = newlinklist();
     addlinknode(info, "source");
     addlinknode(info, "curses");
@@ -3841,7 +4166,12 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"bg", zccmd_bg, 2, -1},
 	{"scroll", zccmd_scroll, 2, 2},
 	{"input", zccmd_input, 1, 4},
-        {"event", zccmd_event, 2, 4},
+	{"event", zccmd_event, 2, 5},
+        {"paste", zccmd_paste, 1, 1},
+        {"suspend", zccmd_suspend, 0, 0},
+        {"resume", zccmd_resume, 0, 0},
+        {"inputinfo", zccmd_inputinfo, 1, 1},
+        {"inputdelay", zccmd_inputdelay, 1, 1},
 	{"timeout", zccmd_timeout, 2, 2},
 	{"mouse", zccmd_mouse, 0, -1},
 	{"querychar", zccmd_querychar, 1, 2},
@@ -3874,6 +4204,20 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	return 1;
     }
 
+    if (zdraw_suspended && zcsc->cmd != zccmd_resume &&
+        zcsc->cmd != zccmd_suspend && zcsc->cmd != zccmd_endwin &&
+        zcsc->cmd != zccmd_inputinfo && zcsc->cmd != zccmd_geometry &&
+        zcsc->cmd != zccmd_colorinfo && zcsc->cmd != zccmd_textinfo &&
+        zcsc->cmd != zccmd_textpos && zcsc->cmd != zccmd_textwrap) {
+        zwarnnam(nam, "resume the suspended session first");
+        return 1;
+    }
+#ifdef ZDRAW_PASTE
+    if (zdraw_paste_key && zcsc->cmd == zccmd_input) {
+        zwarnnam(nam, "use event while bracketed paste owns input");
+        return 1;
+    }
+#endif
     if (zcsc->cmd != zccmd_init && zcsc->cmd != zccmd_endwin &&
 	zcsc->cmd != zccmd_geometry && zcsc->cmd != zccmd_colorinfo &&
 	zcsc->cmd != zccmd_textinfo && zcsc->cmd != zccmd_textpos &&
@@ -3948,6 +4292,17 @@ zdraw_featuresgetfn(UNUSED(Param pm))
         "text_wrapping",
         "text_positions",
         "structured_events",
+        "event_poll",
+        "input_info",
+#ifdef ZDRAW_PASTE
+        "streaming_paste",
+#endif
+#ifdef ZDRAW_SUSPEND
+        "suspend_resume",
+#endif
+#ifdef ZDRAW_INPUT_DELAY
+        "input_delay",
+#endif
 #ifdef NCURSES_VERSION
         "norefresh_events",
 #endif

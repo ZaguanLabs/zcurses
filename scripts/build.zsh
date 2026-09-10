@@ -87,4 +87,11 @@ module_extension=$(awk '$1 == "DL_EXT" && $2 == "=" { print $3; exit }' "$build_
 }
 mkdir -p "$project_root/.build/modules"
 cp "$build_root/Src/Modules/zdraw.$module_extension" "$project_root/.build/modules/"
+mkdir -p "$project_root/.build/modules/zsh"
+typeset helper
+for helper in zselect system; do
+  if [[ -f $build_root/Src/Modules/$helper.$module_extension ]]; then
+    cp "$build_root/Src/Modules/$helper.$module_extension" "$project_root/.build/modules/zsh/"
+  fi
+done
 print -r -- "Built $project_root/.build/modules/zdraw.$module_extension"

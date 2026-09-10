@@ -27,12 +27,18 @@ test: build
 	"$(ZSH_BIN)" -dfn tests/textpos.zsh
 	"$(ZSH_BIN)" -dfn tests/textwrap.zsh
 	"$(ZSH_BIN)" -dfn tests/events.zsh
+	"$(ZSH_BIN)" -dfn tests/session.zsh
+	"$(ZSH_BIN)" -dfn tests/session-errors.zsh
+	"$(ZSH_BIN)" -dfn tests/sgr.zsh
+	"$(ZSH_BIN)" -dfn lib/zdraw-sgr.zsh
+	"$(ZSH_BIN)" -dfn lib/zdraw-run.zsh
 	"$(ZSH_BIN)" -dfn tests/presentation.zsh
 	"$(ZSH_BIN)" -dfn tests/prepared.zsh
 	"$(ZSH_BIN)" -dfn tests/clipping.zsh
 	"$(ZSH_BIN)" -dfn benchmarks/spans.zsh
 	"$(ZSH_BIN)" -dfn benchmarks/fill.zsh
 	"$(ZSH_BIN)" -dfn examples/events.zsh
+	"$(ZSH_BIN)" -dfn examples/streams.zsh
 	"$(ZSH_BIN)" -dfn examples/hit-test.zsh
 	"$(ZSH_BIN)" -dfn examples/wrapping.zsh
 	"$(ZSH_BIN)" -dfn examples/borders.zsh

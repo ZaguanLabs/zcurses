@@ -5,9 +5,14 @@ set of candidates, not a promise to implement every item. Check an item only
 when its implementation, documentation and relevant verification are complete.
 A completed first milestone does not complete the broader direction.
 
+Development stops after the final application-integration batch (2026-09-10):
+streaming paste, suspend/resume, asynchronous input integration and colored command
+output. Remaining unchecked items are deferred candidates, not follow-on work for
+this batch. See the [integration contracts and combined example](application-integration.md).
+
 Implemented first milestones (2026-09-09): [structured input](../README.md#structured-input)
 and [prepared styled rows](../README.md#prepared-styled-rows), followed by opt-in
-`event ... norefresh` on ncurses and headless text geometry. The 54-test suite passes against the matching
+`event ... norefresh` on ncurses and headless text geometry. The 58-test suite passes against the matching
 Zsh 5.9.2 shell, including optional builds. The new paths also pass ASan/UBSan checks
 with leak detection disabled. The native manual
 builds and the exported patch applies in a dry run. See the
@@ -33,9 +38,13 @@ that contract without putting a second reader beside curses.
 - [x] Validate output targets before consuming input; document timeouts,
   encoding, unavailable modifier information and input ownership.
 - [x] Provide a standalone event inspector and PTY tests.
-- [ ] Add bounded streaming paste events, including split delimiters and cleanup.
+- [x] Add bounded streaming paste through the curses input owner, with explicit
+  opt-in, binary chunks, fragmented end delimiters and end/unload cleanup.
+  Start delimiters use the documented native escape-decoder timing window.
 - [ ] Add focus events and negotiated keyboard press/repeat/release reporting.
-- [ ] Define decoder readiness/deadlines for composition with `zselect`.
+- [x] Add per-call polling, explicit escape delay and input-state queries for
+  `zselect` composition. Report internal queue readiness as unknown, document
+  native wait limits, and demonstrate bounded event batches with a worker pipe.
 - [ ] Test protocols across terminals, multiplexers and interrupted sessions.
 
 References: [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/),
@@ -135,11 +144,12 @@ References: [Unicode segmentation](https://www.unicode.org/reports/tr29/),
 A controlled streaming decoder could convert colored command output into text
 and style runs for curses windows.
 
-- [ ] Define a deliberately limited SGR-only decoder.
-- [ ] Handle escape sequences split across input chunks with bounded storage.
-- [ ] Specify malformed/unsupported sequence handling; never pass arbitrary
+- [x] Provide a deliberately limited SGR-only decoder in a companion Zsh library.
+- [x] Handle escape sequences split across input chunks with bounded storage.
+- [x] Specify malformed/unsupported sequence handling; never pass arbitrary
   terminal commands through to the terminal or evaluate input as shell code.
-- [ ] Demonstrate colored compiler/search output in a window.
+- [x] Demonstrate colored diagnostic worker output in a pad, through a pipe,
+  with explicit EOF handling and independently owned parser state.
 
 Full interactive subprocess emulation is a separate, much larger project.
 
@@ -158,10 +168,13 @@ Extend compiled-feature/runtime-state separation with the origin of each claim.
 Hand the terminal to an editor, pager or foreground command, then return to the
 interface. This should preserve the shell's ability to compose existing tools.
 
-- [ ] Define release/restoration of terminal modes and negotiated protocols.
-- [ ] Recheck geometry and repaint on resumption.
-- [ ] Provide small Zsh wrappers using `always` for normal cleanup paths.
-- [ ] Test interruption, job control and failed foreground commands.
+- [x] Define release/restoration of terminal modes and configured paste/mouse reporting.
+- [x] Recheck geometry and repaint the retained virtual frame on resumption.
+- [x] Provide a Zsh wrapper using `always`, preserving foreground command status.
+- [x] Test handoff, interrupted/failed foreground commands, retained resources,
+  terminal resize, repeated calls, end/unload and injected library failures.
+- [ ] Expand real-shell job-control coverage; applications currently suspend
+  explicitly and own their signal/job-control traps.
 
 ## 9. Inspectable screens and replay
 

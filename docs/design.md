@@ -451,3 +451,51 @@ cells from that background during expansion and performs native wide-edge repair
 during shrink. Previously queued screen cells are independent of window pointers
 and are not rewritten or erased by a geometry change. Applications recompose
 backgrounds and affected surfaces before presenting.
+
+## Final application integration batch
+
+Bracketed paste uses a temporary, noncolliding curses key definition for the
+start delimiter. Native escape timing applies before that delimiter is decoded.
+Payload reads use `wgetch` with keypad disabled on the same input window/queue,
+preserving arbitrary bytes independently of the locale. A small prefix matcher
+is paired with explicit raw input ownership for the entire enabled period, so
+the line discipline cannot intercept signal or flow-control bytes before parsing.
+Disabling paste restores pre-enable modes; foreground handoff restores shell modes.
+The matcher
+holds at most five end-delimiter bytes. Work and output per call are bounded;
+reads after the first byte poll instead of waiting to fill a chunk. False prefixes
+are emitted and a complete terminator ends the paste without consuming subsequent
+keys. Cleanup owns the mode request, key definition and parser state. No raw fd
+reader competes with curses.
+
+Suspension retains every drawing resource while saving program modes and releasing
+the terminal. Active paste prevents handoff. The dispatcher blocks operations that
+could accidentally re-enter curses while suspended. Resume restores modes, updates
+geometry where available, repaints the retained virtual screen, and re-enables
+configured protocols. Explicit state also permits end/unload while suspended.
+Already-ended native screens are handled when suspending a newly reinitialized
+session that has not presented yet. A small `always` wrapper owns foreground-command
+execution and status propagation; application job-control policy stays outside C.
+
+Per-call event polling temporarily changes only the initial timeout. Native escape
+decoding still has its own delay; an explicit setter saves/restores that policy.
+Input introspection reports queue readiness as unknown. The example drains bounded
+event batches and waits on stdin plus a worker pipe with a short `zselect` tick,
+accounting for internal queued input and geometry changes. It reads only the worker
+descriptor through `sysread` and removes it at EOF.
+
+The SGR parser is a companion Zsh state machine with caller-owned state. Pending
+text, CSI bytes, input chunks and emitted records are bounded. Control-string
+payloads are discarded without storage. Text runs are accumulated in blocks and
+validated through the existing headless decoder before publication. A call builds
+private state/output copies, so a malformed-text or limit failure publishes neither.
+The output is complete styles plus text/control records; colors are allocated only
+by later drawing operations. The example owns tabs, carriage returns, clipping and
+bounded history, keeping application layouts out of the C module.
+
+PTY barriers exercise binary/large/fragmented paste, following-key preservation,
+deferred presentation, original terminal modes during handoff, geometry, interrupted
+foreground commands, retained drawing, cleanup, worker readiness and optional/error
+builds. Headless decoder tests cover every split of a styled stream, UTF-8 splits,
+control-string filtering, malformed SGR and resource bounds. The combined example
+is exercised in UTF-8/C locales and small terminals through worker EOF and handoff.

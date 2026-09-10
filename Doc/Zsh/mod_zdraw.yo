@@ -42,7 +42,12 @@ xitem(tt(zdraw) tt(prepare) var(name) var(style) var(text) [ var(style) var(text
 xitem(tt(zdraw) tt(draw) var(targetwin) var(row) var(column) var(name) [ var(columns) ] )
 xitem(tt(zdraw) tt(rowinfo) var(name) var(association) )
 xitem(tt(zdraw) tt(unprepare) var(name) )
-xitem(tt(zdraw) tt(event) var(targetwin) var(association) [ tt(mouse) ] [ tt(norefresh) ] )
+xitem(tt(zdraw) tt(event) var(targetwin) var(association) [ tt(mouse) ] [ tt(norefresh) ] [ tt(poll) ] )
+xitem(tt(zdraw) tt(paste) tt(on)|tt(off))
+xitem(tt(zdraw) tt(suspend))
+xitem(tt(zdraw) tt(resume))
+xitem(tt(zdraw) tt(inputinfo) var(association))
+xitem(tt(zdraw) tt(inputdelay) var(milliseconds))
 xitem(tt(zdraw) tt(spansclip) var(targetwin) var(row) var(column) var(columns) var(style) var(text) [ var(style) var(text) ... ] )
 xitem(tt(zdraw) tt(border) var(targetwin) [ var(left) var(right) var(top) var(bottom) var(top_left) var(top_right) var(bottom_left) var(bottom_right) ] )
 xitem(tt(zdraw) tt(attr) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) ] [...])
@@ -693,8 +698,9 @@ endsitem()
 Wide input uses the current locale and reports a numeric wide-character value;
 narrow input returns raw bytes 0--255. Curses key numbers vary by library.
 Character records do not identify unmodified physical keys. This first event
-interface does not distinguish paste, focus, keyboard modifiers or
+interface does not distinguish focus, keyboard modifiers or
 press/repeat/release events, and negotiates no modern keyboard protocol.
+Bracketed paste has a separate explicitly enabled record format described below.
 
 The existing tt(input) and new tt(event) share the same curses queue and decoder.
 Applications choose which call consumes each item. There is no background reader;
@@ -705,6 +711,103 @@ without keyboard input. Escape decoding and inherited EINTR retries can extend
 the wait; it is not a strict overall deadline. Curses may refresh a modified
 window during input, just as with the inherited tt(input) operation. Complete
 and present a frame before reading, or use tt(norefresh).
+
+The tt(poll) flag temporarily uses a zero initial timeout and restores the
+window's configured timeout on return. It can be combined with tt(mouse) and
+tt(norefresh); all flags are distinct and order-independent. Native escape
+decoding and EINTR behavior still apply, so this is not a hard nonblocking
+deadline. Empty input returns 1 without assigning the destination.
+
+The subcommand tt(inputinfo) requires a session and replaces an ordinary writable
+association with input state, without reading or presenting:
+startsitem()
+sitem(tt(fd))(0 for terminal stdin used by tt(initscr), otherwise -1.)
+sitem(tt(queued))(tt(unknown): descriptor readiness cannot reveal the curses queue.)
+sitem(tt(wait_ms))(Suggested maximum external wait tick, 20 milliseconds.)
+sitem(tt(escape_delay_ms))(Current ncurses escape delay, or tt(unknown).)
+sitem(tt(suspended))(Whether this session explicitly released the terminal.)
+sitem(tt(paste_enabled), tt(paste_active))(Configured paste ownership and active payload state.)
+sitem(tt(paste_pending))(Held possible end-delimiter bytes.)
+endsitem()
+These fields describe module configuration, not terminal protocol confirmation.
+Status is 0 on assignment or 1 for invalid target/state. Check tt(input_info).
+
+The subcommand tt(inputdelay) accepts literal decimal milliseconds from 0 to 1000,
+changing ncurses escape-decoder timing explicitly. The first change saves the old
+value; tt(end) and unload restore it. Lower values reduce latency but tolerate less
+delay between fragments of keys and paste-start delimiters. Check tt(input_delay)
+for tt(get_escdelay) and tt(set_escdelay) support. Status is 0 on success, 1 for
+invalid arguments/library failure, and 2 without support. Initialization is required.
+
+For asynchronous applications, drain a bounded batch of tt(event) with tt(poll)
+and tt(norefresh) before waiting on terminal and worker descriptors with tt(zselect).
+Do not read the terminal outside curses. A 20-millisecond external tick is
+tt(zselect -t 2), since tt(zselect) uses hundredths of a second. Poll again after
+timeouts as well as descriptor readiness: curses may hold buffered input and
+terminal geometry can change without input bytes. Remove worker descriptors at
+EOF and bound event batches to avoid starving worker output. No extra reader or
+event-loop framework is provided. Check tt(event_poll) for the polling flag.
+
+The subcommand tt(paste on) explicitly requests xterm bracketed paste mode 2004.
+It requires terminal stdin/stdout and ncurses tt(define_key), tt(key_defined) and
+tt(keybound); check tt(streaming_paste). An unused key code is reserved for the
+start delimiter; an already-bound delimiter is rejected. Curses recognizes the
+start with its normal escape timing. Once active, tt(event) reads raw payload
+bytes from the same queue with keypad decoding disabled, until the end delimiter.
+The inherited tt(input) command is rejected while paste owns input.
+Paste enablement also owns raw terminal input mode so signal/flow-control bytes
+and carriage returns reach the decoder intact. This applies between pastes too:
+Ctrl-C is an input character, not a terminal-generated signal, and applications
+must handle it. Disabling paste restores pre-enable input modes; suspension
+restores shell modes and resume restores the enabled input policy. Paste defaults
+to off.
+
+Paste associations contain tt(type=paste), tt(source=bracketed-paste),
+tt(encoding=byte), tt(phase=begin), tt(data) or tt(end), raw tt(text), and tt(bytes).
+The begin record is empty. Consume text from both data and end records; the end
+record can be empty. Each payload record contains at most 4096 original bytes.
+UTF-8, NUL, newlines and controls can cross record boundaries. Applications own
+decoding, sanitizing, accumulation and total-size limits. Paste text is never
+evaluated by the module and must not be treated as shell code or raw terminal output.
+
+The first payload byte uses the requested timeout; subsequent reads poll. Work
+per call is bounded. At most five possible end-delimiter bytes survive between
+calls, including across arbitrary timeouts; false prefixes are returned as data.
+Start-delimiter fragments must arrive within curses' escape timing window.
+No automatic paste deadline is imposed. A literal end delimiter terminates paste.
+With no record available, status 1 leaves the destination unchanged while retaining
+decoder state. Invalid targets and flags are rejected before consuming input.
+
+Repeated tt(paste on) and tt(paste off) are idempotent. tt(off) and tt(suspend)
+reject an active paste. tt(end) and unload disable mode 2004, remove the owned key
+definition, clear parser state and flush currently queued input when abandoning
+an active paste. They cannot retract bytes arriving later. Mode changes emit
+control sequences immediately; tt(norefresh) still prevents frame presentation.
+Status is 0 on success, 1 for invalid state/arguments or library/output failure,
+and 2 without compiled support. Initialization is required.
+
+The subcommand tt(suspend) saves program modes, disables configured paste and
+active mouse reporting, calls tt(endwin), and restores the modes saved before
+initialization. Windows, pads, prepared rows and colors remain allocated.
+Repeated suspension is idempotent; active paste must finish first. While suspended,
+drawing, input and tt(init) are rejected. tt(resume), tt(suspend), tt(end),
+tt(inputinfo), geometry/color queries and headless text queries remain available.
+Ending a suspended session frees resources without re-entering the alternate screen.
+
+The subcommand tt(resume) restores program modes, rechecks terminal dimensions,
+updates them when tt(resize_term) is available, and repaints the retained virtual
+frame. Configured paste and mouse reporting are restored. Repeated resume is
+idempotent. This is an explicit presentation boundary, including drawing queued
+before suspension. Applications still own relayout and viewport recomposition;
+changed terminal geometry is reported by the next event where supported. Handoff
+does not normally flush input. Shell programs can use an tt(always) block to resume
+after a foreground command. No automatic signal or job-control traps are installed.
+
+Check tt(suspend_resume) for tt(def_prog_mode) and tt(reset_prog_mode). Both
+commands require a session. Status is 0 on success, 1 for state/library failure,
+and 2 without support. Recoverable preparation failures keep the session active;
+failed resume mode/resize/repaint leaves it suspended for retry or tt(end).
+Terminal-output failure may leave partially applied terminal state.
 
 With tt(norefresh), input uses a private one-cell ncurses pad. The call does not
 refresh drawing windows or present pending drawing. It preserves the selected
@@ -1121,6 +1224,11 @@ sitem(tt(resize))(Support for the tt(resize) subcommand through tt(resize_term).
 sitem(tt(wide_borders))(Non-ASCII border characters through wide curses.)
 sitem(tt(truecolor))(Optional ncurses extended-color functions and terminfo queries for RGB.)
 sitem(tt(structured_events))(Associative input records through the curses decoder.)
+sitem(tt(streaming_paste))(Opt-in bracketed paste through curses, in bounded byte chunks.)
+sitem(tt(suspend_resume))(Retained session handoff to foreground commands.)
+sitem(tt(event_poll))(Per-call zero initial input timeout.)
+sitem(tt(input_info))(Input descriptor, polling guidance and session input state.)
+sitem(tt(input_delay))(Explicit ncurses escape delay with end/unload restoration.)
 sitem(tt(norefresh_events))(Opt-in event input without refreshing drawing windows,
 currently with ncurses.)
 sitem(tt(wide_events))(Locale-based wide-character input rather than raw bytes.)

@@ -190,6 +190,11 @@ unknown, so the application chooses its fallback policy.
 | `colorinfo` | Runtime color capabilities and allocation information |
 | `truecolor` | Optional ncurses extended-color APIs and terminfo queries for RGB |
 | `structured_events` | Associative input records using the curses decoder |
+| `streaming_paste` | Opt-in bracketed paste through curses, in bounded byte chunks |
+| `suspend_resume` | Foreground terminal handoff while retaining drawing resources |
+| `event_poll` | Poll one event without changing the window's configured timeout |
+| `input_info` | Input descriptor, polling guidance and session input state |
+| `input_delay` | Explicit ncurses escape-decoder delay with end/unload restoration |
 | `norefresh_events` | Opt-in event input without refreshing drawing windows (ncurses) |
 | `wide_events` | Locale-based wide-character input; otherwise events contain raw bytes |
 | `resize_events` | Terminal size queries or curses resize key notifications |
@@ -1297,7 +1302,7 @@ if zdraw event stdscr event; then
 fi
 ```
 
-`zdraw event window association [mouse] [norefresh]` requires an initialized session and
+`zdraw event window association [mouse] [norefresh] [poll]` requires an initialized session and
 returns one record through an ordinary writable associative parameter. It creates
 an absent parameter and replaces an existing association, so fields from a
 previous event do not linger. Invalid targets (including readonly, special,
@@ -1306,7 +1311,7 @@ acknowledging a pending size change. No implicit `REPLY` parameter is used.
 
 | Field | Meaning |
 | --- | --- |
-| `type` | `character`, `key`, `resize` or `mouse` |
+| `type` | `character`, `key`, `resize`, `mouse`, or opt-in `paste` (separate schema below) |
 | `source` | `curses` for decoded input; `terminal` for a detected size change |
 | `text` | One decoded character, or one raw byte on a narrow input build; empty for other events |
 | `key` | Empty for characters; curses name without `KEY_` for named keys (such as `UP`, `F5`, `RESIZE`, `MOUSE`); decimal code for an unrecognized key |
@@ -1321,18 +1326,24 @@ that the value is printable or came from an unmodified physical key. Wide input
 uses the current locale and returns the numeric wide-character value in `code`;
 narrow input returns bytes 0–255. Curses key codes are library-specific, not a
 portable enumeration. Legacy decoding cannot reliably distinguish modifiers,
-physical keys, paste, press/repeat/release or focus changes. Those are later
+physical keys, press/repeat/release or focus changes. Those are later
 [roadmap milestones](docs/roadmap.md).
 
 **Ownership and timing:** `event` and the existing `input` share one curses
 input queue and decoder. Applications choose which call consumes the next item;
-there is no background reader or additional protocol parser. Do not concurrently
+there is no background reader. Paste parsing is enabled only by `paste on`. Do not concurrently
 read the terminal through `read`, ZLE or a subprocess. `event` enables keypad
 decoding and inherits `zdraw timeout window milliseconds`. Zero polls; a finite
 positive timeout is useful for observing size changes without keypresses.
 Curses escape-sequence timing and inherited EINTR retries can extend a wait;
 this is not a strict overall deadline. By default, curses may refresh a modified
 window during a read, as with legacy input.
+
+`poll` temporarily uses a zero initial timeout and then restores the configured
+window timeout. It can be combined with `mouse` and `norefresh`; flags are distinct
+and order-independent. Native escape decoding can still wait. See the
+[application integration guide](docs/application-integration.md) for `inputinfo`,
+`inputdelay`, and a bounded `zselect` loop that accounts for curses' input queue.
 
 With `norefresh`, the call reads through a private one-cell ncurses pad and
 **does not refresh drawing windows or present pending drawing**. It still uses
@@ -1394,6 +1405,36 @@ heading, in the matching built shell and a UTF-8 locale:
 
 Press `q` to exit. Unicode display needs the wide drawing path. The example uses
 `always` for session cleanup; module unload also invokes the existing cleanup.
+
+## Paste, foreground commands and asynchronous output
+
+The final application integration batch adds:
+
+- `zdraw paste on|off`: opt-in streaming bracketed paste. `event` returns
+  `type=paste` records with `phase=begin|data|end`, raw `text`, and `bytes`.
+  Payload records contain at most 4,096 bytes, including arbitrary binary data.
+- `zdraw suspend` / `zdraw resume`: release terminal modes for a foreground
+  command, then restore the retained session and repaint. The companion
+  `zdraw-run` wrapper uses `always` and preserves the command's exit status.
+- `event ... poll`, `inputinfo` and `inputdelay`: compose curses input with worker
+  pipes using `zselect`, with explicit decoder timing and a bounded polling tick.
+- `lib/zdraw-sgr.zsh`: a bounded SGR-only streaming decoder, returning styled text
+  and newline/tab/carriage-return records. Other terminal commands are filtered.
+
+Read the [contracts, limits and cleanup rules](docs/application-integration.md)
+before using the new APIs. They preserve one terminal input owner and require
+explicit opt-in for paste. `input` is rejected while paste owns the input stream;
+finish an active paste before disabling it or handing off the terminal.
+Paste enablement also owns raw input mode; applications handle Ctrl-C as input
+until paste is disabled. Previous terminal modes are restored on disable/handoff.
+
+The [combined example](examples/streams.zsh) receives colored output from a worker
+pipe while handling keyboard input and paste. `!` hands the terminal to a
+foreground command, and `q` exits:
+
+```sh
+.build/zsh/Src/zsh -df examples/streams.zsh
+```
 
 ## Prepared styled rows
 

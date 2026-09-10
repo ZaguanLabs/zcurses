@@ -163,13 +163,14 @@ class FeatureTests(unittest.TestCase):
 #undef HAVE_WCHGAT
 #undef HAVE_COPYWIN
 #undef HAVE_WADDCHNSTR
+#undef HAVE_DEF_PROG_MODE
 #undef HAVE_WADD_WCHNSTR''', 1)
         with tempfile.TemporaryDirectory(prefix='features-disabled-', dir=ROOT / '.build') as tmp:
             modules = self.variant(tmp, source)
             self.assertEqual(self.run_shell('''
                 zmodload zdraw || exit 1
                 zmodload -F -e zdraw +p:zdraw_features || exit 2
-                (( ${#zdraw_features} == 9 + (${zdraw_features[(Ie)wide_cell_inspection]} > 0) + (${zdraw_features[(Ie)resize_events]} > 0) + (${zdraw_features[(Ie)wide_text]} > 0) + (${zdraw_features[(Ie)wide_events]} > 0) &&
+                (( ${#zdraw_features} == 11 + (${zdraw_features[(Ie)wide_cell_inspection]} > 0) + (${zdraw_features[(Ie)resize_events]} > 0) + (${zdraw_features[(Ie)wide_text]} > 0) + (${zdraw_features[(Ie)wide_events]} > 0) &&
                    ${zdraw_features[(Ie)textinfo]} &&
                    ${zdraw_features[(Ie)text_positions]} &&
                    ${zdraw_features[(Ie)text_wrapping]} &&
