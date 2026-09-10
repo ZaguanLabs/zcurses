@@ -561,19 +561,57 @@ Changed Zsh files pass parse checks; the native module is unchanged. Final log:
 Start with explicit handoff to one bounded interaction, not simultaneous ZLE and
 curses ownership.
 
-- [ ] Document ownership of the cursor, screen region, scrollback, input and
+- [x] Document ownership of the cursor, screen region, scrollback, input and
   redisplay before choosing an implementation path.
-- [ ] Prototype one short picker below the prompt, using an explicit ZLE handoff
+- [x] Prototype one short picker below the prompt, using an explicit ZLE handoff
   and returning a value to the shell with a defined retained-output policy.
-- [ ] Integrate asynchronous data using existing `zselect`/`zle -F` mechanisms
+- [x] Integrate asynchronous data using existing `zselect`/`zle -F` mechanisms
   where appropriate; keep one input owner and bounded callback work.
-- [ ] Test prompt redisplay, resize, cancellation, command failure, job-control
+- [x] Test prompt redisplay, resize, cancellation, command failure, job-control
   transitions, descriptor cleanup and return to normal shell editing.
-- [ ] Record the architectural result and either extract a reusable companion
+- [x] Record the architectural result and either extract a reusable companion
   helper or document the concrete blocker and retain the prototype as research.
 
 **Completion:** a repeatable shell integration example exists with known limits.
 A prototype or documented blocker does not mean a general inline UI API has shipped.
+
+**Completed 2026-09-10 — implementation commit `eb437e7`.**
+The [inline-shell guide](inline-shell.md) records ownership and the architectural
+result. The [picker prototype](../examples/inline-picker.zsh) uses ZLE
+`POSTDISPLAY`, a private recursive-edit keymap and an explicit returned scalar.
+Native `textpos` and `textinfo` supply headless validation/clipping; no curses
+session starts. The disposable [launcher](../scripts/inline-shell.zsh) demonstrates
+optional quoted insertion and removes its temporary startup configuration when
+the child shell exits, preserving the child's status.
+
+Optional async choices use a caller-owned pipe, one owned duplicate, and
+`zle -F -w`. Each callback reads at most 1,024 bytes without waiting; the protocol
+allows at most 16 KiB and 32 total choices of up to 256 bytes each. Partial UTF-8
+records accumulate until newline. Completion, invalid data, excess input, read
+failure and cancellation remove the watcher before closing its duplicate. The
+caller retains responsibility for its original descriptor and producer process.
+Selection returns literal data without changing the command buffer. Cancellation
+restores cursor, mark, selection, keymap, `POSTDISPLAY` and highlights.
+
+Verification: all **127 tests passed** against the selected public Zsh 5.9.2
+source release and matching built shell. Seven new PTY tests cover selection,
+cancellation, emacs/vi insertion, existing display state, ignored bracketed paste,
+fragmented async input, byte/item limits, invalid/truncated records, descriptor
+and watcher cleanup, repeat invocation, unchanged terminal modes, command failure,
+and stop/background/foreground job transitions after cancellation. The launcher
+test covers its insertion guard, quoted result, nonzero exit and temporary-file
+cleanup. Changed Zsh files pass parse checks. Final log:
+`.build/inline-final-make-test.log`.
+
+Limits are explicit: ZLE reflows immediately on resize, while the picker remeasures
+on the next widget dispatch or complete async update. Ctrl-Z cancels the picker;
+suspend the shell only after cleanup. Concurrent writers of `POSTDISPLAY` require
+coordination, and ZLE scrolling can leave historical fragments in scrollback.
+The prototype remains research in `examples/`. A general native inline API is
+deferred because full-screen curses initialization supplies no shared prompt
+origin, scrollback policy or coordinated ZLE redisplay lifecycle. This milestone
+completes the bounded experiment and records that blocker; it does not claim to
+solve native inline drawing.
 
 ## 12. Image previews
 
