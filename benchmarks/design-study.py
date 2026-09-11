@@ -17,6 +17,7 @@ from test_compositions import RecipeSession
 from test_design_study import DesignStudyTests
 from test_linked_detail import LinkedDetailTests
 from test_change_gutter import ChangeGutterTests
+from test_status_strip import StatusStripTests
 import test_features
 
 
@@ -25,7 +26,7 @@ def main():
     parser.add_argument('--trials', type=int, default=3)
     parser.add_argument('--frames', type=int, default=20)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--example', choices=('design-study', 'linked-detail', 'change-gutter'), default='design-study')
+    parser.add_argument('--example', choices=('design-study', 'linked-detail', 'change-gutter', 'status-strip'), default='design-study')
     args = parser.parse_args()
     if not 1 <= args.trials <= 20 or not 2 <= args.frames <= 500:
         parser.error('use 1..20 trials and 2..500 frames')
@@ -33,7 +34,8 @@ def main():
     os.environ.pop('ZDRAW_STUDY_CAPTURE', None)
     linked = args.example == 'linked-detail'
     gutter = args.example == 'change-gutter'
-    component = linked or gutter
+    status = args.example == 'status-strip'
+    component = linked or gutter or status
     record = dict(format=f'zdraw-{args.example}-benchmark-1', platform=platform.platform(),
                   measured_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
                   source_sha256=hashlib.sha256((ROOT / f'examples/{args.example}.zsh').read_bytes()).hexdigest(),
@@ -43,9 +45,9 @@ def main():
                   frames_per_trial=args.frames, warmup_frames=4, scenarios=[])
     if component:
         record['component_sha256'] = hashlib.sha256((ROOT / f'examples/components/{args.example}.zsh').read_bytes()).hexdigest()
-    case = ChangeGutterTests() if gutter else LinkedDetailTests() if linked else DesignStudyTests()
+    case = StatusStripTests() if status else ChangeGutterTests() if gutter else LinkedDetailTests() if linked else DesignStudyTests()
     for size in ((32, 120), (20, 44)):
-        designs = ('gutter' if gutter else 'flat',) if component else ('quiet', 'workbench', 'expressive')
+        designs = ('status' if status else 'gutter' if gutter else 'flat',) if component else ('quiet', 'workbench', 'expressive')
         for design in designs:
             samples, calls = [], []
             for trial in range(args.trials):
@@ -53,13 +55,14 @@ def main():
                 try:
                     session.advance()
                     session.advance(size=size)
-                    if size[1] < 78 and not gutter:
+                    if size[1] < 78 and not (gutter or status):
                         session.advance(b'\t')
                     current = []
                     for index in range(args.frames + 4):
-                        frame = session.advance(b'j' if index % 2 == 0 else b'k')
+                        key = (b'1' if index % 6 == 0 else b' ') if status else (b'j' if index % 2 == 0 else b'k')
+                        frame = session.advance(key)
                         if index >= 4:
-                            current.append(float(frame[10 if gutter else 13 if linked else 12]))
+                            current.append(float(frame[10 if gutter or status else 13 if linked else 12]))
                             if not component:
                                 calls.append(int(frame[13]))
                     samples.append(current)
@@ -68,7 +71,7 @@ def main():
                     session.close()
             flat = sorted(value for trial in samples for value in trial)
             record['scenarios'].append(dict(design=design, rows=size[0], columns=size[1],
-                interaction=('redraw' if size[1] >= 78 else 'vertical scroll') if gutter else ('selection' if size[1] >= 78 else 'detail scroll'),
+                interaction='status/progress updates' if status else ('redraw' if size[1] >= 78 else 'vertical scroll') if gutter else ('selection' if size[1] >= 78 else 'detail scroll'),
                 median_ms=round(statistics.median(flat), 3),
                 p95_ms=round(flat[max(0, (95 * len(flat) + 99) // 100 - 1)], 3),
                 samples_ms=samples))

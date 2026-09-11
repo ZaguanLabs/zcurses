@@ -99,6 +99,7 @@ application that handles resize and render failures.
 | Explore three visual directions with real terminal captures | [Design study](docs/design-study.md) |
 | Reuse a themed list/detail treatment | [Linked detail prototype](docs/linked-detail.md) |
 | Show compact line numbers and added/removed review markers | [Change gutter prototype](docs/change-gutter.md) |
+| Show compact working, waiting, done and failed states | [Status display prototype](docs/status-strip.md) |
 | Choose components, themes and style utilities | [UI toolkit](docs/ui-toolkit.md) |
 | Debug component failures | [Toolkit diagnostics](docs/ui-toolkit.md#diagnosing-failures) |
 | Compose responsive panes | [List/detail recipe](docs/recipes/list-detail.md) |

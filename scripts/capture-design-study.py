@@ -33,7 +33,7 @@ def capture(output, example='design-study'):
                    xterm=subprocess.check_output(['xterm', '-version'], text=True).strip(),
                    shell=subprocess.check_output([str(ROOT / '.build/zsh/Src/zsh'), '--version'], text=True).strip(),
                    font='DejaVu Sans Mono 11', locale='C.UTF-8', term='xterm-256color', scenarios=[])
-    if example in ('linked-detail', 'change-gutter'):
+    if example in ('linked-detail', 'change-gutter', 'status-strip'):
         records['component_sha256'] = hashlib.sha256((ROOT / f'examples/components/{example}.zsh').read_bytes()).hexdigest()
     rr, rw = os.pipe()
     server = subprocess.Popen(['Xvfb', '-displayfd', str(rw), '-screen', '0', '1600x1000x24', '-nolisten', 'tcp'],
@@ -80,6 +80,17 @@ def capture(output, example='design-study'):
                 ('variant', 'dark', 'ready', '100x30', 'list', 'auto'),
                 ('empty', 'dark', 'empty', '80x24', 'list', 'auto'),
             ]
+        if example == 'status-strip':
+            scenarios = [
+                ('dark', 'dark', 'working', '100x24', 'list', 'auto'),
+                ('light', 'light', 'working', '100x24', 'list', 'auto'),
+                ('narrow', 'dark', 'working', '38x22', 'list', 'auto'),
+                ('compact', 'dark', 'working', '80x18', 'list', 'auto'),
+                ('unknown', 'dark', 'working', '100x24', 'list', 'auto'),
+                ('failed', 'dark', 'failed', '100x24', 'list', 'auto'),
+                ('mono', 'dark', 'working', '80x24', 'list', 'mono'),
+                ('variant', 'dark', 'working', '100x24', 'list', 'auto'),
+            ]
         with tempfile.TemporaryDirectory(prefix='study-capture-', dir=ROOT / '.build') as temporary:
             for name, design, state, geometry, focus, profile in scenarios:
                 directory = Path(temporary) / name
@@ -90,10 +101,14 @@ def capture(output, example='design-study'):
                            '-xrm', 'XTerm*cursorBlink: false', '-xrm', 'XTerm*cursorUnderLine: true',
                            '-e', str(ROOT / '.build/zsh/Src/zsh'), '-df',
                            str(ROOT / 'scripts/design-study-frame.zsh'), str(directory), focus]
-                if example in ('linked-detail', 'change-gutter'):
+                if example in ('linked-detail', 'change-gutter', 'status-strip'):
                     command += ['--example', example, '--theme', design, '--profile', profile]
                     if name == 'compact':
-                        command += ['--item-gap', '0']
+                        command += ['--compact'] if example == 'status-strip' else ['--item-gap', '0']
+                    if example == 'status-strip':
+                        command += ['--phase', state]
+                        if name == 'unknown':
+                            command += ['--unknown']
                     if name == 'catalog':
                         command += ['--dataset', 'catalog', '--variant']
                     if name == 'variant':
@@ -102,7 +117,7 @@ def capture(output, example='design-study'):
                         command += ['--empty']
                 else:
                     command += ['--design', design, '--state', state, '--profile', profile]
-                if profile in ('mono', '16'):
+                if profile in ('mono', '16') and example != 'status-strip':
                     command.append('--ascii')
                 process = subprocess.Popen(command, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
                 try:
@@ -150,6 +165,6 @@ def capture(output, example='design-study'):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--example', choices=('design-study', 'linked-detail', 'change-gutter'), default='design-study')
+    parser.add_argument('--example', choices=('design-study', 'linked-detail', 'change-gutter', 'status-strip'), default='design-study')
     args = parser.parse_args()
     capture(args.output.resolve(), args.example)

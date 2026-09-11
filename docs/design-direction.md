@@ -271,6 +271,13 @@ application-supplied review rows and remains an example for visual review.
 This approval does not authorize a diff engine or automatic progression to
 the remaining investigation ideas above.
 
+After the initial studies were committed and pushed, the maintainer explicitly
+selected the **compact activity/status display**. The [status-strip prototype](status-strip.md)
+composes existing styles and meters into one/two-row working, waiting, done and
+failed displays. Applications supply phase, text and optional measured progress;
+the component owns no task runner, timer or input. This is another bounded
+example for visual review, not authorization to progress through other candidates.
+
 ### Rejected shadow treatment
 
 The maintainer rejected both the full-cell and adjustable thin/half-cell shadows
