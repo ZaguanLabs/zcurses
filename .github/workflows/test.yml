@@ -20,6 +20,8 @@ jobs:
       ZSH_BUILD_ROOT: ${{ github.workspace }}/.build/sources/zsh-5.9.2
       ZSH_TEST_SHELL: ${{ github.workspace }}/.build/zsh/Src/zsh
       ZDRAW_TEST_LOCALE: C.UTF-8
+      # Exercise reload when the shell retains libtinfo but not libncurses.
+      LDFLAGS: -Wl,--as-needed
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

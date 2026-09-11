@@ -135,6 +135,8 @@ static WINDOW *zdraw_tree_retired[ZDRAW_TREE_WINDOWS];
 static int zdraw_tree_parents[ZDRAW_TREE_WINDOWS], zdraw_tree_retired_count;
 #endif
 static int zdraw_tree_collect_retired(void);
+static WINDOW *zdraw_screen_init(void);
+static void zdraw_screen_end(void);
 
 struct zdraw_namenumberpair {
     char *name;
@@ -676,7 +678,7 @@ zccmd_init(UNUSED(const char *nam), UNUSED(char **args))
 
 	gettyinfo(&saved_tty_state);
 	w->name = ztrdup("stdscr");
-	w->win = initscr();
+	w->win = zdraw_screen_init();
 	if (w->win == NULL) {
 	    zsfree(w->name);
 	    zfree(w, sizeof(struct zc_win));
@@ -2746,6 +2748,7 @@ zccmd_endwin(UNUSED(const char *nam), UNUSED(char **args))
 	gettyinfo(&shttyinfo);
 	freelinklist(zdraw_windows, (FreeFunc) zdraw_free_window);
 	zdraw_windows = znewlinklist();
+        zdraw_screen_end();
 	if (zdraw_colorpairs) {
 	    deletehashtable(zdraw_colorpairs);
 	    zdraw_colorpairs = NULL;
@@ -5901,4 +5904,53 @@ int
 finish_(UNUSED(Module m))
 {
     return 0;
+}
+
+/* Include terminfo only after the command implementation: its unprefixed
+ * capability macros (columns, lines, etc.) collide with ordinary identifiers.
+ * Keep a complete SCREEN lifetime, rather than initscr's process-wide cache.
+ * With --as-needed the shell can retain libtinfo while unloading libncurses;
+ * leaving a SCREEN behind then makes ncurses' reloaded color globals stale.
+ */
+#if defined(HAVE_NEWTERM) && defined(HAVE_DELSCREEN) && \
+    defined(HAVE_SET_CURTERM) && defined(ZSH_HAVE_TERM_H)
+# include "../zshterm.h"
+static SCREEN *zdraw_screen;
+static TERMINAL *zdraw_previous_terminal;
+#endif
+
+static WINDOW *
+zdraw_screen_init(void)
+{
+#if defined(HAVE_NEWTERM) && defined(HAVE_DELSCREEN) && \
+    defined(HAVE_SET_CURTERM) && defined(ZSH_HAVE_TERM_H)
+    zdraw_previous_terminal = cur_term;
+    zdraw_screen = newterm(NULL, stdout, stdin);
+    if (!zdraw_screen) {
+        set_curterm(zdraw_previous_terminal);
+        zdraw_previous_terminal = NULL;
+        return NULL;
+    }
+    return stdscr;
+#else
+    return initscr();
+#endif
+}
+
+static void
+zdraw_screen_end(void)
+{
+#if defined(HAVE_NEWTERM) && defined(HAVE_DELSCREEN) && \
+    defined(HAVE_SET_CURTERM) && defined(ZSH_HAVE_TERM_H)
+    if (zdraw_screen) {
+        delscreen(zdraw_screen);
+        zdraw_screen = NULL;
+        set_curterm(zdraw_previous_terminal);
+        zdraw_previous_terminal = NULL;
+# if defined(NCURSES_VERSION) && defined(ZDRAW_WINDOW_TREE)
+        /* ncurses delscreen also frees any retired windows awaiting deletion. */
+        zdraw_tree_retired_count = 0;
+# endif
+    }
+#endif
 }

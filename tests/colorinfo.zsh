@@ -96,6 +96,12 @@ uninitialized
 check zdraw init
 check zdraw colorinfo info
 [[ $info[pairs_used] == 0 ]] || fail 'new session retained allocation count'
+if [[ $mode != monochrome && $mode != failed_start ]]; then
+  [[ $info[colors] == $saved[colors] && $info[pair_limit] == $saved[pair_limit] ]] || fail 'reload lost color capacity'
+  check zdraw spans stdscr 0 0 blue/black X
+  check zdraw colorinfo info
+  [[ $info[pairs_used] == 1 ]] || fail 'reload cannot allocate a fresh pair'
+fi
 check zdraw end
 uninitialized
 print -r -- 'COLORINFO PASS'

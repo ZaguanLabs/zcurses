@@ -133,6 +133,8 @@ The original copyright notices and [Zsh licence](../LICENCE) are retained.
 
 [The Test workflow](../.github/workflows/test.yml) builds the pinned, checksum-verified
 Zsh 5.9.2 release and runs `make test` on Ubuntu 24.04 for pushes and pull requests.
+The Linux build explicitly uses `--as-needed` to exercise native unload/reload
+when libtinfo remains loaded independently of libncurses.
 The suite uses the matching built shell, including its PTY tests and native
 compile-time variants. It does not run the separate graphical terminal matrix
 and does not establish macOS/BSD portability. Those configurations remain unverified.

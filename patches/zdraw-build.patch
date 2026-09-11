@@ -1,6 +1,6 @@
 --- a/configure.ac
 +++ b/configure.ac
-@@ -1280,7 +1280,14 @@
+@@ -1280,7 +1280,15 @@
  	       pathconf sysconf \
  	       tgetent tigetflag tigetnum tigetstr setupterm initscr resize_term \
 -	       getcchar setcchar waddwstr wget_wch win_wch use_default_colors \
@@ -11,6 +11,7 @@
 +	       mvwin wresize \
 +	       define_key key_defined keybound get_escdelay set_escdelay \
 +	       def_prog_mode reset_prog_mode \
++	       newterm delscreen set_curterm \
 +	       init_extended_pair extended_color_content \
  	       nl_langinfo \
  	       erand48 open_memstream \

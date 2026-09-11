@@ -1,4 +1,6 @@
 """Safe serialization, conservative occupancy and restore failure cleanup."""
+from pathlib import Path
+import shutil
 import tempfile
 import unittest
 import test_features
@@ -8,6 +10,32 @@ from test_drawing import drawing_session
 class ScreenTests(unittest.TestCase):
     def test_roundtrip_and_invalid_data(self):
         drawing_session(self, 'normal', fixture='screen.zsh', marker=b'SCREEN PASS')
+
+    def test_preserves_shell_terminfo(self):
+        root = test_features.ROOT
+        with tempfile.TemporaryDirectory(dir=root / '.build') as tmp:
+            modules = Path(tmp) / 'modules'
+            shutil.copytree(root / '.build/modules', modules)
+            suffix = next(modules.glob('zdraw.*')).suffix
+            shutil.copy2(root / f'.build/zsh/Src/Modules/terminfo{suffix}',
+                         modules / f'zsh/terminfo{suffix}')
+            drawing_session(self, 'terminfo', modules, fixture='screen.zsh', marker=b'SCREEN PASS')
+
+    def test_failed_screen_initialization(self):
+        source = (test_features.ROOT / 'Src/Modules/zdraw.c').read_text()
+        source = source.replace('#include <stdio.h>',
+                                '#include <stdio.h>\n#define newterm(a,b,c) ((SCREEN *)0)\n#define initscr() ((WINDOW *)0)', 1)
+        with tempfile.TemporaryDirectory(dir=test_features.ROOT / '.build') as tmp:
+            modules = test_features.FeatureTests().variant(tmp, source)
+            self.assertEqual(test_features.FeatureTests().run_shell('''
+                zmodload zdraw || exit 1
+                zdraw init && exit 2
+                (( $? == 1 && ${#zdraw_windows} == 0 )) || exit 3
+                typeset -A info
+                zdraw colorinfo info || exit 4
+                [[ $info[initialized] == 0 ]] || exit 5
+                zmodload -u zdraw || exit 6
+            ''', modules, terminal='xterm-256color'), '')
 
     def test_native_failures_release_prepared_rows(self):
         source = (test_features.ROOT / 'Src/Modules/zdraw.c').read_text()

@@ -31,6 +31,11 @@ pre-maintenance tree.
   archive, matching built shell and the complete PTY suite. This does not automate
   the graphical terminal matrix or establish macOS/BSD support.
 
+- [x] Fix the first CI failure: release the owned curses SCREEN on end/unload,
+  using `newterm`/`delscreen` where available, and restore previous shell terminfo
+  state. Reproduce the old color-allocation failure with an `--as-needed` shell;
+  test reload capacity, failed initialization and a preloaded terminfo module.
+
 ## Accepted maintenance work still open, in priority order
 
 - [ ] Extend the diagnostic helper to the remaining libraries' own validation
@@ -79,8 +84,9 @@ by this review; the image rejection does not extend to them automatically.
   diagnostics. Reassigning every status 2 to "does not fit" would break this API.
 - The report's "no SPDX identifiers anywhere" claim overlooks Unicode-derived
   tables. Those notices must survive the project's licensing cleanup.
-- `overlay` is inherited behavior. Replacing it with a flag would conflict with
-  the explicit compatibility requirement; retain the subcommand.
+- `overlay` is an already shipped zdraw extension, not an inherited zcurses
+  command. Replacing it with a flag would change its public calling contract
+  without an established usability benefit; retain the subcommand.
 
 ## Validation
 
@@ -91,8 +97,13 @@ fell from 16.18 ms to 6.90 ms (about 2.34x); all final cell snapshots matched.
 This measures component drawing, excluding presentation and application work.
 It is not a claim about every component or terminal.
 
-Local validation: all 128 tests passed using `ZSH_BUILD_ROOT` set to the
+Initial maintenance validation: all 128 tests passed using `ZSH_BUILD_ROOT` set to the
 selected Zsh 5.9.2 sources and the matching built shell. The README example was
 exercised in a PTY through greeting, quit and terminal restoration; local Markdown
 file links and anchors passed. Full-suite log: `.build/evaluation-make-test.log`.
-CI execution is checked separately after pushing the workflow.
+The first Ubuntu CI run caught a pre-existing native reload defect: with
+`--as-needed`, libtinfo can stay loaded while libncurses unloads, leaving cached
+screen state inconsistent with reloaded color globals. The follow-up owns and
+releases that screen using the standard lifecycle APIs; libraries without those
+APIs retain the previous initialization path. CI explicitly keeps `--as-needed`
+so the reload regression remains exercised.

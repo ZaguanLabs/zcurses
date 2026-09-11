@@ -10,6 +10,10 @@ check() { "$@" || fail "$*"; }
 reject() { "$@" 2>/dev/null && fail "unexpected success: $*"; return 0; }
 typeset zdraw_screen_data saved REPLY
 typeset -A pixels original after resources
+if [[ $mode == terminfo ]]; then
+  check zmodload zsh/terminfo
+  typeset original_colors=$terminfo[colors]
+fi
 check zdraw init
 {
   check zdraw addwin sample 2 8 1 1
@@ -80,4 +84,8 @@ check zdraw init
 } always {
   zdraw end
 }
+if [[ $mode == terminfo ]]; then
+  [[ $terminfo[colors] == $original_colors ]] || fail 'shell terminfo changed'
+  check zmodload -u zsh/terminfo
+fi
 print -r -- 'SCREEN PASS'
