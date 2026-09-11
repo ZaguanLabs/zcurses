@@ -17,6 +17,7 @@ typeset -a phases=(done working failed waiting)
 typeset -a explanations=('All defaults checked' 'Checking terminal cleanup' 'Parser check needs attention' 'Awaiting editorial review')
 typeset focus=list theme_name=dark profile=mono requested_profile=auto glyphs=auto layout_mode=tiny phase=working
 typeset -i rows columns first=1 offset=0 visible=1 dirty=1 exit_code=0 empty=0 variant=0 selected=2
+typeset -i compact=0 status_height=2 status_gap=1
 while (( $# )); do
   case $1 in
     --theme|--profile)
@@ -26,6 +27,7 @@ while (( $# )); do
     --ascii) glyphs=ascii ;;
     --empty) empty=1 ;;
     --variant) variant=1 ;;
+    --compact) compact=1 ;;
     *) print -ru2 -- "unknown option: $1"; exit 1 ;;
   esac
   shift
@@ -70,11 +72,14 @@ function review-render {
   zdraw fill stdscr 0 0 "$rows" "$columns" "$zdraw_ui_style[style]" ' ' || return
   zdraw-label stdscr 0 0 "$columns" 'REVIEW / terminal ownership' normal fg=accent bg=canvas bold || return
   layout_mode=tiny
-  if (( rows<14 || columns<26 )); then
+  if (( rows<11 || columns<26 )); then
     (( rows>1 )) && zdraw-label stdscr 1 0 "$columns" 'q quit; resize to review' normal bg=canvas
     zdraw refresh stdscr
     return
   fi
+  # Density belongs to this application. Compact status returns two review rows.
+  status_height=2 status_gap=1
+  (( compact || rows<18 )) && { status_height=1; status_gap=0; }
   items=()
   if (( !empty )); then
     for (( i=1; i<=${#titles}; i++ )); do items+=("$titles[$i]" "$summaries[$i]"); done
@@ -94,10 +99,11 @@ function review-render {
         failed) progress_options=(value=3 total=12) ;;
       esac
       (( variant )) && status_overrides=(key:reverse title:no-bold)
-      zdraw-status-strip stdscr "$body[1]" "$body[2]" 2 "$body[4]" "$phase" \
+      zdraw-status-strip stdscr "$body[1]" "$body[2]" "$status_height" "$body[4]" "$phase" \
         "$titles[$selected]" "$explanations[$selected]" "${progress_options[@]}" "${status_overrides[@]}" || return
       review-data
-      zdraw-change-gutter stdscr "$((body[1]+3))" "$body[2]" "$((body[3]-3))" "$body[4]" "$first" \
+      zdraw-change-gutter stdscr "$((body[1]+status_height+status_gap))" "$body[2]" \
+        "$((body[3]-status_height-status_gap))" "$body[4]" "$first" \
         "offset=$offset" "glyphs=$glyphs" -- "${records[@]}" || return
       first=$zdraw_ui_gutter[first] offset=$zdraw_ui_gutter[offset]
     else
@@ -108,7 +114,7 @@ function review-render {
   local hint='j/k files'
   [[ $focus == detail ]] && hint='j/k rows; h/l pan; 0 left'
   zdraw-label stdscr "$((rows-2))" 1 "$((columns-2))" "Tab pane; $hint" normal fg=muted bg=canvas || return
-  zdraw-help stdscr "$((rows-1))" 1 "$((columns-2))" normal -- q quit t theme v status m mono e empty || return
+  zdraw-help stdscr "$((rows-1))" 1 "$((columns-2))" normal -- q quit c compact t theme v status m mono e empty || return
   zdraw refresh stdscr
 }
 
@@ -137,6 +143,7 @@ zdraw init || exit 1
             0) offset=0 ;;
             t) if [[ $theme_name == dark ]]; then theme_name=light; else theme_name=dark; fi ;;
             v) (( variant=!variant )) ;;
+            c) (( compact=!compact )) ;;
             e) (( empty=!empty )); first=1 offset=0 ;;
             m)
               if [[ $profile == mono ]]; then

@@ -18,6 +18,9 @@ Use `j`/`k` to select a file, Tab to focus the changes, and `h`/`l` to pan the
 text. Press `t` for a shared theme change and `v` for a variation affecting only
 the status display. The [composition recipe](recipes/review-composition.md)
 explains the complete application and all controls.
+Use `c` or start it with `--compact` to give the changes two more rows. This
+omits the status explanation and its gap; below 18 terminal rows the example
+selects that layout automatically.
 
 ## Choose by the job
 

@@ -98,6 +98,8 @@ def capture(output, example='design-study'):
         if example == 'review-composition':
             scenarios = [
                 ('dark', 'dark', 'ready', '120x28', 'list', 'auto'),
+                ('compact', 'dark', 'ready', '120x28', 'list', 'auto'),
+                ('short', 'dark', 'ready', '38x11', 'detail', 'auto'),
                 ('light', 'light', 'ready', '100x24', 'list', 'auto'),
                 ('narrow-list', 'dark', 'ready', '38x20', 'list', 'auto'),
                 ('narrow-detail', 'dark', 'ready', '38x20', 'detail', 'auto'),
@@ -118,7 +120,7 @@ def capture(output, example='design-study'):
                 if example in ('linked-detail', 'change-gutter', 'status-strip', 'review-composition'):
                     command += ['--example', example, '--theme', design, '--profile', profile]
                     if name == 'compact':
-                        command += ['--compact'] if example == 'status-strip' else ['--item-gap', '0']
+                        command += ['--compact'] if example in ('status-strip', 'review-composition') else ['--item-gap', '0']
                     if example == 'status-strip':
                         command += ['--phase', state]
                         if name == 'unknown':

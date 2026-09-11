@@ -6,6 +6,7 @@ typeset -a test_options
 case $variant_name in
   mono|16) test_options=(--profile "$variant_name" --ascii) ;;
   forced) test_options=(--profile 256 --ascii --variant) ;;
+  compact) test_options=(--compact) ;;
 esac
 source "${0:A:h:h}/lib/zdraw-screen.zsh" || exit 1
 function zdraw {
@@ -21,7 +22,7 @@ function zdraw {
         text+=$'\n'
       done
       _zdraw_screen_hex "$text" || return
-      print -r -u "$report_fd" -- "frame $rows $columns $selected $phase $focus $first $offset $layout_mode $theme_name $profile $variant $REPLY"
+      print -r -u "$report_fd" -- "frame $rows $columns $selected $phase $focus $first $offset $layout_mode $theme_name $profile $variant $status_height $status_gap ${zdraw_ui_gutter[visible]:-0} $REPLY"
       read -r -u "$control_fd" acknowledgement ;;
     end) print -r -u "$report_fd" -- done ;;
   esac

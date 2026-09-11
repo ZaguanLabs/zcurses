@@ -24,6 +24,7 @@ After the [normal build](../building.md), from the repository root:
 ```sh
 .build/zsh/Src/zsh -df examples/review-composition.zsh
 .build/zsh/Src/zsh -df examples/review-composition.zsh --theme light
+.build/zsh/Src/zsh -df examples/review-composition.zsh --compact
 .build/zsh/Src/zsh -df examples/review-composition.zsh --profile mono --ascii
 ```
 
@@ -35,13 +36,16 @@ After the [normal build](../building.md), from the repository root:
 | `0` | Reset horizontal offset |
 | `t` | Switch the shared dark/light theme |
 | `v` | Emphasize only the status word locally |
+| `c` | Toggle compact status; short terminals keep it compact automatically |
 | `m` | Toggle monochrome within terminal capabilities |
 | `e` | Toggle empty sample data; restoring selects the first file |
 | `q` / Escape | Quit and restore terminal state |
 
 Selecting another file resets its review offsets. Switching focus, theme or
 local styling preserves selection and offsets. Resize preserves them subject to
-the components' viewport clamping. The example uses four fixed phases to show
+the components' viewport clamping. Density changes also retain the current row
+and horizontal offset where they fit; expanding the visible review area can
+clamp the first row near the end of the data. The example uses four fixed phases to show
 working, waiting, done and failed states. The waiting sample has no total, so
 it displays no invented percentage.
 
@@ -68,12 +72,14 @@ zdraw-linked-detail stdscr 2 1 "$((rows-5))" "$((columns-2))" "$focus" \
   item-gap=0 -- "${items[@]}" || return
 body=("${reply[@]}")
 
-if (( body[3]>=5 && body[4]>=24 && zdraw_ui_list[selected] )); then
+status_height=2 status_gap=1
+(( compact || rows<18 )) && { status_height=1; status_gap=0; }
+if (( body[3]>=status_height+status_gap+2 && body[4]>=24 && zdraw_ui_list[selected] )); then
   # Choose title, detail, phase and records for the reconciled selection here.
-  zdraw-status-strip stdscr "$body[1]" "$body[2]" 2 "$body[4]" \
+  zdraw-status-strip stdscr "$body[1]" "$body[2]" "$status_height" "$body[4]" \
     "$phase" "$title" "$detail" || return
-  zdraw-change-gutter stdscr "$((body[1]+3))" "$body[2]" \
-    "$((body[3]-3))" "$body[4]" "$first" "offset=$offset" \
+  zdraw-change-gutter stdscr "$((body[1]+status_height+status_gap))" "$body[2]" \
+    "$((body[3]-status_height-status_gap))" "$body[4]" "$first" "offset=$offset" \
     -- "${records[@]}" || return
   first=$zdraw_ui_gutter[first] offset=$zdraw_ui_gutter[offset]
 fi
@@ -81,10 +87,15 @@ fi
 zdraw refresh stdscr
 ```
 
-The example uses two status rows, one separating row and the remaining space
-for the gutter. At 74 terminal columns the linked component can show both panes;
+The default uses two status rows, one separating row and the remaining space
+for the gutter. `--compact` or `c` selects one status row with no separating row,
+giving the gutter two more visible content rows. The explanation is omitted and
+known progress becomes a percentage. Below 18 terminal rows the example uses
+this compact layout automatically; growing again restores the chosen preference.
+
+At 74 terminal columns the linked component can show both panes;
 below that it returns only the focused pane. Its hidden detail rectangle has
-zero area, so the application skips both detail components. Below 14 rows or
+zero area, so the application skips both detail components. Below 11 rows or
 26 columns the example shows a resize/quit hint instead.
 
 The components know nothing about sibling components. The application's file
@@ -103,8 +114,8 @@ output contract.
 - Sharing a theme does not assign keyboard focus or propagate application data.
   Those connections remain a short, explicit part of the example.
 - Breakpoints and reserved rows are application choices constrained by component
-  minimum sizes. This example's two-row status costs three detail rows including
-  the gap; a one-row status is already available for denser applications.
+  minimum sizes. Switching the existing status height and the application's gap
+  is enough to reclaim two rows; no new density API is needed.
 - The linked component supplies the connector and two-line file entries. The
   composition adds no new frame, shadow or decoration.
 
@@ -117,12 +128,14 @@ can omit trailing options on narrow terminals. The table above lists every key.
 
 ![Narrow review pane with fixed status and compact line numbers](../review-composition/narrow-detail.png)
 
-Compare [light](../review-composition/light.png),
+Compare [compact at the same width and height](../review-composition/compact.png),
+[11-row terminal](../review-composition/short.png),
+[light](../review-composition/light.png),
 [narrow file list](../review-composition/narrow-list.png),
 [monochrome](../review-composition/mono.png),
 [local status emphasis](../review-composition/variant.png) and
 [empty data](../review-composition/empty.png).
-All seven are actual xterm captures. Font, options, dimensions and hashes for
+All nine are actual xterm captures. Font, options, dimensions and hashes for
 the example, all three components and module are recorded in
 [captures.json](../review-composition/captures.json).
 
@@ -132,10 +145,11 @@ ZSH_BUILD_ROOT="$PWD/.build/sources/zsh-5.9.2" make test
 ```
 
 PTY checks exercise file/status/content correspondence, unknown totals, focus,
-scrolling, horizontal panning, local styling, theme changes, narrow/tiny resize,
+scrolling, horizontal panning, local styling, theme changes, density and its
+two-row gain, automatic compact layout, narrow/tiny resize,
 empty-data clearing, basic/monochrome fallback and terminal restoration.
-The full suite passed all 146 tests against the locally built Zsh 5.9.2 shell
-and matching module.
+The full suite passed all 147 tests against the locally built Zsh 5.9.2 shell
+and matching module after the density change.
 
 This demonstrates reuse and records the required application glue. It makes no
 new performance or comparative visual-quality claim. Stop here for review of
