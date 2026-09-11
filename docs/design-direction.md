@@ -278,6 +278,13 @@ failed displays. Applications supply phase, text and optional measured progress;
 the component owns no task runner, timer or input. This is another bounded
 example for visual review, not authorization to progress through other candidates.
 
+Following the request to push that study and continue, the
+[review composition](recipes/review-composition.md) demonstrates adoption of the
+three existing treatments together. Selection connects file data, status and
+review rows through application code; the pieces share one theme. This example
+requires no changes to the components or native module. It is a bounded reuse
+exercise, not another feature family or automatic roadmap progression.
+
 ### Rejected shadow treatment
 
 The maintainer rejected both the full-cell and adjustable thin/half-cell shadows

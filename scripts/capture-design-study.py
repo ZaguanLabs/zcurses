@@ -35,6 +35,10 @@ def capture(output, example='design-study'):
                    font='DejaVu Sans Mono 11', locale='C.UTF-8', term='xterm-256color', scenarios=[])
     if example in ('linked-detail', 'change-gutter', 'status-strip'):
         records['component_sha256'] = hashlib.sha256((ROOT / f'examples/components/{example}.zsh').read_bytes()).hexdigest()
+    if example == 'review-composition':
+        records['components_sha256'] = {
+            name: hashlib.sha256((ROOT / f'examples/components/{name}.zsh').read_bytes()).hexdigest()
+            for name in ('linked-detail', 'change-gutter', 'status-strip')}
     rr, rw = os.pipe()
     server = subprocess.Popen(['Xvfb', '-displayfd', str(rw), '-screen', '0', '1600x1000x24', '-nolisten', 'tcp'],
                               pass_fds=(rw,), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
@@ -91,6 +95,16 @@ def capture(output, example='design-study'):
                 ('mono', 'dark', 'working', '80x24', 'list', 'mono'),
                 ('variant', 'dark', 'working', '100x24', 'list', 'auto'),
             ]
+        if example == 'review-composition':
+            scenarios = [
+                ('dark', 'dark', 'ready', '120x28', 'list', 'auto'),
+                ('light', 'light', 'ready', '100x24', 'list', 'auto'),
+                ('narrow-list', 'dark', 'ready', '38x20', 'list', 'auto'),
+                ('narrow-detail', 'dark', 'ready', '38x20', 'detail', 'auto'),
+                ('mono', 'dark', 'ready', '100x24', 'list', 'mono'),
+                ('variant', 'dark', 'ready', '100x24', 'list', 'auto'),
+                ('empty', 'dark', 'empty', '100x24', 'list', 'auto'),
+            ]
         with tempfile.TemporaryDirectory(prefix='study-capture-', dir=ROOT / '.build') as temporary:
             for name, design, state, geometry, focus, profile in scenarios:
                 directory = Path(temporary) / name
@@ -101,7 +115,7 @@ def capture(output, example='design-study'):
                            '-xrm', 'XTerm*cursorBlink: false', '-xrm', 'XTerm*cursorUnderLine: true',
                            '-e', str(ROOT / '.build/zsh/Src/zsh'), '-df',
                            str(ROOT / 'scripts/design-study-frame.zsh'), str(directory), focus]
-                if example in ('linked-detail', 'change-gutter', 'status-strip'):
+                if example in ('linked-detail', 'change-gutter', 'status-strip', 'review-composition'):
                     command += ['--example', example, '--theme', design, '--profile', profile]
                     if name == 'compact':
                         command += ['--compact'] if example == 'status-strip' else ['--item-gap', '0']
@@ -165,6 +179,6 @@ def capture(output, example='design-study'):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--example', choices=('design-study', 'linked-detail', 'change-gutter', 'status-strip'), default='design-study')
+    parser.add_argument('--example', choices=('design-study', 'linked-detail', 'change-gutter', 'status-strip', 'review-composition'), default='design-study')
     args = parser.parse_args()
     capture(args.output.resolve(), args.example)

@@ -7,6 +7,8 @@ build:
 	+ZDRAW_MAKE="$(MAKE)" "$(ZSH_BIN)" -df scripts/build.zsh
 
 test: build
+	"$(ZSH_BIN)" -dfn examples/review-composition.zsh
+	"$(ZSH_BIN)" -dfn tests/review-composition.zsh
 	"$(ZSH_BIN)" -dfn examples/components/status-strip.zsh
 	"$(ZSH_BIN)" -dfn examples/status-strip.zsh
 	"$(ZSH_BIN)" -dfn tests/status-strip.zsh
