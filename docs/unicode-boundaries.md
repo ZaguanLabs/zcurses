@@ -17,6 +17,11 @@ zdraw-input-edit left       # Move before X.
 zdraw-input-edit backspace  # Delete all of 👍🏽, leaving X.
 ```
 
+For a policy shared with drawing, including across style boundaries, use the
+[grapheme-safe native width policy](grapheme-width-policy.md). The older
+`grapheme` alias described here remains query-only and can measure strings that
+curses cannot retain. The complete policy additionally checks native storage.
+
 ## Native API
 
 ```text
@@ -36,8 +41,8 @@ The feature `grapheme_boundaries` means this build provides the optional policy.
 It requires Zsh multibyte support, `nl_langinfo(CODESET)`, an active UTF-8 codeset
 and the `MULTIBYTE` option. Explicit requests return **2** when unavailable,
 including ASCII requests in the C locale; there is no silent policy fallback.
-Invalid input, unknown policies, excessive input or invalid result destinations
-return **1**. Query destinations retain their existing value on these failures.
+Unknown policies return **2**. Invalid input, excessive input or invalid result
+destinations return **1**. Query destinations retain their existing value on these failures.
 Normal queries continue working before initialization, after cleanup and during
 suspension, without terminal input, output, protocol activation or locale changes.
 

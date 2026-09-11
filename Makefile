@@ -45,6 +45,7 @@ test: build
 	"$(ZSH_BIN)" -dfn tests/pad-presentation.zsh
 	"$(ZSH_BIN)" -dfn tests/spans.zsh
 	"$(ZSH_BIN)" -dfn tests/truecolor.zsh
+	"$(ZSH_BIN)" -dfn tests/text-policy.zsh
 	"$(ZSH_BIN)" -dfn tests/textinfo.zsh
 	"$(ZSH_BIN)" -dfn tests/textpos.zsh
 	"$(ZSH_BIN)" -dfn tests/textwrap.zsh

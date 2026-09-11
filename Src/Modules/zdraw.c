@@ -72,6 +72,18 @@
 # define ZDRAW_WIDE_SPANS 1
 #endif
 
+/* The safe policy promises tested native storage as well as query boundaries. */
+#if defined(ZDRAW_GRAPHEME) && defined(ZDRAW_WIDE_SPANS) && \
+    defined(NCURSES_VERSION) && defined(HAVE_WIN_WCH)
+# define ZDRAW_SAFE_GRAPHEME 1
+#endif
+#define ZDRAW_CELL_POLICY "libc-wcwidth"
+#define ZDRAW_SAFE_POLICY "unicode-17.0.0-egc-wcwidth-sum-attach-zero"
+#define ZDRAW_SAFE_BYTES 1048576
+#define ZDRAW_SAFE_SPANS 4096
+static int zdraw_policy_string(const char *, char **);
+static int zdraw_text_policy(const char *, const char *, char *, int *);
+
 #if defined(HAVE_NEWPAD) && defined(HAVE_PNOUTREFRESH)
 # define ZDRAW_PADS 1
 #endif
@@ -1030,6 +1042,9 @@ zccmd_string(const char *nam, char **args)
     char *str = args[1];
 #endif
 
+    if (args[2])
+        return zdraw_policy_string(nam, args);
+
     node = zdraw_validate_window(args[0], ZDRAW_USED);
     if (node == NULL) {
 	zwarnnam(nam, "%s: %s", zdraw_strerror(zc_errno), args[0]);
@@ -1675,6 +1690,55 @@ zdraw_span_cell(cchar_t *cell, const wchar_t *group, chtype attrs)
 }
 #endif
 
+#ifdef ZDRAW_GRAPHEME
+/* Suppress UAX breaks before zero-width scalars: never split a native cell. */
+static int
+zdraw_text_break(struct zdraw_grapheme_state *state, convchar_t wc, int width)
+{
+    return zdraw_grapheme_break(state, (unsigned int)wc) && width != 0;
+}
+#endif
+
+#ifdef ZDRAW_SAFE_GRAPHEME
+struct zdraw_safe_group {
+    wchar_t text[CCHARW_MAX + 1];
+    int length, width;
+};
+
+/* Public curses round-trip, including exact text; never access cchar_t fields. */
+static int
+zdraw_safe_cell(cchar_t *cell, struct zdraw_safe_group *group,
+                attr_t attrs, short pair)
+{
+    wchar_t text[CCHARW_MAX + 1];
+    attr_t actual_attrs;
+    short actual_pair;
+    if (!group->length) return 0;
+    group->text[group->length] = 0;
+    if (setcchar(cell, group->text, attrs, pair, NULL) == ERR ||
+        getcchar(cell, NULL, NULL, NULL, NULL) != group->length + 1 ||
+        getcchar(cell, text, &actual_attrs, &actual_pair, NULL) == ERR ||
+        wcscmp(text, group->text))
+        return 2;
+    return 0;
+}
+
+/* Validate native storage in headless queries, including discarded suffixes. */
+static int
+zdraw_safe_scalar(struct zdraw_safe_group *group, convchar_t wc, int width)
+{
+    cchar_t cell;
+    if (width || !wc) {
+        if (zdraw_safe_cell(&cell, group, A_NORMAL, 0)) return 2;
+        group->length = 0;
+    }
+    if (!wc) return 0;
+    if (group->length == CCHARW_MAX) return 2;
+    group->text[group->length++] = (wchar_t)wc;
+    return 0;
+}
+#endif
+
 #if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR) || defined(HAVE_WCHGAT)
 /* A span has a complete style, independent of the window's current style. */
 struct zdraw_span {
@@ -1767,6 +1831,104 @@ zdraw_ctype_locale(void)
     return "";
 #endif
 }
+
+#ifdef ZDRAW_SAFE_GRAPHEME
+/* Stream across spans, staging native cells until their complete grapheme fits.
+ * A single grapheme may contain several native cells, all using its first style. */
+static int
+zdraw_compile_safe_spans(const char *nam, char **args, int cols, int clip,
+                         struct zdraw_row *row)
+{
+    int nargs = arrlen(args), nspans = nargs / 2, i, j, result;
+    int cw, boundary, keeping = 1, cluster_first = 0, cluster_width = 0;
+    int cluster_style = 0, have_base = 0, *owners;
+    size_t bytes = 0;
+    struct zdraw_span *styles;
+    short *pairs;
+    struct zdraw_grapheme_state state = {0};
+    struct zdraw_safe_group group = {{0}, 0, 0};
+    convchar_t wc;
+    char *str, *p;
+    cchar_t cell;
+    if (nargs < 2 || nargs % 2 || nspans > ZDRAW_SAFE_SPANS) return 1;
+    styles = zhalloc((size_t)nspans * sizeof(*styles));
+    pairs = zhalloc((size_t)nspans * sizeof(*pairs));
+    for (i = 0; i < nspans; i++) {
+        if (zdraw_span_style(args[2*i], styles + i)) return 1;
+        pairs[i] = -1;
+        for (p = args[2*i+1]; *p; p++) {
+            if (++bytes > ZDRAW_SAFE_BYTES) return 1;
+            if (*p == Meta) p++;
+        }
+    }
+    if ((size_t)cols > (size_t)-1 / sizeof(*row->cells) ||
+        (size_t)cols > (size_t)-1 / sizeof(*owners)) return 1;
+    row->cells = zhalloc((size_t)(cols ? cols : 1) * sizeof(*row->cells));
+    row->widths = zhalloc((size_t)(cols ? cols : 1) * sizeof(*row->widths));
+    owners = zhalloc((size_t)(cols ? cols : 1) * sizeof(*owners));
+    row->count = row->width = 0;
+    MB_METACHARINIT();
+    for (i = 0; i <= nspans; i++) {
+        str = i < nspans ? args[2*i+1] : "";
+        do {
+            wc = 0; cw = 0;
+            if (*str) {
+                result = zdraw_text_next(&str, 1, &wc, &cw);
+                if (result || (!cw && !have_base)) return 1;
+            } else if (i < nspans) break;
+            boundary = !wc || zdraw_text_break(&state, wc, cw);
+            if ((cw || !wc) && group.length) {
+                if (zdraw_safe_cell(&cell, &group, styles[cluster_style].attrs, 0))
+                    return 2;
+                if (keeping && cluster_width <= cols - row->width) {
+                    row->cells[row->count] = cell;
+                    row->widths[row->count] = group.width;
+                    owners[row->count++] = cluster_style;
+                }
+                group.length = 0;
+            }
+            if (boundary) {
+                if (keeping) {
+                    if (cluster_width > cols - row->width) {
+                        if (!clip) return 1;
+                        row->count = cluster_first;
+                        keeping = 0;
+                    } else row->width += cluster_width;
+                }
+                cluster_first = row->count;
+                cluster_width = 0;
+                cluster_style = i;
+            }
+            if (!wc) break;
+            if (cluster_width > INT_MAX - cw) return 1;
+            cluster_width += cw;
+            if (cw) { have_base = 1; group.width = cw; }
+            if (group.length == CCHARW_MAX) return 2;
+            group.text[group.length++] = (wchar_t)wc;
+        } while (*str);
+    }
+    /* Allocation follows validation of every style and scalar, even offscreen. */
+    for (j = 0; j < row->count; j++) {
+        attr_t attrs;
+        short pair;
+        i = owners[j];
+        if (pairs[i] < 0) {
+            pairs[i] = 0;
+            if (styles[i].color) {
+                Colorpairnode color = zdraw_colorget(nam, styles[i].color);
+                if (!color) return 1;
+                pairs[i] = color->colorpair;
+            }
+        }
+        if (getcchar(row->cells + j, group.text, &attrs, &pair, NULL) == ERR)
+            return 1;
+        group.length = wcslen(group.text);
+        if (zdraw_safe_cell(row->cells + j, &group, styles[i].attrs, pairs[i]))
+            return 2;
+    }
+    return 0;
+}
+#endif
 
 /* Shared preflight for transient spans and persistent prepared rows. */
 static int
@@ -1983,7 +2145,14 @@ zdraw_drawspans(const char *nam, char **args, int clip)
 #if defined(ZDRAW_WIDE_SPANS) || defined(HAVE_WADDCHNSTR)
     WINDOW *win;
     struct zdraw_row data;
-    int row, col, cols, budget, result;
+    int row, col, cols, budget, result, policy = 0;
+    char **spans = args + (clip ? 4 : 3);
+    if (*spans && !strncmp(*spans, "policy=", 7)) {
+        result = zdraw_text_policy(nam, *spans + 7, "", &policy);
+        if (result) return result;
+        if (policy == 1) return 2; /* Boundary-only query policy is not drawing. */
+        spans++;
+    }
     if (zdraw_row_target(nam, args, &win, &row, &col, &cols))
         return 1;
     if (clip) {
@@ -1994,7 +2163,12 @@ zdraw_drawspans(const char *nam, char **args, int clip)
         if (budget < cols)
             cols = budget;
     }
-    result = zdraw_compile_spans(nam, args + (clip ? 4 : 3), cols, clip, &data);
+#ifdef ZDRAW_SAFE_GRAPHEME
+    if (policy == 2)
+        result = zdraw_compile_safe_spans(nam, spans, cols, clip, &data);
+    else
+#endif
+        result = zdraw_compile_spans(nam, spans, cols, clip, &data);
     if (result)
         return result;
     return zdraw_write_row(win, row, col, data.cells, data.count);
@@ -2002,6 +2176,56 @@ zdraw_drawspans(const char *nam, char **args, int clip)
     (void)nam;
     (void)args;
     (void)clip;
+    return 2;
+#endif
+}
+
+/* Explicit safe strings are single-row writes with checked cursor advancement.
+ * The inherited string operation, including wrapping and controls, is unchanged. */
+static int
+zdraw_policy_string(const char *nam, char **args)
+{
+    int policy, result;
+    char *name = args[2];
+    if (!strncmp(name, "policy=", 7)) name += 7;
+    result = zdraw_text_policy(nam, name, args[1], &policy);
+    if (result) return result;
+    if (!policy) {
+        char *legacy[] = {args[0], args[1], NULL};
+        return zccmd_string(nam, legacy);
+    }
+    if (policy != 2) return 2;
+#ifdef ZDRAW_SAFE_GRAPHEME
+    {
+        LinkNode node = zdraw_validate_window(args[0], ZDRAW_USED);
+        WINDOW *win;
+        struct zdraw_row data;
+        struct zdraw_safe_group group;
+        attr_t attrs, ignored_attrs;
+        short pair, ignored_pair;
+        int y, x, rows, cols, end_y, end_x, i;
+        char *spans[] = {"", args[1], NULL};
+        if (!node) return 1;
+        win = ((ZCWin)getdata(node))->win;
+        getyx(win, y, x); getmaxyx(win, rows, cols);
+        result = zdraw_compile_safe_spans(nam, spans, cols - x, 0, &data);
+        if (result) return result;
+        end_y = y; end_x = x + data.width;
+        if (end_x == cols) { end_y++; end_x = 0; }
+        /* Never implicitly scroll or wrap a cluster onto another row. */
+        if (end_y >= rows) return 1;
+        if (wattr_get(win, &attrs, &pair, NULL) == ERR) return 1;
+        for (i = 0; i < data.count; i++) {
+            if (getcchar(data.cells + i, group.text, &ignored_attrs,
+                         &ignored_pair, NULL) == ERR) return 1;
+            group.length = wcslen(group.text);
+            if (zdraw_safe_cell(data.cells + i, &group, attrs, pair)) return 2;
+        }
+        result = zdraw_write_row(win, y, x, data.cells, data.count);
+        if (result) return result;
+        return wmove(win, end_y, end_x) == ERR;
+    }
+#else
     return 2;
 #endif
 }
@@ -5068,10 +5292,18 @@ static int
 zdraw_text_policy(const char *nam, const char *policy, char *text, int *grapheme)
 {
     *grapheme = 0;
-    if (!policy || !strcmp(policy, "cell")) return 0;
-    if (strcmp(policy, "grapheme")) {
-        zwarnnam(nam, "text boundary policy must be cell or grapheme");
-        return 1;
+    if (!policy || !strcmp(policy, "cell") || !strcmp(policy, ZDRAW_CELL_POLICY))
+        return 0;
+    if (!strcmp(policy, ZDRAW_SAFE_POLICY)) {
+#ifndef ZDRAW_SAFE_GRAPHEME
+        return 2;
+#endif
+        *grapheme = 2;
+    } else if (!strcmp(policy, "grapheme")) {
+        *grapheme = 1;
+    } else {
+        zwarnnam(nam, "unsupported text policy: %s", policy);
+        return 2;
     }
 #ifdef ZDRAW_GRAPHEME
     {
@@ -5080,19 +5312,65 @@ zdraw_text_policy(const char *nam, const char *policy, char *text, int *grapheme
         if (!isset(MULTIBYTE) || (strcmp(codeset, "UTF-8") && strcmp(codeset, "UTF8")))
             return 2;
         while (*text) {
-            if (++bytes > 1048576) {
+            if (++bytes > ZDRAW_SAFE_BYTES) {
                 zwarnnam(nam, "grapheme text exceeds the one-MiB byte limit");
                 return 1;
             }
             if (*text++ == Meta) text++;
         }
-        *grapheme = 1;
         return 0;
     }
 #else
     (void)text;
     return 2;
 #endif
+}
+
+/* Headless discovery describes only policies usable by queries AND drawing. */
+static int
+zccmd_textpolicy(const char *nam, char **args)
+{
+    LinkList info;
+    int policy, available, result;
+    const char *locale = setlocale(LC_CTYPE, NULL);
+    if (zdraw_association(nam, args[0])) return 1;
+    result = zdraw_text_policy(nam, args[1], "", &policy);
+    if (result) return result;
+    if (policy == 1) return 2;
+    available = !zdraw_text_policy(nam, ZDRAW_SAFE_POLICY, "", &result);
+    info = newlinklist();
+    addlinknode(info, "policy");
+    addlinknode(info, policy == 2 ? ZDRAW_SAFE_POLICY : ZDRAW_CELL_POLICY);
+    addlinknode(info, "default_policy"); addlinknode(info, ZDRAW_CELL_POLICY);
+    addlinknode(info, "grapheme_policy"); addlinknode(info, ZDRAW_SAFE_POLICY);
+    zdraw_colorinfo_value(info, "grapheme_available", available);
+#ifdef ZDRAW_SAFE_GRAPHEME
+    zdraw_colorinfo_value(info, "grapheme_compiled", 1);
+#else
+    zdraw_colorinfo_value(info, "grapheme_compiled", 0);
+#endif
+    addlinknode(info, "width_model"); addlinknode(info, "sum-libc-wcwidth");
+    addlinknode(info, "locale"); addlinknode(info, dupstring(locale ? locale : ""));
+    addlinknode(info, "boundaries");
+    addlinknode(info, policy == 2 ? "unicode-egc-attach-zero" : "spacing-attach-zero");
+    addlinknode(info, "unicode_version");
+    addlinknode(info, policy == 2 ? "17.0.0" : "none");
+    addlinknode(info, "style_policy");
+    addlinknode(info, policy == 2 ? "first-scalar" : "per-span");
+    zdraw_colorinfo_value(info, "emoji_two_cells", 0);
+    zdraw_colorinfo_value(info, "intra_grapheme_styles", 0);
+    zdraw_colorinfo_value(info, "persistent_grapheme_metadata", 0);
+    zdraw_colorinfo_value(info, "native_storage_checked", policy == 2);
+    addlinknode(info, "operations");
+    addlinknode(info, "textinfo textpos spans spansclip string");
+    zdraw_colorinfo_value(info, "max_bytes", policy == 2 ? ZDRAW_SAFE_BYTES : -1);
+    zdraw_colorinfo_value(info, "max_spans", policy == 2 ? ZDRAW_SAFE_SPANS : -1);
+#ifdef ZDRAW_SAFE_GRAPHEME
+    zdraw_colorinfo_value(info, "native_cell_scalar_limit", CCHARW_MAX - 1);
+#else
+    zdraw_colorinfo_value(info, "native_cell_scalar_limit", -1);
+#endif
+    return !sethparam(args[0], zlinklist2array(info, 1)) || (errflag & ERRFLAG_ERROR);
 }
 
 /* Headless width/clip query. Validation, including the discarded suffix,
@@ -5107,6 +5385,9 @@ zccmd_textinfo(const char *nam, char **args)
     int cw, result, wide = 0, grapheme = 0, boundary, group_width = 0;
 #ifdef ZDRAW_GRAPHEME
     struct zdraw_grapheme_state state = {0};
+#endif
+#ifdef ZDRAW_SAFE_GRAPHEME
+    struct zdraw_safe_group native = {{0}, 0, 0};
 #endif
     size_t bytes;
     convchar_t wc;
@@ -5144,12 +5425,14 @@ zccmd_textinfo(const char *nam, char **args)
             boundary = cw != 0;
 #ifdef ZDRAW_GRAPHEME
             if (grapheme) {
-                boundary = zdraw_grapheme_break(&state, (unsigned int)wc);
-                /* Preserve the native spacing-character/zero-width unit. */
-                boundary = boundary && cw;
+                boundary = zdraw_text_break(&state, wc, cw);
             }
 #endif
         }
+#ifdef ZDRAW_SAFE_GRAPHEME
+        if (grapheme == 2 && zdraw_safe_scalar(&native, *before ? wc : 0, cw))
+            return 2;
+#endif
         if (boundary || !*before) {
             if (keeping && group_width <= budget - width) {
                 width += group_width;
@@ -5176,7 +5459,8 @@ zccmd_textinfo(const char *nam, char **args)
     zdraw_colorinfo_value(info, "truncated", *end != '\0');
 #ifdef ZDRAW_GRAPHEME
     if (grapheme) {
-        addlinknode(info, "policy"); addlinknode(info, "grapheme");
+        addlinknode(info, "policy");
+        addlinknode(info, grapheme == 2 ? ZDRAW_SAFE_POLICY : "grapheme");
         addlinknode(info, "unicode_version"); addlinknode(info, ZDRAW_GRAPHEME_VERSION);
     }
 #endif
@@ -5199,6 +5483,9 @@ zccmd_textpos(const char *nam, char **args)
     int bytes = 0, width = 0, group_byte = 0, group_col = 0;
     int hit_byte = 0, end_byte = 0, hit_col = 0, end_col = 0;
     int have_base = 0, at_end = 0;
+#ifdef ZDRAW_SAFE_GRAPHEME
+    struct zdraw_safe_group native = {{0}, 0, 0};
+#endif
     size_t len;
     convchar_t wc;
 
@@ -5235,12 +5522,15 @@ zccmd_textpos(const char *nam, char **args)
         boundary = cw != 0;
 #ifdef ZDRAW_GRAPHEME
         if (grapheme && *before) {
-            boundary = zdraw_grapheme_break(&state, (unsigned int)wc);
-            boundary = boundary && cw;
+            boundary = zdraw_text_break(&state, wc, cw);
         }
 #endif
         /* Finish the preceding group before counting the next base. Validate
          * the rest of the text even after finding the requested position. */
+#ifdef ZDRAW_SAFE_GRAPHEME
+        if (grapheme == 2 && zdraw_safe_scalar(&native, *before ? wc : 0, cw))
+            return 2;
+#endif
         if (boundary || !*before) {
             if (have_base && offset >= (by_byte ? group_byte : group_col) &&
                 offset < (by_byte ? bytes : width)) {
@@ -5304,7 +5594,8 @@ zccmd_textpos(const char *nam, char **args)
     zdraw_colorinfo_value(info, "at_end", at_end);
 #ifdef ZDRAW_GRAPHEME
     if (grapheme) {
-        addlinknode(info, "policy"); addlinknode(info, "grapheme");
+        addlinknode(info, "policy");
+        addlinknode(info, grapheme == 2 ? ZDRAW_SAFE_POLICY : "grapheme");
         addlinknode(info, "unicode_version"); addlinknode(info, ZDRAW_GRAPHEME_VERSION);
     }
 #endif
@@ -5514,11 +5805,12 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
 	{"colorinfo", zccmd_colorinfo, 1, 1},
         {"resourceinfo", zccmd_resourceinfo, 1, 1},
 	{"textinfo", zccmd_textinfo, 2, 4},
+        {"textpolicy", zccmd_textpolicy, 1, 2},
         {"textpos", zccmd_textpos, 4, 5},
         {"textwrap", zccmd_textwrap, 3, 3},
 	{"truecolor", zccmd_truecolor, 1, 1},
 	{"char", zccmd_char, 2, 2},
-	{"string", zccmd_string, 2, 2},
+	{"string", zccmd_string, 2, 3},
 	{"spans", zccmd_spans, 5, -1},
         {"fill", zccmd_fill, 7, 7},
         {"copy", zccmd_copy, 8, 8},
@@ -5582,7 +5874,8 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
         zcsc->cmd != zccmd_capabilities && zcsc->cmd != zccmd_resourceinfo &&
         zcsc->cmd != zccmd_inputinfo && zcsc->cmd != zccmd_geometry &&
         zcsc->cmd != zccmd_colorinfo && zcsc->cmd != zccmd_textinfo &&
-        zcsc->cmd != zccmd_textpos && zcsc->cmd != zccmd_textwrap) {
+        zcsc->cmd != zccmd_textpos && zcsc->cmd != zccmd_textpolicy &&
+        zcsc->cmd != zccmd_textwrap) {
         zwarnnam(nam, "resume the suspended session first");
         return 1;
     }
@@ -5607,7 +5900,8 @@ bin_zdraw(char *nam, char **args, UNUSED(Options ops), UNUSED(int func))
     if (zcsc->cmd != zccmd_init && zcsc->cmd != zccmd_endwin &&
 	zcsc->cmd != zccmd_geometry && zcsc->cmd != zccmd_colorinfo &&
 	zcsc->cmd != zccmd_textinfo && zcsc->cmd != zccmd_textpos &&
-        zcsc->cmd != zccmd_textwrap && zcsc->cmd != zccmd_capabilities &&
+        zcsc->cmd != zccmd_textwrap && zcsc->cmd != zccmd_textpolicy &&
+        zcsc->cmd != zccmd_capabilities &&
         zcsc->cmd != zccmd_resourceinfo &&
 	!zdraw_getwindowbyname("stdscr")) {
 	zwarnnam(nam, "command `%s' can't be used before `zdraw init'",
@@ -5684,6 +5978,10 @@ zdraw_featuresgetfn(UNUSED(Param pm))
 	"textinfo",
         "text_wrapping",
         "text_positions",
+        "text_policy",
+#ifdef ZDRAW_SAFE_GRAPHEME
+        "grapheme_safe_text",
+#endif
 #ifdef ZDRAW_GRAPHEME
         "grapheme_boundaries",
 #endif

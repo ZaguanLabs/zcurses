@@ -174,7 +174,7 @@ class FeatureTests(unittest.TestCase):
                 zdraw resourceinfo resources || exit 20
                 [[ $resources[windows] == 0 && $resources[prepared_rows] == 0 &&
                    $resources[prepared_byte_limit] == unknown ]] || exit 21
-                (( ${#zdraw_features} == 14 + (${zdraw_features[(Ie)grapheme_boundaries]} > 0) + (${zdraw_features[(Ie)wide_cell_inspection]} > 0) + (${zdraw_features[(Ie)resize_events]} > 0) + (${zdraw_features[(Ie)wide_text]} > 0) + (${zdraw_features[(Ie)wide_events]} > 0) &&
+                (( ${#zdraw_features} == 15 + (${zdraw_features[(Ie)grapheme_boundaries]} > 0) + (${zdraw_features[(Ie)wide_cell_inspection]} > 0) + (${zdraw_features[(Ie)resize_events]} > 0) + (${zdraw_features[(Ie)wide_text]} > 0) + (${zdraw_features[(Ie)wide_events]} > 0) &&
                    ${zdraw_features[(Ie)textinfo]} &&
                    ${zdraw_features[(Ie)text_positions]} &&
                    ${zdraw_features[(Ie)text_wrapping]} &&

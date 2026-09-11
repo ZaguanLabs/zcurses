@@ -31,6 +31,8 @@ unknown, so the application chooses its fallback policy.
 
 | Feature name | Compiled support |
 | --- | --- |
+| `text_policy` | Headless width-policy discovery |
+| `grapheme_safe_text` | Complete opt-in grapheme-safe queries and native drawing |
 | `geometry` | Terminal-size queries through `TIOCGWINSZ` |
 | `resize` | Curses resizing through `resize_term` |
 | `mouse` | Ncurses mouse input and configuration |
@@ -344,6 +346,39 @@ locale or `MULTIBYTE` unset, non-ASCII text fails with status 1. `wide_text` is
 independent of `wide_spans`: being able to measure text does not establish that
 the linked curses library can draw it. Measurement does not enforce curses'
 complex-character storage limit; styled drawing does.
+
+### Shared grapheme-safe native width policy
+
+Use `zdraw textpolicy association [policy]` to discover the width contract without
+initializing curses. The opt-in policy
+`unicode-17.0.0-egc-wcwidth-sum-attach-zero` shares Unicode 17 boundaries, summed
+libc widths and native-storage validation across `textinfo`, `textpos`, `spans`,
+`spansclip` and `string`. Whole units are clipped; every unit uses its first
+scalar's style, including when it crosses adjacent spans. It does not force
+emoji to two cells.
+
+```zsh
+typeset -A contract measured
+typeset policy=unicode-17.0.0-egc-wcwidth-sum-attach-zero
+zdraw textpolicy contract "$policy" || return $?
+zdraw textinfo measured '👩‍💻X' 4 "$policy"
+zdraw spansclip panel 0 0 4 "policy=$policy" bold '👩‍💻X'
+zdraw string panel '👩‍💻X' "policy=$policy"
+```
+
+Queries take the policy as their final positional argument. Drawing takes
+`policy=NAME` before the first style/text pair, or after the text for `string`.
+`text_policy` advertises discovery, and `grapheme_safe_text` compiled support;
+check `contract[grapheme_available]` for current locale/option support. Unsupported
+policy names, builds, locales and native character groups return 2 without
+silently falling back. Safe strings are preflighted single-row writes with
+checked cursor advancement; legacy strings keep their inherited behavior.
+
+See the [complete width contract](grapheme-width-policy.md) for discovery fields,
+limits, first-scalar styles, literal spaces, error behavior, retained-cell
+accounting and caller responsibilities for region boundaries. The existing
+query-only `grapheme` policy below does not validate native storage. Default
+queries retain the original measurement behavior described above.
 
 ### Text positions and hit-testing
 

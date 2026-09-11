@@ -34,13 +34,14 @@ xitem(tt(zdraw) tt(position) var(targetwin) var(array))
 xitem(tt(zdraw) tt(geometry) var(array))
 xitem(tt(zdraw) tt(colorinfo) var(association))
 xitem(tt(zdraw) tt(resourceinfo) var(association))
-xitem(tt(zdraw) tt(textinfo) var(association) var(text) [ var(columns) [ tt(cell)|tt(grapheme) ] ])
-xitem(tt(zdraw) tt(textpos) var(association) var(text) tt(column)|tt(byte) var(offset) [ tt(cell)|tt(grapheme) ])
+xitem(tt(zdraw) tt(textinfo) var(association) var(text) [ var(columns) [ var(policy) ] ])
+xitem(tt(zdraw) tt(textpos) var(association) var(text) tt(column)|tt(byte) var(offset) [ var(policy) ])
+xitem(tt(zdraw) tt(textpolicy) var(association) [ var(policy) ])
 xitem(tt(zdraw) tt(textwrap) var(association) var(text) var(columns))
 xitem(tt(zdraw) tt(truecolor) tt(on)|tt(off))
 xitem(tt(zdraw) tt(char) var(targetwin) var(character) )
-xitem(tt(zdraw) tt(string) var(targetwin) var(string) )
-xitem(tt(zdraw) tt(spans) var(targetwin) var(row) var(column) var(style) var(text) [ var(style) var(text) ... ] )
+xitem(tt(zdraw) tt(string) var(targetwin) var(string) [ tt(policy=)var(policy) ] )
+xitem(tt(zdraw) tt(spans) var(targetwin) var(row) var(column) [ tt(policy=)var(policy) ] var(style) var(text) [ var(style) var(text) ... ] )
 xitem(tt(zdraw) tt(prepare) var(name) var(style) var(text) [ var(style) var(text) ... ] )
 xitem(tt(zdraw) tt(draw) var(targetwin) var(row) var(column) var(name) [ var(columns) ] )
 xitem(tt(zdraw) tt(rowinfo) var(name) var(association) )
@@ -57,7 +58,7 @@ xitem(tt(zdraw) tt(focus) tt(on) [ tt(force) ])
 xitem(tt(zdraw) tt(focus) tt(off))
 xitem(tt(zdraw) tt(keyboard) tt(on)|tt(off))
 xitem(tt(zdraw) tt(inputdelay) var(milliseconds))
-xitem(tt(zdraw) tt(spansclip) var(targetwin) var(row) var(column) var(columns) var(style) var(text) [ var(style) var(text) ... ] )
+xitem(tt(zdraw) tt(spansclip) var(targetwin) var(row) var(column) var(columns) [ tt(policy=)var(policy) ] var(style) var(text) [ var(style) var(text) ... ] )
 xitem(tt(zdraw) tt(border) var(targetwin) [ var(left) var(right) var(top) var(bottom) var(top_left) var(top_right) var(bottom_left) var(bottom_right) ] )
 xitem(tt(zdraw) tt(attr) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) ] [...])
 xitem(tt(zdraw) tt(bg) var(targetwin) [ [tt(+)|tt(-)]var(attribute) | var(fg_col)tt(/)var(bg_col) | tt(@)var(char) ] [...])
@@ -566,14 +567,83 @@ correct terminal shaping, compatible emoji advances or sufficient curses storage
 Native drawing operations and tt(textwrap) retain their original contracts.
 
 Check tt(grapheme_boundaries) for compiled support. The explicit policy requires
-multibyte support, tt(nl_langinfo(CODESET)), an active UTF-8 codeset and the
+multibyte support, tt(nl_langinfo) with tt(CODESET), an active UTF-8 codeset and the
  tt(MULTIBYTE) option; otherwise it returns 2 without replacing the result, even
-for ASCII input. Unknown policy names and input over 1048576 original bytes
-return 1. All input is validated before assignment. The policy is per call;
+for ASCII input. Unknown policy names return 2. Input over 1048576 original
+bytes returns 1. All input is validated before assignment. The policy is per call;
 no terminal probing, locale changes or session state are introduced. The static
 property data is shipped with the module under the Unicode data license, without
 a new runtime library or network dependency. Segmentation retains constant-sized
 suffix state and searches the property ranges per decoded character.
+
+The explicit policy tt(unicode-17.0.0-egc-wcwidth-sum-attach-zero) shares the
+same Unicode boundary profile and summed libc widths with native drawing.
+It additionally validates every spacing-scalar/zero-width-suffix native group
+by an exact tt(setcchar)/tt(getcchar) round-trip, including clipped suffixes.
+Groups exceeding native storage fail with status 2 instead of silently losing
+text. Query results include the complete policy name and Unicode version.
+No emoji width override is applied: woman + ZWJ + laptop occupies four native
+cells where the scalar widths are 2, 0 and 2; adding X advances five cells.
+
+Pass this policy as the final query argument, as tt(policy=)var(policy) before
+the first style/text pair in tt(spans) or tt(spansclip), or after the text in
+ tt(string). Spans are segmented together, but each span must contain complete
+encoded scalars. All native cells in a grapheme use the complete style of its
+first scalar. Later styles are checked but take effect only at a new grapheme.
+Clipping omits an entire first non-fitting grapheme and its suffix; the window
+edge is also a budget. All source text and styles are validated before writing.
+The per-call limits are 1048576 original text bytes and 4096 span pairs.
+
+Safe tt(string) preflights a printable single-row write and advances by its
+measured width. An exact row-end advances to the next row; an ending at the
+bottom-right fails before writing. Excess text never wraps or scrolls. Spaces
+are literal cells, using current attributes and color without background
+character substitution. Current style and background are preserved. Spans
+continue preserving the cursor. Omitting the policy retains inherited behavior;
+ tt(cell) or tt(libc-wcwidth) explicitly selects that behavior.
+
+The headless subcommand tt(textpolicy) writes an ordinary writable association,
+or creates an absent one, with the following fields:
+startsitem()
+sitem(tt(policy), tt(default_policy))(Selected name; the default is tt(libc-wcwidth).)
+sitem(tt(grapheme_policy))(The complete safe policy name, even when unavailable.)
+sitem(tt(grapheme_compiled), tt(grapheme_available))(Whether the complete path is
+compiled, and whether it is also usable with the current locale/options.)
+sitem(tt(width_model), tt(locale))(tt(sum-libc-wcwidth) and current tt(LC_CTYPE).)
+sitem(tt(boundaries), tt(unicode_version))(Safe: tt(unicode-egc-attach-zero) and
+ tt(17.0.0); legacy: tt(spacing-attach-zero) and tt(none).)
+sitem(tt(style_policy))(Safe: tt(first-scalar); legacy spans: tt(per-span).)
+sitem(tt(native_storage_checked))(1 for the safe policy, otherwise 0.)
+sitem(tt(emoji_two_cells), tt(intra_grapheme_styles), tt(persistent_grapheme_metadata))(All 0.)
+sitem(tt(operations))(tt(textinfo textpos spans spansclip string).)
+sitem(tt(max_bytes), tt(max_spans))(Safe: 1048576 and 4096; legacy: -1.)
+sitem(tt(native_cell_scalar_limit))(Native scalar capacity excluding terminator,
+or -1 without the complete backend. A grapheme can contain multiple native cells.)
+endsitem()
+
+Without a policy argument, discovery reports the default and safe-policy
+availability. An explicit unsupported request returns 2 without assignment;
+the boundary-only tt(grapheme) alias is not a complete drawing policy and is
+rejected by tt(textpolicy) and drawing. Check tt(text_policy) for discovery,
+ tt(grapheme_safe_text) for compiled complete support. The safe path requires
+wide ncurses with wide-array drawing and readback, multibyte support,
+ tt(nl_langinfo) with tt(CODESET), UTF-8 and tt(MULTIBYTE). Unknown policies, including
+ tt(unicode-17.0.0-egc-max-wcwidth-emoji2), are explicitly rejected with status 2.
+Invalid input, limits, geometry, assignment and curses errors return 1.
+Discovery has no terminal I/O and works before init, while suspended and after end.
+
+The policy name pins boundary data, not libc tables or terminal shaping.
+A layout engine must match scalar widths, locale and validation as well as the
+profile, and handle per-text native-storage rejection. Compare representative
+queries; identical locale names alone do not prove identical width tables.
+Padding starts at measured width. Snapshots retain ordinary native cells and
+wide continuations, not synthetic two-cell emoji or persistent grapheme records.
+Region operations, prepared rows and tt(textwrap) keep their existing cell
+contracts. Callers must align overwrite origins, copies, viewport edges and
+shrinking resizes using source text and tt(textpos); these operations can split
+a previously drawn multi-cell grapheme. Boundaries are protected within one
+opted-in call, not across calls. Exact shaped widths or intra-grapheme styles
+would require a separate rendering architecture.
 
 The subcommand tt(textwrap) greedily wraps one printable logical line into rows
 within a positive literal decimal column budget, at most tt(INT_MAX). Clipping
@@ -707,7 +777,7 @@ locale and the tt(MULTIBYTE) option, and measured with the system character-widt
 function.  Non-ASCII text requires tt(MULTIBYTE).  Zero-width characters must
 follow a spacing character within the same span and fit within curses' complex
 character capacity; silent truncation of combining sequences is rejected.
-This does not implement Unicode grapheme segmentation or guarantee emoji
+The default span path does not implement Unicode grapheme segmentation or guarantee emoji
 sequence rendering.  Without tt(wide_spans), only printable ASCII is supported.
 
 The status is 0 on success, 1 for invalid input, insufficient row space,
@@ -1600,6 +1670,8 @@ sitem(tt(textinfo))(Headless text measurement and prefix clipping.)
 sitem(tt(text_wrapping))(Bounded headless column wrapping with original source ranges.)
 sitem(tt(grapheme_boundaries))(Optional Unicode 17.0.0 terminal grapheme profile
 for tt(textinfo) and tt(textpos); requires UTF-8 and tt(MULTIBYTE) at runtime.)
+sitem(tt(text_policy))(Headless width-policy discovery.)
+sitem(tt(grapheme_safe_text))(Optional shared native-width grapheme-safe queries and drawing.)
 sitem(tt(text_positions))(Headless mapping between byte offsets and displayed columns.)
 sitem(tt(wide_text))(Locale-based multibyte measurement and clipping, independent
 of wide curses support.)
