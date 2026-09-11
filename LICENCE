@@ -1,3 +1,15 @@
+zdraw licensing
+
+Original zdraw contributions are licensed under the Zsh terms below,
+as decided by the project owner on 2026-09-11. Individual authors retain
+copyright in their contributions. SPDX identifier LicenseRef-Zsh refers
+to the full terms in this file. File-specific notices take precedence;
+Unicode-derived data retains its separate Unicode licence.
+
+The inherited distribution notice below describes the upstream Zsh source
+distribution, including its separately licensed shell functions. Original
+zdraw libraries in lib/ use the Zsh terms, not the GPL exception.
+
 Unless otherwise noted in the header of specific files, files in this
 distribution have the licence shown below.
 

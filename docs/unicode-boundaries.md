@@ -116,7 +116,7 @@ ambiguous-width characters, CJK, Hangul, Indic conjuncts, spacing marks, zero-wi
 space and rejected leading marks.
 
 The [recorded matrix](portability/unicode-matrix-2026-09-10.json) and
-[captures](portability/unicode-captures/) compare native geometry, retained cell
+[captures](portability/unicode-captures) compare native geometry, retained cell
 text and actual pixels in private Xvfb terminals. They use public Zsh 5.9.2,
 wide ncurses 6.5, Linux and `C.UTF-8`. The font request is `monospace` at size 12,
 with the installed fontconfig fallback. These are observations of those exact

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../LICENCE
 # Passive loader: no clocks, timers, input ownership or native resources.
 () {
   builtin emulate -L zsh

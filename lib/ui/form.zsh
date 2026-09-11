@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 function zdraw-form-init {
   emulate -L zsh
   [[ ${(t)zdraw_ui_form} == (association|association-local) ]] || return 1

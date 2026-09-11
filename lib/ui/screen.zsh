@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 # Byte encoding is shared by screen serialization and the explicit replay runner.
 # REPLY is scratch storage supplied by the enclosing caller.
 function _zdraw_screen_hex {

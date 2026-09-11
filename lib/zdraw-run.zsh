@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../LICENCE
 # Run a foreground command with ordinary terminal modes, preserving its status.
 zdraw-run() {
   emulate -L zsh

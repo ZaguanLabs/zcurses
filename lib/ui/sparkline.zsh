@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 function zdraw-sparkline {
   emulate -L zsh
   (( $# >= 5 && $# <= 133 )) || return 1

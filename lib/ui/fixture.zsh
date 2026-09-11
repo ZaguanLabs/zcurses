@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 # Encode ASCII JSON, including surrogate pairs, without evaluating text.
 # REPLY is a scalar scratch result owned by the enclosing exporter.
 function _zdraw_ui_json_string {

@@ -1,19 +1,19 @@
 # Incremental implementation plan
 
-**Stopped 2026-09-11:** the [project scope and stop line](scope.md) supersedes
+**Stopped 2026-09-11:** the [project scope and stop line](../scope.md) supersedes
 this sequence. Milestones 1–11 are historical completed work. Image work was
 removed after failing the usefulness bar; scaled text is cancelled. No unchecked
 item authorizes further implementation.
 
 Recorded 2026-09-10, after completion of the visual toolkit. This was the ordered
 follow-up plan for the [native exploration roadmap](roadmap.md) and the graphics
-ideas in the [TUI research](beautiful-tuis-research.md). The order reflects
+ideas in the [TUI research](../beautiful-tuis-research.md). The order reflects
 expected developer value, dependencies and implementation uncertainty; it is not
 a delivery-date estimate or an instruction to start every experiment at once.
 
 This file records the earlier implementation milestones. The original roadmap
 remains the inventory of ideas and historical native work. The completed
-[toolkit checklist](ui-toolkit.md#implementation-checklist) remains its own record.
+[toolkit checklist](../ui-toolkit.md#implementation-checklist) remains its own record.
 
 ## Completed foundation
 
@@ -86,7 +86,7 @@ for single-value progress rather than building a duplicate meter component.
 or large rectangle without changing application data or enabling a protocol.
 
 **Completed 2026-09-10 — implementation commit `cb7a0f7`.**
-The [compact-chart guide](compact-charts.md) documents the bounded signed-integer
+The [compact-chart guide](../compact-charts.md) documents the bounded signed-integer
 series, zero-inclusive automatic scales, fixed-scale clipping, missing samples,
 customizable ASCII/Unicode markers and projection helper. The task monitor's
 History tab owns a maximum of 96 samples and shows per-task gains with units.
@@ -119,7 +119,7 @@ Native acceleration is not required to finish this milestone; retain measurement
 for milestone 7.
 
 **Completed 2026-09-10 — implementation commit `7c66c90`.**
-The [character-canvas guide](character-canvas.md) documents retained source
+The [character-canvas guide](../character-canvas.md) documents retained source
 coordinates, clipped points/lines/rectangles, set/erase operations and a shared
 2×4 logical-pixel grid per terminal cell. ASCII, block and Braille profiles reuse
 the same raster; exported rows also work with native prepared drawing. The
@@ -132,7 +132,7 @@ builds, monochrome, locale fallback, visual fixtures and PTY lifecycle/resize.
 Changed Zsh files passed parse checks. The final test log is local to
 `.build/canvas-make-test.log`; it is not needed to reproduce the suite.
 
-[Recorded benchmarks](../benchmarks/README.md#character-canvas) compare raster
+[Recorded benchmarks](../../benchmarks/README.md#character-canvas) compare raster
 compilation, cached drawing and full rebuilds, with whole-shell peak RSS and
 logical resource counts. At 16×64 cells, the measured Braille medians were
 28.319 ms for cached drawing and 45.041 ms for rebuild plus drawing; these exclude
@@ -165,7 +165,7 @@ unanswered negotiation preserves usable input and cleanup. This does not imply
 support for every terminal or curses implementation.
 
 **Completed 2026-09-10 — implementation commit `5601ecb`.**
-The [capability guide](capabilities.md) specifies passive records with independent
+The [capability guide](../capabilities.md) specifies passive records with independent
 compiled support, evidence, record-only overrides and module activation. Explicit
 DECRQM requests for paste, focus and synchronized output use exact reply keys in
 the existing curses decoder; there is one pending request and one attempt per
@@ -182,7 +182,7 @@ process groups are available. Changed Zsh files passed parse checks; the native
 manual builds and the exported integration patch passes a dry run against the
 public source release. Final local log: `.build/capabilities-final-make-test.log`.
 
-The [portability record](portability/README.md) includes reproducible real xterm,
+The [portability record](../portability/README.md) includes reproducible real xterm,
 tmux and screen observations plus controlled slow/unresponsive PTY scenarios.
 Actual SSH sessions and other emulator configurations are explicitly untested.
 The separate pinned NetBSD curses build passed byte and wide-character input-pad
@@ -212,7 +212,7 @@ Preserve the inherited decoder behavior when the new feature is disabled.
 unnegotiated sessions keep working with the existing input API.
 
 **Completed 2026-09-10 — implementation commit `9c207f4`.**
-The [enhanced-input guide](enhanced-input.md) specifies opt-in focus ownership and
+The [enhanced-input guide](../enhanced-input.md) specifies opt-in focus ownership and
 a negotiated kitty keyboard subset with key identity, modifiers, associated UTF-8
 text and press/repeat/release actions. Both use the existing curses queue alongside
 legacy keys, mouse, paste and capability replies. The keyboard tail is bounded to
@@ -233,7 +233,7 @@ passed parse checks, the native manual builds, and the exported integration patc
 passes a dry run against the selected public source release. Final local log:
 `.build/enhanced-final-make-test.log`.
 
-The [expanded terminal matrix](portability/README.md#enhanced-input-follow-up)
+The [expanded terminal matrix](../portability/README.md#enhanced-input-follow-up)
 records direct xterm focus activation, conservative fallback through the tested
 tmux/screen configurations, and kitty 0.44.0 shortcut press/release and associated
 text from synthetic keys on a private Xvfb display. Other terminal versions,
@@ -262,7 +262,7 @@ measured evidence of improvement where supported, without promising universal
 atomic terminal painting.
 
 **Completed 2026-09-10 — implementation commit `808aa2f`.**
-The [frame-presentation guide](frame-presentation.md) specifies `sync on|off`,
+The [frame-presentation guide](../frame-presentation.md) specifies `sync on|off`,
 requiring an accepted mode-2026 reset report. Activation configures explicit
 `present` calls without opening a terminal region between commands. Each call
 queues Zsh traps, flushes preceding output, brackets one curses update and attempts
@@ -286,7 +286,7 @@ chart/table changes. Changed Zsh files passed parse checks; the native manual
 builds and the integration patch passes a dry run against the selected release.
 Final local log: `.build/sync-final-make-test.log`.
 
-The [rendering matrix](portability/README.md#frame-presentation-follow-up) records
+The [rendering matrix](../portability/README.md#frame-presentation-follow-up) records
 actual Xvfb pixels while native output is paused midway through a frame. In kitty
 0.44.0, a roughly 181 ms pause exposed partial changes without synchronization and
 zero changes with it; both complete frames became visible afterward. The tested
@@ -319,7 +319,7 @@ that decision rather than adding a second stacking mechanism by default. A nativ
 panel API, if justified, becomes a separately tracked extension.
 
 **Completed 2026-09-10 — implementation commit `e1d6706`.**
-The [composition guide](overlays-and-trees.md) documents independent stacking,
+The [composition guide](../overlays-and-trees.md) documents independent stacking,
 shared-tree geometry and transparent regions. The first recipe uses existing
 independent windows and stage order to demonstrate hide/show, reveal and movement.
 The richer recipe adds clipped composition, child views, geometry changes,
@@ -378,12 +378,12 @@ batches remain conditional future work unless these measurements justify them;
 record their validation, partial-failure and budget contract before implementation.
 
 **Completed 2026-09-10 — implementation commit `2b77290`.**
-The [diagnostics guide](diagnostics.md) defines passive `resourceinfo` counts and
+The [diagnostics guide](../diagnostics.md) defines passive `resourceinfo` counts and
 budgets, prepared-row creation/draw counters, shared-window accounting and retained
 tree handles. Inspection works headlessly, while suspended and after cleanup,
 without consuming input, presenting a frame or retrying failed retirement.
 
-The [component measurements](../benchmarks/README.md#component-boundaries) cover
+The [component measurements](../../benchmarks/README.md#component-boundaries) cover
 charts, canvas, forms, document reflow, overlapping surfaces and ordinary/prepared
 rows at 8×32 and 16×64, with repeated and changing data. Five trials of twenty
 measured frames separate component work, staging and presentation; all raw samples
@@ -430,7 +430,7 @@ sequence is treated as one editing unit. Existing companion word wrapping remain
 in place; a new native multiline API requires a separate demonstrated need.
 
 **Completed 2026-09-10 — implementation commit `124ccfa`.**
-The [Unicode boundary guide](unicode-boundaries.md) specifies the optional
+The [Unicode boundary guide](../unicode-boundaries.md) specifies the optional
 Unicode 17.0.0 terminal profile. `textpos` accepts a final `cell|grapheme` policy;
 `textinfo` accepts it after an explicit column budget. The default is unchanged.
 Opted-in fields move, select, delete and clip complete units, preserve byte
@@ -443,9 +443,9 @@ validation, explicitly requires UTF-8 and `MULTIBYTE`, and bounds optional queri
 to one MiB of original bytes. Checked-in generated tables, source hashes, license
 and a reproducible generator add no runtime library or download dependency.
 
-The [18-case corpus](../tests/unicode/corpus.json),
-[recorded terminal matrix](portability/unicode-matrix-2026-09-10.json) and eight
-[raw/native captures](portability/unicode-captures/) compare system widths,
+The [18-case corpus](../../tests/unicode/corpus.json),
+[recorded terminal matrix](../portability/unicode-matrix-2026-09-10.json) and eight
+[raw/native captures](../portability/unicode-captures) compare system widths,
 retained curses cells, cursor replies and actual pixels in xterm 407,
 xterm/tmux next-3.3, xterm/Screen 5.0.1 and kitty 0.44.0. Observed emoji-width,
 combining-storage and Screen rendering gaps are documented. Grapheme grouping
@@ -485,7 +485,7 @@ supported restoration subset is distinct from raw readback. Image and scaled-tex
 placements are outside project scope.
 
 **Completed 2026-09-10 — implementation commit `038b347`.**
-The [recording and restoration guide](recording-and-restoration.md) defines two
+The [recording and restoration guide](../recording-and-restoration.md) defines two
 separate bounded formats. Explicit `zdraw-interaction-1` recordings drive the form,
 document and canvas recipes through real PTYs, retain native events and capability
 context, and compare existing portable fixtures at presentation barriers. Input,
@@ -533,7 +533,7 @@ Begin with activity feedback. Decorative transitions should remain easy to omit.
 alternative and explicit resource limits.
 
 **Completed 2026-09-10 — implementation commit `e289926`.**
-The [optional-motion guide](optional-motion.md) specifies caller-owned, validated
+The [optional-motion guide](../optional-motion.md) specifies caller-owned, validated
 `zdraw-motion-1` state, explicit advancement and cancellation, hidden-frame freezing,
 and immediate finite-transition completion in reduced/off modes. The passive Zsh
 loader owns no clock, event loop, native object, input or terminal protocol.
@@ -582,11 +582,11 @@ curses ownership.
 A prototype or documented blocker does not mean a general inline UI API has shipped.
 
 **Completed 2026-09-10 — implementation commit `eb437e7`.**
-The [inline-shell guide](inline-shell.md) records ownership and the architectural
-result. The [picker prototype](../examples/inline-picker.zsh) uses ZLE
+The [inline-shell guide](../inline-shell.md) records ownership and the architectural
+result. The [picker prototype](../../examples/inline-picker.zsh) uses ZLE
 `POSTDISPLAY`, a private recursive-edit keymap and an explicit returned scalar.
 Native `textpos` and `textinfo` supply headless validation/clipping; no curses
-session starts. The disposable [launcher](../scripts/inline-shell.zsh) demonstrates
+session starts. The disposable [launcher](../../scripts/inline-shell.zsh) demonstrates
 optional quoted insertion and removes its temporary startup configuration when
 the child shell exits, preserving the child's status.
 
@@ -628,7 +628,7 @@ Native placement research also left recovery and lifecycle gaps unresolved.
 - [x] Remove the preview libraries, converter, example and dedicated tests.
 - [x] Remove native image-placement fixtures, matrix and capture artifacts.
 - [x] Remove build hooks and documentation advertising image support.
-- [x] Record the rejection and quality gate in [project scope](scope.md).
+- [x] Record the rejection and quality gate in [project scope](../scope.md).
 
 The earlier implementation and measurements remain in Git history (`187c39b`,
 `6241c08`, `0ab8105`). This milestone is withdrawn, not shipped or deferred.

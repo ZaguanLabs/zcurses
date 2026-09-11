@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../LICENCE
 # Passive layout loader; coordinates are calculated without terminal access.
 () {
   builtin emulate -L zsh

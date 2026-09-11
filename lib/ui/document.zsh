@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 # These helpers populate scratch state owned by the document compiler.
 function _zdraw_ui_document_bytes {
   emulate -L zsh

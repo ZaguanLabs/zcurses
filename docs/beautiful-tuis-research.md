@@ -120,7 +120,7 @@ These are proposed roles, not new builtin arguments. A role should resolve to a 
 
 The state model matters as much as the palette. A selected row in an unfocused list should remain recognizable without looking like the current keyboard target. A search match inside a selected row needs a deliberate combined style. An invalid field may also be focused. Start with explicit combinations for the initial components rather than a general-purpose cascading selector system.
 
-Theme changes also have a real zdraw cost: prepared rows retain resolved color pairs. They must be rebuilt or invalidated when their theme-dependent appearance changes. Releasing a row must not be assumed to reclaim color pairs, and endlessly generating new palettes can exhaust the session's allocation budget. A theme preview should use a bounded palette set and report capacity through existing color information. [zdraw prepared-row and color design](design.md).
+Theme changes also have a real zdraw cost: prepared rows retain resolved color pairs. They must be rebuilt or invalidated when their theme-dependent appearance changes. Releasing a row must not be assumed to reclaim color pairs, and endlessly generating new palettes can exhaust the session's allocation budget. A theme preview should use a bounded palette set and report capacity through existing color information. [zdraw prepared-row and color design](history/design.md).
 
 ### Three coordinated visual presets
 
@@ -258,7 +258,7 @@ Screen-reader usability needs separate attention. Huh offers an accessible mode 
 
 ### Unicode and icons
 
-The existing zdraw text APIs provide system-width-based measurement and complete clipping units, not general grapheme segmentation or a guarantee of terminal shaping. Unicode's own East Asian Width report cautions that the property is not an off-the-shelf solution for modern terminal emulators. [zdraw text contract](../README.md#cell-aware-clipping), [Unicode UAX #11](https://www.unicode.org/reports/tr11/).
+The existing zdraw text APIs provide system-width-based measurement and complete clipping units, not general grapheme segmentation or a guarantee of terminal shaping. Unicode's own East Asian Width report cautions that the property is not an off-the-shelf solution for modern terminal emulators. [zdraw text contract](native-api.md#cell-aware-clipping), [Unicode UAX #11](https://www.unicode.org/reports/tr11/).
 
 Consequently, the toolkit should use one measurement policy consistently for layout, drawing, and hit-testing. Test combining marks, CJK, emoji, long paths, and ambiguous-width symbols. An optional icon set needs explicit fallback text and a font requirement. It should never be the only indication of a destructive action, failure, or navigation destination.
 
@@ -266,7 +266,7 @@ Consequently, the toolkit should use one measurement policy consistently for lay
 
 Textual produces SVG snapshots and comparison reports, with support for different terminal sizes and simulated interactions. Ratatui documents snapshots through its test backend. These demonstrate useful development workflows, although their renderers are not substitutes for testing zdraw's curses behavior. [Textual testing](https://textual.textualize.io/guide/testing/), [Ratatui snapshots](https://ratatui.rs/recipes/testing/snapshots/).
 
-zdraw already has retained-window snapshots and a PTY harness. Build visual fixtures on that foundation. A human-readable export would need to handle style identity and wide-cell interpretation carefully; the roadmap still records gaps in portable serialization and continuation metadata. A logical snapshot proves stored cell state, while an actual terminal capture tests font rendering and other presentation behavior. Both are useful. [zdraw snapshot design](design.md#bounded-window-snapshots), [remaining snapshot work](roadmap.md).
+zdraw already has retained-window snapshots and a PTY harness. Build visual fixtures on that foundation. A human-readable export would need to handle style identity and wide-cell interpretation carefully; the roadmap still records gaps in portable serialization and continuation metadata. A logical snapshot proves stored cell state, while an actual terminal capture tests font rendering and other presentation behavior. Both are useful. [zdraw snapshot design](history/design.md#bounded-window-snapshots), [remaining snapshot work](history/roadmap.md).
 
 Start with representative combinations rather than an enormous Cartesian product: light/dark/default colors; UTF-8 and ASCII; normal and narrow widths; short heights; selected/unfocused/error/empty states. Add focused regressions when a defect is found.
 
@@ -304,7 +304,7 @@ These should remain separate experiments. zdraw does not currently represent mul
 
 ## Recommended scope and sequence
 
-The existing foundation already includes custom borders, styled spans, prepared rows, text measurement and clipping, wrapping ranges, pads, region operations, explicit presentation, structured input, and terminal handoff. A large portion of the proposed visual toolkit can therefore begin above the native module. [zdraw API](../README.md), [design](design.md), [application integration](application-integration.md).
+The existing foundation already includes custom borders, styled spans, prepared rows, text measurement and clipping, wrapping ranges, pads, region operations, explicit presentation, structured input, and terminal handoff. A large portion of the proposed visual toolkit can therefore begin above the native module. [zdraw API](../README.md), [design](history/design.md), [application integration](application-integration.md).
 
 | Priority | Proposed work | Definition of a useful result |
 | --- | --- | --- |
@@ -386,4 +386,4 @@ All undated entries below are living official documentation or project-maintaine
 | Hans Petter Jansson / Chafa | [Chafa](https://hpjansson.org/chafa/) | Image representations and color profiles. |
 | Kovid Goyal / kitty | [Text sizing protocol](https://sw.kovidgoyal.net/kitty/text-sizing-protocol/) | Scaled text and explicit cell widths. |
 | Presenterm contributors | [Features](https://mfontanini.github.io/presenterm/features/introduction.html) | Application use of optional font sizes. |
-| zdraw | [README](../README.md), [design](design.md), [integration](application-integration.md), [roadmap](roadmap.md), [earlier btop review](btop-review.md) | Current capabilities, boundaries, and deferred work. |
+| zdraw | [README](../README.md), [design](history/design.md), [integration](application-integration.md), [roadmap](history/roadmap.md), [earlier btop review](btop-review.md) | Current capabilities, boundaries, and deferred work. |

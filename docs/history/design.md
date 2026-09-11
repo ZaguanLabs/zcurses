@@ -1,6 +1,6 @@
 # Scope and project direction
 
-**Current boundary (2026-09-11):** [project scope and stop line](scope.md).
+**Current boundary (2026-09-11):** [project scope and stop line](../scope.md).
 Feature expansion is stopped; the implementation notes and candidates below are
 historical context, not instructions to resume the roadmap. The supported focus
 is a polished text-and-cell TUI toolkit. Images and scaled text are out of scope.
@@ -32,7 +32,7 @@ otherwise end up repeatedly spawning a utility such as `stty`.
 `zdraw geometry array` reads the controlling terminal's dimensions directly.
 It does not require curses initialization, trigger a refresh, change terminal
 modes, or take ownership of input. Platforms without `TIOCGWINSZ` return status 2.
-The API and a standalone example are in the [README](../README.md).
+The API and a standalone example are in the [README](../../README.md).
 
 ## Compiled feature discovery
 
@@ -74,7 +74,7 @@ or recycling pairs. These are upper bounds, not a resource reservation.
 
 The command reads cached state and does not touch terminal modes, input, screen
 updates or protocol negotiation. It preserves existing color commands and legacy
-count parameters. The [API](../README.md#runtime-color-information) describes
+count parameters. The [API](../native-api.md#runtime-color-information) describes
 the fields and a standalone example. Opt-in direct RGB drawing is now
 implemented; see the rendering phases below.
 
@@ -131,7 +131,7 @@ and prepared-row benchmark are the first standalone demonstrations.
 
 ## Candidate work
 
-The [btop rendering review](btop-review.md) maps concrete implementation patterns
+The [btop rendering review](../btop-review.md) maps concrete implementation patterns
 to these candidates, identifies existing correctness gaps, and proposes a patch
 sequence without committing to new APIs.
 
@@ -188,8 +188,8 @@ curses character arrays. It preserves cursor, attributes and background; wide
 curses paths temporarily neutralize window/background state because array writes
 can merge that state into supplied cells. Validation precedes color allocation
 and drawing. Failed allocation can retain newly allocated pairs; a library write
-error can partially draw. See the [API](../README.md#styled-span-batching) and
-[benchmark](../benchmarks/README.md).
+error can partially draw. See the [API](../native-api.md#styled-span-batching) and
+[benchmark](../../benchmarks/README.md).
 
 Phase two adds opt-in truecolor through ncurses' extended pair initialization.
 RGB color values use integers while pair IDs stay within their existing short
@@ -201,11 +201,11 @@ as before. Reserved palette indices are reported and rejected for RGB requests,
 not silently approximated. Off disables new RGB arguments and leaves existing
 cells and styles valid until changed or the session ends.
 
-The [API](../README.md#truecolor) documents terminal setup, color ranges and
+The [API](../native-api.md#truecolor) documents terminal setup, color ranges and
 fallback. PTY tests compile private terminfo entries and verify exact foreground
 and background SGR bytes, mixed/default colors, pair IDs beyond 255, input and
 refresh ownership, optional builds, allocation failure and session cleanup.
-The [example](../examples/truecolor.zsh) keeps gradient generation in Zsh.
+The [example](../../examples/truecolor.zsh) keeps gradient generation in Zsh.
 
 Phase three adds cell-aware measurement and clipping. `textinfo` works headlessly
 and returns a byte-preserving prefix/remainder plus retained and total widths.
@@ -218,9 +218,9 @@ The complete input is validated even after the prefix ends. Measurement does not
 impose curses' combining-character capacity, while drawing validates every unit
 against it and allocates pairs only for visible spans. The existing `spans`
 overflow behavior and its state preservation remain intact. The
-[contract](../README.md#cell-aware-clipping) states how this differs from grapheme
+[contract](../native-api.md#cell-aware-clipping) states how this differs from grapheme
 boundaries and terminal-specific emoji shaping. Padding, ellipses and layouts
-remain in Zsh; a [headless example](../examples/clipping.zsh) shows the results.
+remain in Zsh; a [headless example](../../examples/clipping.zsh) shows the results.
 
 Full grapheme segmentation, wider pair IDs and alternative RGB encodings remain
 separate work. No commitment to maintaining a Unicode segmentation database is

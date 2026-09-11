@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 function zdraw-meter {
   emulate -L zsh
   (( $# >= 7 )) || return 1

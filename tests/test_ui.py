@@ -19,6 +19,9 @@ class UITests(unittest.TestCase):
     def test_headless_styles_and_state(self):
         test_clipping.ClippingTests().headless(fixture='ui-style.zsh', marker='UI STYLE PASS')
 
+    def test_headless_diagnostics(self):
+        test_clipping.ClippingTests().headless(fixture='ui-diagnostics.zsh', marker='UI DIAGNOSTICS PASS')
+
     def test_headless_layout(self):
         test_clipping.ClippingTests().headless(fixture='ui-layout.zsh', marker='UI LAYOUT PASS')
 

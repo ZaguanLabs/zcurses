@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../LICENCE
 # Passive export loader; only an explicit capture reads the native window.
 () {
   builtin emulate -L zsh

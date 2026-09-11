@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../LICENCE
 # Passive, independently usable single-line editing and rendering.
 () {
   builtin emulate -L zsh

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 # All scheduling belongs to the caller. State updates work without a module/TTY.
 function _zdraw_motion_valid {
   emulate -L zsh

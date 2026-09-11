@@ -26,7 +26,7 @@ arbitrary prompt plugins.
 
 ## Try it
 
-After the [normal build from public Zsh sources](../README.md#build-and-test), run this
+After the [normal build from public Zsh sources](building.md#build-and-test), run this
 from the repository root in an interactive terminal:
 
 ```zsh

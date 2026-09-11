@@ -56,6 +56,7 @@ setopt shwordsplit ksharrays globsubst
 zdraw-ui-style normal fg=text bg=surface || fail 'foreign option call'
 [[ -o shwordsplit && -o ksharrays && -o globsubst ]] || fail 'call options'
 unsetopt shwordsplit ksharrays globsubst
+zdraw_ui_list[app-filter]='my query'
 check zdraw-list-update 10 3 end
 [[ $zdraw_ui_list[selected] == 10 && $zdraw_ui_list[first] == 8 ]] || fail 'end scroll'
 check zdraw-list-update 10 3 page-up
@@ -66,6 +67,7 @@ check zdraw-list-update 0 0 keep
 [[ $zdraw_ui_list[selected] == 0 && $zdraw_ui_list[first] == 1 ]] || fail 'empty state'
 check zdraw-list-update 10 0 down
 [[ $zdraw_ui_list[selected] == 2 ]] || fail 'zero viewport'
+[[ $zdraw_ui_list[app-filter] == 'my query' ]] || fail 'application state discarded'
 previous=("${(@kv)zdraw_ui_list}")
 reject zdraw-list-update 'evil=1' 3 keep
 reject zdraw-list-update 10 3 '$(false)'

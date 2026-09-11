@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../LICENCE
 # Independently usable list; loading does not initialize a terminal or read input.
 () {
   builtin emulate -L zsh

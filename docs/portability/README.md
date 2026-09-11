@@ -190,7 +190,7 @@ private xterm/tmux/screen/kitty matrix. The record separates libc column sums,
 curses cell contents, raw cursor replies and actual screenshots. Width agreement
 alone does not establish correct rendering: Screen shows visible combining/joiner
 problems, while kitty shapes several sequences with advances different from libc.
-Eight [raw and native captures](unicode-captures/) preserve the observations.
+Eight [raw and native captures](unicode-captures) preserve the observations.
 
 ```sh
 python3 scripts/portability/unicode-matrix.py \

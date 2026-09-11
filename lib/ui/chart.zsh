@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 # Bounded signed decimal data, never arithmetic expressions. REPLY is caller-owned.
 function _zdraw_ui_chart_number {
   emulate -L zsh

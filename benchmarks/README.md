@@ -161,7 +161,7 @@ moving the rasterizer into C without an application workload that needs it.
 
 ## Component boundaries
 
-Build using the [public-source setup](../README.md#build-and-test) and its matching shell,
+Build using the [public-source setup](../docs/building.md#build-and-test) and its matching shell,
 then run from any directory:
 
 ```sh

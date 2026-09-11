@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../LICENCE
 # Passive numeric-series and projection helpers; no terminal is required.
 () {
   builtin emulate -L zsh

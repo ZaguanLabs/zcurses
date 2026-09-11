@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../LICENCE
 # Source once after loading zdraw. Caller-owned state and reply are dynamically
 # scoped, so independent streams can use separate enclosing function locals.
 _zdraw_sgr_emit() {

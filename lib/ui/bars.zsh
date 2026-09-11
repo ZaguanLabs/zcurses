@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 # One sample per row. Labels and units are deliberately separate components.
 function zdraw-bars {
   emulate -L zsh

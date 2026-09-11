@@ -1,6 +1,6 @@
 # Exploration checklist
 
-**Expansion stopped 2026-09-11.** The [project scope and stop line](scope.md)
+**Expansion stopped 2026-09-11.** The [project scope and stop line](../scope.md)
 supersedes this historical idea inventory. Unchecked entries are not queued work.
 Image rendering has been removed and scaled-text work cancelled. New directions
 require a concrete need, comparative quality evidence and an explicit decision.
@@ -17,27 +17,27 @@ covers some older entries below. Its sequence is now stopped.
 The native exploration batch stopped after application integration (2026-09-10):
 streaming paste, suspend/resume, asynchronous input integration and colored command
 output. Remaining unchecked items are deferred candidates, not follow-on work for
-this batch. See the [integration contracts and combined example](application-integration.md).
+this batch. See the [integration contracts and combined example](../application-integration.md).
 
 Subsequent visual-toolkit work has its own
-[implementation checklist and guide](ui-toolkit.md), informed by the
-[beautiful TUI research](beautiful-tuis-research.md). Its first milestone adds
+[implementation checklist and guide](../ui-toolkit.md), informed by the
+[beautiful TUI research](../beautiful-tuis-research.md). Its first milestone adds
 optional Zsh themes, utilities, panels, labels, lists and a gallery above the
 existing native primitives. Pure rectangle layout helpers and a responsive
-[list/detail recipe](recipes/list-detail.md) extend this companion layer.
-Customizable [tables](ui-table.md) and a
-[table/inspector recipe](recipes/table-inspector.md) build on those helpers.
-[Tabs, badges, meters and help rows](ui-presentation.md) complete the initial
-presentation set, demonstrated in a [task monitor](recipes/task-monitor.md).
+[list/detail recipe](../recipes/list-detail.md) extend this companion layer.
+Customizable [tables](../ui-table.md) and a
+[table/inspector recipe](../recipes/table-inspector.md) build on those helpers.
+[Tabs, badges, meters and help rows](../ui-presentation.md) complete the initial
+presentation set, demonstrated in a [task monitor](../recipes/task-monitor.md).
 
-Implemented first milestones (2026-09-09): [structured input](../README.md#structured-input)
-and [prepared styled rows](../README.md#prepared-styled-rows), followed by opt-in
+Implemented first milestones (2026-09-09): [structured input](../native-api.md#structured-input)
+and [prepared styled rows](../native-api.md#prepared-styled-rows), followed by opt-in
 `event ... norefresh` on ncurses and headless text geometry. The 58-test suite passes against the matching
 Zsh 5.9.2 shell, including optional builds. The new paths also pass ASan/UBSan checks
 with leak detection disabled. The native manual
 builds and the exported patch applies in a dry run. See the
-[event inspector](../examples/events.zsh) and
-[reuse measurements](../benchmarks/README.md#prepared-row-reuse).
+[event inspector](../../examples/events.zsh) and
+[reuse measurements](../../benchmarks/README.md#prepared-row-reuse).
 
 The aim is to make sophisticated terminal programs natural to write in Zsh:
 responsive input, reusable drawing operations, predictable presentation and
@@ -62,14 +62,14 @@ that contract without putting a second reader beside curses.
   opt-in, binary chunks, fragmented end delimiters and end/unload cleanup.
   Start delimiters use the documented native escape-decoder timing window.
 - [x] Add focus events and negotiated keyboard press/repeat/release reporting.
-  The [bounded kitty subset](enhanced-input.md) includes modifiers and associated
+  The [bounded kitty subset](../enhanced-input.md) includes modifiers and associated
   text, explicit ownership, legacy fallback and cleanup; layout/IME mapping remains
   outside its contract.
 - [x] Add per-call polling, explicit escape delay and input-state queries for
   `zselect` composition. Report internal queue readiness as unknown, document
   native wait limits, and demonstrate bounded event batches with a worker pipe.
 - [x] Test protocols across terminals, multiplexers and interrupted sessions.
-  The [recorded matrix](portability/README.md) covers xterm, kitty, tmux, screen,
+  The [recorded matrix](../portability/README.md) covers xterm, kitty, tmux, screen,
   controlled slow PTYs and job-control handoffs; actual SSH and other versions
   remain explicitly untested.
 
@@ -91,10 +91,10 @@ without an input call accidentally revealing an unfinished frame.
   Evidence-gated `sync on|off` brackets explicit `present` calls; ordinary
   refresh and resume repaint retain their existing paths.
 - [x] Define opt-in detection, flushing, timeout and cleanup behavior.
-  The [contract](frame-presentation.md) bounds ownership to one update, documents
+  The [contract](../frame-presentation.md) bounds ownership to one update, documents
   blocking-write timing limits and retries failed reset cleanup.
 - [x] Verify partial-frame behavior with real terminals and controlled slow output.
-  The [rendering matrix](portability/README.md#frame-presentation-follow-up)
+  The [rendering matrix](../portability/README.md#frame-presentation-follow-up)
   records sampled emulator pixels during a delayed native frame: kitty hides
   intermediate changes; tested xterm/tmux/screen paths decline activation.
   Actual SSH and physical display timing remain untested.
@@ -114,20 +114,20 @@ stacked windows support temporary overlays without exposing layout policy in C.
   operations, composition order and input ownership in PTYs.
 - [x] Move and resize independent ordinary windows, including combined resize
   and repositioning, retained state, cursor clamping, failure isolation and
-  documented native wide-edge behavior. Provide a [floating-window example](../examples/windows.zsh).
+  documented native wide-edge behavior. Provide a [floating-window example](../../examples/windows.zsh).
 - [x] Resize public pads with retained overlap, background/style preservation,
   cursor clamping, credited live budgets, failure isolation and explicit
   presentation. Extend the viewport example with growth and truncation.
 - [x] Define geometry changes for shared window trees.
-  [Bounded `treewin` reconstruction](overlays-and-trees.md) preserves shared backing,
+  [Bounded `treewin` reconstruction](../overlays-and-trees.md) preserves shared backing,
   descendant offsets and per-view state, with explicit resize constraints and
   coherent failure/cleanup behavior.
 - [x] Explore optional panel-library support for stacking, hiding and showing.
 - [x] Specify how panel updates and existing refresh operations coexist.
-  The [panel evaluation](overlays-and-trees.md#panel-library-decision) keeps explicit
+  The [panel evaluation](../overlays-and-trees.md#panel-library-decision) keeps explicit
   composition for now; no second native stack is added. Independent stacking and
   clipped transparent composition recipes demonstrate the supported path.
-- [x] Provide a [panning document and overlay example](../examples/viewports.zsh)
+- [x] Provide a [panning document and overlay example](../../examples/viewports.zsh)
   with terminal resizing and overlap tests. Independent window movement and
   resizing are now covered by the floating-window example above.
 
@@ -151,7 +151,7 @@ for headers, labels and repeated content. It adds no second screen model.
 - [x] Benchmark repeated rows against ordinary spans; report measured limits.
 - [ ] Consider multi-operation batches only after representative measurements.
 
-Reference: [existing span benchmark](../benchmarks/README.md). Its speedup does
+Reference: [existing span benchmark](../../benchmarks/README.md). Its speedup does
 not establish a benefit for all workloads; measure representative reuse.
 
 ## 5. Text geometry for interaction
@@ -166,17 +166,17 @@ selection, highlighting and scrolling without implementing editor policy in C.
 - [x] Return source ranges for column-wrapped printable logical lines, with
   complete clipping units, byte/row limits and atomic result assignment.
   Verify reconstruction and hit-testing boundaries; provide a source-anchored
-  [reflow example](../examples/wrapping.zsh).
+  [reflow example](../../examples/wrapping.zsh).
 - [ ] Consider word-breaking and multiline source-range policies separately.
 - [x] Explore optional grapheme-aware cursor/clipping boundaries. The
-  [Unicode 17 terminal profile](unicode-boundaries.md) is explicit per query/field.
+  [Unicode 17 terminal profile](../unicode-boundaries.md) is explicit per query/field.
 - [x] Keep clipping units, terminal width policy and curses storage limits
   distinct; retain the default `textpos` policy and document the optional profile.
 - [x] Test combining marks, multibyte byte offsets, wide-cell selection, locale
   changes, ASCII fallback and byte/column round trips; provide a keyboard/mouse
-  [hit-testing example](../examples/hit-test.zsh).
+  [hit-testing example](../../examples/hit-test.zsh).
 - [x] Test emoji shaping and width discrepancies across actual terminals.
-  [Corpus, raw/native captures and matrix](unicode-boundaries.md#corpus-and-real-terminal-evidence)
+  [Corpus, raw/native captures and matrix](../unicode-boundaries.md#corpus-and-real-terminal-evidence)
   record xterm, tmux, Screen and kitty observations without universal claims.
 
 References: [Unicode segmentation](https://www.unicode.org/reports/tr29/),
@@ -207,7 +207,7 @@ Extend compiled-feature/runtime-state separation with the origin of each claim.
 - [ ] Test fallbacks through multiplexers and remote connections.
 
 Delivered in [implementation milestone 3](implementation-plan.md#3-capability-evidence-and-portability).
-The [recorded matrix](portability/README.md) covers real xterm/tmux/screen sessions
+The [recorded matrix](../portability/README.md) covers real xterm/tmux/screen sessions
 and simulated slow/unresponsive transport. The remaining remote-connection entry
 requires actual SSH coverage; it is not implied by the PTY simulations.
 
@@ -243,11 +243,11 @@ resize, send keys, then compare logical cells and styles.
 - [x] Extend the existing PTY harness with scripted events and readable diffs.
 - [x] Define explicitly enabled recording, replay and timing behavior.
 - [x] Add useful rendering/resource diagnostics without promising unmeasurable
-  terminal-emulator paint times. See [passive resource accounting](diagnostics.md)
-  and [component measurements](../benchmarks/README.md#component-boundaries);
+  terminal-emulator paint times. See [passive resource accounting](../diagnostics.md)
+  and [component measurements](../../benchmarks/README.md#component-boundaries);
   duplicate canvas validation is removed, while native batching remains deferred.
 
-Implemented in the [recording and restoration milestone](recording-and-restoration.md):
+Implemented in the [recording and restoration milestone](../recording-and-restoration.md):
 explicit bounded recipe replay, conservative occupancy provenance and a separate
 single-column text-screen format. Wide restoration and timing-dependent terminal
 behavior remain outside that supported subset.
@@ -262,19 +262,19 @@ drift and needs its own justification.
 - [x] Copy bounded opaque regions with staged overlap handling, strict bounds,
   optional-function discovery and explicit native wide-edge limitations.
   Verify aliased subwindows, full cell/style preservation and failure paths;
-  provide a [retained-row scrolling example](../examples/copy.zsh).
+  provide a [retained-row scrolling example](../../examples/copy.zsh).
 - [x] Replace region styles while retaining character data, for selection/focus.
   Share complete-style parsing, preserve current drawing state, define native
   wide/ACS behavior, and test optional builds, RGB and update failures. Provide
-  a [moving-highlight example](../examples/restyle.zsh).
+  a [moving-highlight example](../../examples/restyle.zsh).
 - [x] Define fill bounds and existing-wide-character overlap behavior through
   the shared array writer; verify equivalence to ordinary span writes.
 - [x] Define transparent-cell semantics and implement bounded region copying.
   `overlay` treats only unstyled pair-zero spaces as holes, preserves styled
   blanks, and snapshots aliased sources before copying opaque runs. Native
-  wide-edge and partial-write limits are [documented](overlays-and-trees.md).
+  wide-edge and partial-write limits are [documented](../overlays-and-trees.md).
 - [x] Measure fill against ordinary/prepared row loops and verify surrounding
-  cells with snapshots. Record [workload-specific results](../benchmarks/README.md#rectangle-fills)
+  cells with snapshots. Record [workload-specific results](../../benchmarks/README.md#rectangle-fills)
   and provide a keyboard-driven region example.
 
 These operations understand cells and rectangles, not application layouts.
@@ -284,12 +284,12 @@ These operations understand cells and rectangles, not application layouts.
 - [x] Prototype points/lines encoded as Braille or block characters in a
   companion Zsh library; move only measured bottlenecks into C.
 - [x] Demonstrate ASCII/Braille alternatives for the same waveform or plot.
-  Delivered by the [character canvas](character-canvas.md), with a waveform
-  recipe and [recorded redraw/memory measurements](../benchmarks/README.md#character-canvas).
+  Delivered by the [character canvas](../character-canvas.md), with a waveform
+  recipe and [recorded redraw/memory measurements](../../benchmarks/README.md#character-canvas).
 
 Image conversion and placement were tried and removed on 2026-09-11. Their
 user-visible quality and lifecycle results did not justify keeping them. Image
-rendering and scaled text are outside the [current scope](scope.md).
+rendering and scaled text are outside the [current scope](../scope.md).
 
 ## 12. Interaction within the shell session
 

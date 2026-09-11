@@ -1,14 +1,16 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 function zdraw-panel {
   emulate -L zsh
-  [[ $# -ge 7 && ${(t)reply} == (array|array-local) ]] || return 1
+  [[ $# -ge 7 && ${(t)reply} == (array|array-local) ]] || { _zdraw_ui_error 1 "${(%):-%N}" "requires window row column height width title states and a writable reply array"; return $?; }
   local _zui_win=$1 _zui_title=$6 _zui_state=$7
   local -i _zui_y _zui_x _zui_h _zui_w _zui_edge=0 _zui_cy _zui_cx _zui_ch _zui_cw
   local -A zdraw_ui_style _zui_panel _zui_heading _zui_text
   local -a _zui_glyphs _zui_tokens=(fg=text bg=surface border=ascii border-fg=border
     px=1 py=0 focus:border-fg=accent title:bold "${@:8}")
   _zdraw_ui_rect "${@:1:5}" || return
-  (( ${#_zui_title} <= 262144 )) || return 1
-  zdraw textinfo _zui_text "$_zui_title" || return
+  (( ${#_zui_title} <= 262144 )) || { _zdraw_ui_error 1 "${(%):-%N}" "title exceeds 262144 characters"; return $?; }
+  zdraw textinfo _zui_text "$_zui_title" || { _zdraw_ui_error $? "${(%):-%N}" 'native textinfo failed'; return $?; }
   zdraw-ui-style "$_zui_state" "${_zui_tokens[@]}" || return
   _zui_panel=("${(@kv)zdraw_ui_style}")
   zdraw-ui-style "$_zui_state,title" "${_zui_tokens[@]}" || return
@@ -34,20 +36,20 @@ function zdraw-panel {
   _zui_cx=$(( _zui_cx + (_zui_panel[px] < _zui_cw ? _zui_panel[px] : _zui_cw) ))
   _zui_ch=$(( _zui_ch > 2 * _zui_panel[py] ? _zui_ch - 2 * _zui_panel[py] : 0 ))
   _zui_cw=$(( _zui_cw > 2 * _zui_panel[px] ? _zui_cw - 2 * _zui_panel[px] : 0 ))
-  zdraw fill "$_zui_win" "$_zui_y" "$_zui_x" "$_zui_h" "$_zui_w" "$_zui_panel[style]" ' ' || return
+  zdraw fill "$_zui_win" "$_zui_y" "$_zui_x" "$_zui_h" "$_zui_w" "$_zui_panel[style]" ' ' || { _zdraw_ui_error $? "${(%):-%N}" 'native fill failed'; return $?; }
   if (( _zui_edge )); then
     if (( _zui_w > 2 )); then
-      zdraw fill "$_zui_win" "$_zui_y" "$((_zui_x+1))" 1 "$((_zui_w-2))" "$_zui_panel[border-style]" "$_zui_glyphs[2]" || return
-      zdraw fill "$_zui_win" "$((_zui_y+_zui_h-1))" "$((_zui_x+1))" 1 "$((_zui_w-2))" "$_zui_panel[border-style]" "$_zui_glyphs[2]" || return
+      zdraw fill "$_zui_win" "$_zui_y" "$((_zui_x+1))" 1 "$((_zui_w-2))" "$_zui_panel[border-style]" "$_zui_glyphs[2]" || { _zdraw_ui_error $? "${(%):-%N}" 'native fill failed'; return $?; }
+      zdraw fill "$_zui_win" "$((_zui_y+_zui_h-1))" "$((_zui_x+1))" 1 "$((_zui_w-2))" "$_zui_panel[border-style]" "$_zui_glyphs[2]" || { _zdraw_ui_error $? "${(%):-%N}" 'native fill failed'; return $?; }
     fi
     if (( _zui_h > 2 )); then
-      zdraw fill "$_zui_win" "$((_zui_y+1))" "$_zui_x" "$((_zui_h-2))" 1 "$_zui_panel[border-style]" "$_zui_glyphs[1]" || return
-      zdraw fill "$_zui_win" "$((_zui_y+1))" "$((_zui_x+_zui_w-1))" "$((_zui_h-2))" 1 "$_zui_panel[border-style]" "$_zui_glyphs[1]" || return
+      zdraw fill "$_zui_win" "$((_zui_y+1))" "$_zui_x" "$((_zui_h-2))" 1 "$_zui_panel[border-style]" "$_zui_glyphs[1]" || { _zdraw_ui_error $? "${(%):-%N}" 'native fill failed'; return $?; }
+      zdraw fill "$_zui_win" "$((_zui_y+1))" "$((_zui_x+_zui_w-1))" "$((_zui_h-2))" 1 "$_zui_panel[border-style]" "$_zui_glyphs[1]" || { _zdraw_ui_error $? "${(%):-%N}" 'native fill failed'; return $?; }
     fi
-    zdraw spans "$_zui_win" "$_zui_y" "$_zui_x" "$_zui_panel[border-style]" "$_zui_glyphs[3]" || return
-    zdraw spans "$_zui_win" "$_zui_y" "$((_zui_x+_zui_w-1))" "$_zui_panel[border-style]" "$_zui_glyphs[4]" || return
-    zdraw spans "$_zui_win" "$((_zui_y+_zui_h-1))" "$_zui_x" "$_zui_panel[border-style]" "$_zui_glyphs[5]" || return
-    zdraw spans "$_zui_win" "$((_zui_y+_zui_h-1))" "$((_zui_x+_zui_w-1))" "$_zui_panel[border-style]" "$_zui_glyphs[6]" || return
+    zdraw spans "$_zui_win" "$_zui_y" "$_zui_x" "$_zui_panel[border-style]" "$_zui_glyphs[3]" || { _zdraw_ui_error $? "${(%):-%N}" 'native spans failed'; return $?; }
+    zdraw spans "$_zui_win" "$_zui_y" "$((_zui_x+_zui_w-1))" "$_zui_panel[border-style]" "$_zui_glyphs[4]" || { _zdraw_ui_error $? "${(%):-%N}" 'native spans failed'; return $?; }
+    zdraw spans "$_zui_win" "$((_zui_y+_zui_h-1))" "$_zui_x" "$_zui_panel[border-style]" "$_zui_glyphs[5]" || { _zdraw_ui_error $? "${(%):-%N}" 'native spans failed'; return $?; }
+    zdraw spans "$_zui_win" "$((_zui_y+_zui_h-1))" "$((_zui_x+_zui_w-1))" "$_zui_panel[border-style]" "$_zui_glyphs[6]" || { _zdraw_ui_error $? "${(%):-%N}" 'native spans failed'; return $?; }
     _zdraw_ui_row "$_zui_win" "$_zui_y" "$((_zui_x+1))" "$((_zui_w-2))" "$_zui_heading[align]" "$_zui_title" "$_zui_heading[style]" || return
   elif [[ -n $_zui_title ]] && (( _zui_ch && _zui_cw )); then
     _zdraw_ui_row "$_zui_win" "$_zui_cy" "$_zui_cx" "$_zui_cw" "$_zui_heading[align]" "$_zui_title" "$_zui_heading[style]" || return

@@ -14,7 +14,7 @@ utilities into reusable variants, and override individual instances.
 
 ## Try the gallery
 
-After the [reproducible build](../README.md#build-and-test), run from the
+After the [reproducible build](building.md#build-and-test), run from the
 repository root in a terminal:
 
 ```sh
@@ -77,6 +77,40 @@ compilation use native text queries but do not initialize a terminal.
 
 Each function uses local Zsh option emulation. The loaders disable aliases while
 parsing the implementation files. Application options are restored on return.
+
+## Diagnosing failures
+
+For themes, styles, labels, panels, layouts, lists and tables, opt into diagnostics
+with a descriptor opened by your application **before** entering curses:
+
+```zsh
+exec {ZDRAW_UI_DEBUG_FD}>>./zdraw-debug.log
+# Run the application, including its normal zdraw end cleanup.
+exec {ZDRAW_UI_DEBUG_FD}>&-
+unset ZDRAW_UI_DEBUG_FD
+```
+
+Failures report the function, invalid utility or missing output parameter, and
+status. Native failures include the operation name. Nothing is logged by default;
+the helper opens no files, does not close your descriptor and does not use stderr
+as a fallback. A closed or malformed sink leaves the original status unchanged.
+The diagnostic path uses a subshell to isolate descriptor redirection; successful
+calls do not invoke it. Logs can include caller-supplied style values.
+
+This currently covers the shared core and the component families listed above;
+other libraries have not yet had all of their own validation branches migrated.
+It does not capture native stderr or arbitrary application failures.
+
+Existing return contracts are preserved: malformed toolkit arguments return 1;
+layout constraints that do not fit return 2; native failures propagate their own
+status. Input validation has a different documented 0/1/2 contract. **Status 2
+is not a toolkit-wide synonym for insufficient space.** A rectangle outside a
+window still returns 1, now with a geometry diagnosis. Branch on the documented
+contract of the function you call.
+
+Keep handling failures in the application. Never clear the dirty flag after a
+failed render; leave the loop through its cleanup block and report failure once
+the terminal is restored. The list/detail recipe already follows that pattern.
 
 ## Layout with rectangles
 
@@ -231,7 +265,7 @@ canonicalizes indexed values and hex spelling but does not initialize native
 color support, query the terminal background or map unavailable colors. The
 application chooses a supported profile using `zdraw colorinfo`; the gallery
 demonstrates this. RGB requires the existing explicit
-[truecolor setup](../README.md#truecolor). Mixing `default` with an explicit color
+[truecolor setup](native-api.md#truecolor). Mixing `default` with an explicit color
 requires native default-color support. Monochrome's default/default styles use
 pair zero without allocating a color pair.
 
@@ -350,7 +384,7 @@ fields atomically, clamps selection after data changes and keeps it visible.
 Call `keep` after resizing or changing the item count. An empty list has
 `selected=0 first=1`; zero visible rows are allowed for state updates. Selection
 tracks indexes, so preserving identity across sorting/filtering is application
-policy. Extra fields are not retained by the update function.
+policy. Application-owned extra fields are retained by list and table updates.
 
 Rendering reads that association without modifying it and never reads keys.
 Each item occupies one clipped row. The application maps input to update actions
@@ -449,7 +483,7 @@ idle input timeout. Large datasets may warrant a future measured optimization.
 - [x] [Semantic documents](semantic-documents.md): word wrapping, role styles, scrolling, named anchors and resize reflow.
 
 This toolkit checklist is complete. Follow-up components are tracked in the
-[incremental implementation plan](implementation-plan.md); see
+[incremental implementation plan](history/implementation-plan.md); see
 [compact charts](compact-charts.md) for sparklines and bar comparisons, and
 [character canvas](character-canvas.md) for points, lines and rectangles. The broader experimental ideas in the
 research report and native roadmap are historical candidates subject to the

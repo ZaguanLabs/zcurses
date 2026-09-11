@@ -126,7 +126,7 @@ in place and inherits native cursor/current-style preservation.
 A transition covers at most **4,096 cells**, wholly inside its destination. It
 requires `region_restyle`; the monitor checks that feature and retains ordinary
 content when unavailable. Align edges to complete wide characters and avoid legacy
-ACS border cells, following the [native restyle contract](../README.md#restyling-retained-text).
+ACS border cells, following the [native restyle contract](native-api.md#restyling-retained-text).
 Borders and padding are rejected here too; the rectangle contains existing text.
 
 ## Scheduling, hiding and cleanup

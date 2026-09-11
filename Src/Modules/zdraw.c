@@ -1,7 +1,8 @@
 /*
- * curses.c - curses windowing module for zsh
+ * zdraw.c - terminal drawing and interaction module derived from zsh/curses
  *
- * This file is part of zsh, the Z shell.
+ * SPDX-License-Identifier: LicenseRef-Zsh
+ * Original upstream copyright and licence terms follow.
  *
  * Copyright (c) 2007  Clint Adams
  * All rights reserved.

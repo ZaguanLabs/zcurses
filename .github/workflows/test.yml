@@ -1,0 +1,38 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ZSH_BUILD_ROOT: ${{ github.workspace }}/.build/sources/zsh-5.9.2
+      ZSH_TEST_SHELL: ${{ github.workspace }}/.build/zsh/Src/zsh
+      ZDRAW_TEST_LOCALE: C.UTF-8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install build and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh build-essential autoconf m4 patch libncurses-dev ncurses-bin python3 curl xz-utils locales
+      - name: Download verified Zsh sources
+        run: |
+          mkdir -p .build/downloads .build/sources
+          curl --fail --location --retry 3 https://www.zsh.org/pub/zsh-5.9.2.tar.xz -o .build/downloads/zsh-5.9.2.tar.xz
+          printf '%s  %s\n' 36fa734374b44783582cec09bcd67822e2f992c779ec1624ab5596df078d2f81 .build/downloads/zsh-5.9.2.tar.xz | sha256sum -c -
+          tar -xJf .build/downloads/zsh-5.9.2.tar.xz -C .build/sources
+      - name: Build matching shell and run the PTY suite
+        run: make -j2 test

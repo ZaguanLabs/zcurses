@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../LICENCE
 () {
   builtin emulate -L zsh
   builtin setopt no_aliases

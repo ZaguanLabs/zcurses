@@ -16,8 +16,10 @@ whence -w zdraw-list >/dev/null && fail 'table loaded list renderer'
 typeset -A zdraw_ui_theme zdraw_ui_table zdraw_ui_style zdraw_ui_list=(sentinel unchanged)
 typeset -a zdraw_ui_headers=(Name Jobs) zdraw_ui_tracks=(flex=1 fixed=4)
 typeset -a zdraw_ui_alignments=(left right) reply=(sentinel)
+zdraw_ui_table[app-filter]='my query'
 check zdraw-table-update 4 3 end
 [[ $zdraw_ui_table[selected] == 4 && $zdraw_ui_table[first] == 2 ]] || fail 'table scrolling'
+[[ $zdraw_ui_table[app-filter] == 'my query' ]] || fail 'application table state discarded'
 [[ $zdraw_ui_list[sentinel] == unchanged ]] || fail 'list state leaked'
 reject zdraw-table-update 'evil=1' 3 keep
 [[ $zdraw_ui_table[selected] == 4 ]] || fail 'invalid update changed state'

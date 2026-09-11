@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../LICENCE
 # Passive table loader; shared state helpers do not load the list renderer.
 () {
   builtin emulate -L zsh

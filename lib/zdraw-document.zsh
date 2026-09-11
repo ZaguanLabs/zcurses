@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../LICENCE
 # Passive structured-document compiler, navigation and viewport renderer.
 () {
   builtin emulate -L zsh

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 function zdraw-canvas-init {
   emulate -L zsh
   [[ $# == 4 && ${(t)zdraw_ui_canvas} == (association|association-local) ]] || return 1

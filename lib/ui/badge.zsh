@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 function zdraw-badge {
   emulate -L zsh
   (( $# >= 6 )) || return 1

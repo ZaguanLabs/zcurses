@@ -9,7 +9,7 @@ scaled-text placements. Existing `zdraw-snapshot-1` associations and
 
 ## Record and replay a recipe
 
-Build using the public-source setup in the [README](../README.md#build-and-test).
+Build using the public-source setup in the [README](building.md#build-and-test).
 The runner uses `.build/zsh/Src/zsh` and the module from the same build, Python's
 standard library, the `xterm-256color` terminfo entry and `C.UTF-8` locale. It
 supports the repository's `form`, `document` and `canvas` recipes. The form opts

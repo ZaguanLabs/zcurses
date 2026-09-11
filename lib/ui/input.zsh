@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: LicenseRef-Zsh
+# Zsh licence: ../../LICENCE
 # Byte anchors use the field's explicit boundary policy (cell by default).
 function _zdraw_ui_bytes {
   emulate -L zsh
