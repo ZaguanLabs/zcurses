@@ -9,7 +9,7 @@ function _zdraw_ui_document_bytes {
 
 function _zdraw_ui_document_line {
   emulate -L zsh
-  (( _zui_line < 4096 )) || return 1
+  (( _zui_line < 4096 )) || { _zdraw_ui_error 1 "${(%):-%N}" "document exceeds 4096 compiled lines"; return $?; }
   (( _zui_line++ ))
   _zui_doc[$_zui_line,text]=$1 _zui_doc[$_zui_line,role]=$2
   _zui_doc[$_zui_line,block]=$_zui_block
@@ -18,9 +18,9 @@ function _zdraw_ui_document_line {
 
 function zdraw-document-init {
   emulate -L zsh
-  [[ $# -ge 1 && ${(t)zdraw_ui_document} == (association|association-local) ]] || return 1
-  _zdraw_ui_uint "$1" || return 1
-  (( 10#$1 > 0 && ($# - 1) % 3 == 0 && $# <= 385 )) || return 1
+  [[ $# -ge 1 && ${(t)zdraw_ui_document} == (association|association-local) ]] || { _zdraw_ui_error 1 "${(%):-%N}" "requires a writable zdraw_ui_document association and columns [id kind text ...]"; return $?; }
+  _zdraw_ui_uint "$1" || { _zdraw_ui_error 1 "${(%):-%N}" "document columns must be an integer from 1 to 32767"; return $?; }
+  (( 10#$1 > 0 && ($# - 1) % 3 == 0 && $# <= 385 )) || { _zdraw_ui_error 1 "${(%):-%N}" "expected positive columns and at most 128 id/kind/text triples"; return $?; }
   local -i _zui_columns=$((10#$1)) _zui_count=$((($# - 1)/3)) _zui_block=0 _zui_line=0
   local -i _zui_offset _zui_end _zui_total=0 _zui_budget _zui_first _zui_more _zui_cut
   local -A _zui_doc=(format zdraw-document-1 columns "$_zui_columns" count "$_zui_count" first 1)
@@ -29,14 +29,14 @@ function zdraw-document-init {
   shift
   while (( $# )); do
     _zui_id=$1 _zui_kind=$2 _zui_source=$3
-    [[ ${#_zui_id} -le 48 && $_zui_id == [A-Za-z_]* && $_zui_id != *[^A-Za-z0-9_-]* ]] || return 1
-    [[ ! -v "_zui_ids[$_zui_id]" ]] || return 1
-    [[ $_zui_kind == (heading|subheading|paragraph|bullet|quote|code|separator) ]] || return 1
-    [[ $_zui_kind != separator || -z $_zui_source ]] || return 1
+    [[ ${#_zui_id} -le 48 && $_zui_id == [A-Za-z_]* && $_zui_id != *[^A-Za-z0-9_-]* ]] || { _zdraw_ui_error 1 "${(%):-%N}" "document block ID must start with a letter or underscore and use at most 48 letters, digits, underscores or hyphens"; return $?; }
+    [[ ! -v "_zui_ids[$_zui_id]" ]] || { _zdraw_ui_error 1 "${(%):-%N}" "duplicate document block ID"; return $?; }
+    [[ $_zui_kind == (heading|subheading|paragraph|bullet|quote|code|separator) ]] || { _zdraw_ui_error 1 "${(%):-%N}" "unknown document block kind"; return $?; }
+    [[ $_zui_kind != separator || -z $_zui_source ]] || { _zdraw_ui_error 1 "${(%):-%N}" "document separator text must be empty"; return $?; }
     _zdraw_ui_document_bytes "$_zui_source"
-    (( REPLY <= 32767 )) || return 1
+    (( REPLY <= 32767 )) || { _zdraw_ui_error 1 "${(%):-%N}" "document block exceeds 32767 source bytes"; return $?; }
     (( _zui_total += REPLY ))
-    (( _zui_total <= 65536 )) || return 1
+    (( _zui_total <= 65536 )) || { _zdraw_ui_error 1 "${(%):-%N}" "document exceeds 65536 source bytes"; return $?; }
     (( _zui_block++ ))
     _zui_ids[$_zui_id]=1
     _zui_doc[b,$_zui_block,id]=$_zui_id _zui_doc[b,$_zui_block,kind]=$_zui_kind
@@ -49,7 +49,7 @@ function zdraw-document-init {
         _zui_remaining=${_zui_remaining#*$'\n'} _zui_more=1
       fi
       # All controls except the explicitly split line feeds remain invalid data.
-      zdraw textinfo _zui_info "$_zui_logical" || return
+      zdraw textinfo _zui_info "$_zui_logical" || { _zdraw_ui_error $? "${(%):-%N}" "native textinfo failed"; return $?; }
       _zui_rest=$_zui_logical
       while true; do
         _zui_prefix=''
@@ -61,15 +61,15 @@ function zdraw-document-init {
           esac
         fi
         _zui_budget=$((_zui_columns-${#_zui_prefix}))
-        zdraw textinfo _zui_info "$_zui_rest" "$_zui_budget" || return
+        zdraw textinfo _zui_info "$_zui_rest" "$_zui_budget" || { _zdraw_ui_error $? "${(%):-%N}" "native textinfo failed"; return $?; }
         _zui_piece=$_zui_info[text]
         # A whole wide unit cannot fit. Leave the previous document untouched.
-        [[ -n $_zui_piece || -z $_zui_rest ]] || return 2
+        [[ -n $_zui_piece || -z $_zui_rest ]] || { _zdraw_ui_error 2 "${(%):-%N}" "document text unit does not fit the column width"; return $?; }
         if [[ $_zui_kind != code && $_zui_info[truncated] == 1 && $_zui_piece == *' '* ]]; then
           _zui_soft="${_zui_piece% *} "
           _zdraw_ui_document_bytes "$_zui_soft"
           _zui_cut=$REPLY
-          zdraw textpos _zui_pos "$_zui_rest" byte "$_zui_cut" || return
+          zdraw textpos _zui_pos "$_zui_rest" byte "$_zui_cut" || { _zdraw_ui_error $? "${(%):-%N}" "native textpos failed"; return $?; }
           # A space followed by combining marks is one indivisible unit too.
           (( _zui_pos[byte_start] == _zui_cut )) && _zui_piece=$_zui_soft
         fi
@@ -95,28 +95,28 @@ function zdraw-document-init {
 
 function _zdraw_ui_document_state {
   emulate -L zsh
-  [[ ${(t)zdraw_ui_document} == association* && ${zdraw_ui_document[format]-} == zdraw-document-1 ]] || return 1
+  [[ ${(t)zdraw_ui_document} == association* && ${zdraw_ui_document[format]-} == zdraw-document-1 ]] || { _zdraw_ui_error 1 "${(%):-%N}" "requires a zdraw_ui_document association with format zdraw-document-1"; return $?; }
   local _zui_key
   for _zui_key in columns count first line_count; do
-    _zdraw_ui_uint "${zdraw_ui_document[$_zui_key]-}" || return 1
+    _zdraw_ui_uint "${zdraw_ui_document[$_zui_key]-}" || { _zdraw_ui_error 1 "${(%):-%N}" "document state $_zui_key must be an integer from 0 to 32767"; return $?; }
   done
   (( 10#$zdraw_ui_document[columns] > 0 && 10#$zdraw_ui_document[count] <= 128 &&
      10#$zdraw_ui_document[line_count] <= 4096 && 10#$zdraw_ui_document[first] > 0 &&
      (10#$zdraw_ui_document[first] <= 10#$zdraw_ui_document[line_count] ||
-      (10#$zdraw_ui_document[first] == 1 && 10#$zdraw_ui_document[line_count] == 0)) ))
+      (10#$zdraw_ui_document[first] == 1 && 10#$zdraw_ui_document[line_count] == 0)) )) || { _zdraw_ui_error 1 "${(%):-%N}" "document columns, count, line_count or first is out of range"; return $?; }
 }
 
 # Compile from retained source, locating the previous top source byte afterward.
 function zdraw-document-reflow {
   emulate -L zsh
-  [[ $# == 1 && ${(t)zdraw_ui_document} == (association|association-local) ]] || return 1
+  [[ $# == 1 && ${(t)zdraw_ui_document} == (association|association-local) ]] || { _zdraw_ui_error 1 "${(%):-%N}" "requires a writable zdraw_ui_document association and new column width"; return $?; }
   _zdraw_ui_document_state || return
   local -A _zui_reflow
   local -a _zui_blocks
   local -i _zui_i _zui_top=$((10#$zdraw_ui_document[first])) _zui_block=0 _zui_byte=0
   if (( 10#$zdraw_ui_document[line_count] )); then
     _zdraw_ui_uint "${zdraw_ui_document[$_zui_top,block]-}" &&
-      _zdraw_ui_uint "${zdraw_ui_document[$_zui_top,byte_start]-}" || return 1
+      _zdraw_ui_uint "${zdraw_ui_document[$_zui_top,byte_start]-}" || { _zdraw_ui_error 1 "${(%):-%N}" "document top line has an invalid block or source byte anchor"; return $?; }
     _zui_block=$((10#$zdraw_ui_document[$_zui_top,block]))
     _zui_byte=$((10#$zdraw_ui_document[$_zui_top,byte_start]))
   fi
@@ -138,10 +138,10 @@ function zdraw-document-reflow {
 
 function zdraw-document-scroll {
   emulate -L zsh
-  [[ $# -ge 2 && $# -le 3 && ${(t)zdraw_ui_document} == (association|association-local) ]] || return 1
-  _zdraw_ui_document_state && _zdraw_ui_uint "$1" || return 1
-  [[ $2 == (keep|up|down|page-up|page-down|home|end|next-heading|previous-heading|anchor) ]] || return 1
-  [[ ( $2 == anchor && $# == 3 ) || ( $2 != anchor && $# == 2 ) ]] || return 1
+  [[ $# -ge 2 && $# -le 3 && ${(t)zdraw_ui_document} == (association|association-local) ]] || { _zdraw_ui_error 1 "${(%):-%N}" "requires a writable zdraw_ui_document association and visible-rows action [anchor]"; return $?; }
+  _zdraw_ui_document_state && _zdraw_ui_uint "$1" || { _zdraw_ui_error 1 "${(%):-%N}" "document scroll requires valid state and visible rows from 0 to 32767"; return $?; }
+  [[ $2 == (keep|up|down|page-up|page-down|home|end|next-heading|previous-heading|anchor) ]] || { _zdraw_ui_error 1 "${(%):-%N}" "unknown document scroll action"; return $?; }
+  [[ ( $2 == anchor && $# == 3 ) || ( $2 != anchor && $# == 2 ) ]] || { _zdraw_ui_error 1 "${(%):-%N}" "anchor requires a block ID; other scroll actions take no anchor"; return $?; }
   local -i _zui_first=$((10#$zdraw_ui_document[first])) _zui_visible=$((10#$1)) _zui_max _zui_step _zui_i _zui_target=0 _zui_line
   local _zui_kind
   _zui_step=$((_zui_visible > 1 ? _zui_visible-1 : 1))
@@ -153,7 +153,7 @@ function zdraw-document-scroll {
     page-up) (( _zui_first-=_zui_step )) ;; page-down) (( _zui_first+=_zui_step )) ;;
     next-heading|previous-heading|anchor)
       for (( _zui_i=1; _zui_i<=10#$zdraw_ui_document[count]; _zui_i++ )); do
-        _zdraw_ui_uint "${zdraw_ui_document[b,$_zui_i,line]-}" || return 1
+        _zdraw_ui_uint "${zdraw_ui_document[b,$_zui_i,line]-}" || { _zdraw_ui_error 1 "${(%):-%N}" "document block $_zui_i has an invalid line number"; return $?; }
         _zui_line=$((10#$zdraw_ui_document[b,$_zui_i,line]))
         _zui_kind=${zdraw_ui_document[b,$_zui_i,kind]-}
         if [[ $2 == anchor ]]; then
@@ -163,7 +163,7 @@ function zdraw-document-scroll {
           elif [[ $2 == previous-heading ]] && (( _zui_line < _zui_first )); then _zui_target=$_zui_line; fi
         fi
       done
-      [[ $2 != anchor || $_zui_target -gt 0 ]] || return 1
+      [[ $2 != anchor || $_zui_target -gt 0 ]] || { _zdraw_ui_error 1 "${(%):-%N}" "document anchor does not identify a block"; return $?; }
       (( _zui_target )) && _zui_first=$_zui_target ;;
   esac
   (( _zui_first < 1 )) && _zui_first=1
@@ -173,34 +173,34 @@ function zdraw-document-scroll {
 
 function zdraw-document {
   emulate -L zsh
-  (( $# >= 6 )) || return 1
+  (( $# >= 6 )) || { _zdraw_ui_error 1 "${(%):-%N}" "expected window row column height width states [utilities ...]"; return $?; }
   _zdraw_ui_document_state || return
   local _zui_win=$1 _zui_states=$6 _zui_role _zui_text
   local -i _zui_y _zui_x _zui_h _zui_w _zui_i _zui_row
   local -A zdraw_ui_style _zui_styles _zui_info
   _zdraw_ui_rect "$1" "$2" "$3" "$4" "$5" || return
-  (( _zui_w == 10#$zdraw_ui_document[columns] )) || return 1
+  (( _zui_w == 10#$zdraw_ui_document[columns] )) || { _zdraw_ui_error 1 "${(%):-%N}" "document width changed; reflow before drawing"; return $?; }
   # Resolve every role before painting, including roles outside the viewport.
   local -a _zui_defaults=(fg=text bg=surface heading:fg=accent heading:bold
     subheading:fg=accent subheading:bold quote:fg=muted code:bg=canvas separator:fg=border)
   for _zui_role in heading subheading paragraph bullet quote code separator spacer; do
     zdraw-ui-style "$_zui_states,$_zui_role" "${_zui_defaults[@]}" "${@:7}" || return
-    [[ $zdraw_ui_style[border] == none && $zdraw_ui_style[px] == 0 && $zdraw_ui_style[py] == 0 && $zdraw_ui_style[align] == left ]] || return 1
+    [[ $zdraw_ui_style[border] == none && $zdraw_ui_style[px] == 0 && $zdraw_ui_style[py] == 0 && $zdraw_ui_style[align] == left ]] || { _zdraw_ui_error 1 "${(%):-%N}" "document requires border=none, px=0, py=0 and align=left"; return $?; }
     _zui_styles[$_zui_role]=$zdraw_ui_style[style]
   done
   for (( _zui_i=1; _zui_i<=10#$zdraw_ui_document[line_count]; _zui_i++ )); do
     _zui_role=${zdraw_ui_document[$_zui_i,role]-}
-    [[ $_zui_role == (heading|subheading|paragraph|bullet|quote|code|separator|spacer) ]] || return 1
-    zdraw textinfo _zui_info "${zdraw_ui_document[$_zui_i,text]-}" || return
-    (( _zui_info[width] <= _zui_w )) || return 1
+    [[ $_zui_role == (heading|subheading|paragraph|bullet|quote|code|separator|spacer) ]] || { _zdraw_ui_error 1 "${(%):-%N}" "document line $_zui_i has an invalid role"; return $?; }
+    zdraw textinfo _zui_info "${zdraw_ui_document[$_zui_i,text]-}" || { _zdraw_ui_error $? "${(%):-%N}" "native textinfo failed"; return $?; }
+    (( _zui_info[width] <= _zui_w )) || { _zdraw_ui_error 1 "${(%):-%N}" "document line $_zui_i exceeds the drawing width"; return $?; }
   done
-  zdraw fill "$_zui_win" "$_zui_y" "$_zui_x" "$_zui_h" "$_zui_w" "$_zui_styles[paragraph]" ' ' || return
+  zdraw fill "$_zui_win" "$_zui_y" "$_zui_x" "$_zui_h" "$_zui_w" "$_zui_styles[paragraph]" ' ' || { _zdraw_ui_error $? "${(%):-%N}" "native fill failed"; return $?; }
   for (( _zui_row=0, _zui_i=10#$zdraw_ui_document[first]; _zui_row<_zui_h && _zui_i<=10#$zdraw_ui_document[line_count]; _zui_row++, _zui_i++ )); do
     _zui_role=$zdraw_ui_document[$_zui_i,role] _zui_text=${zdraw_ui_document[$_zui_i,text]-}
     if [[ $_zui_role == separator ]]; then
-      zdraw fill "$_zui_win" "$((_zui_y+_zui_row))" "$_zui_x" 1 "$_zui_w" "$_zui_styles[$_zui_role]" '-' || return
+      zdraw fill "$_zui_win" "$((_zui_y+_zui_row))" "$_zui_x" 1 "$_zui_w" "$_zui_styles[$_zui_role]" '-' || { _zdraw_ui_error $? "${(%):-%N}" "native fill failed"; return $?; }
     else
-      zdraw fill "$_zui_win" "$((_zui_y+_zui_row))" "$_zui_x" 1 "$_zui_w" "$_zui_styles[$_zui_role]" ' ' || return
+      zdraw fill "$_zui_win" "$((_zui_y+_zui_row))" "$_zui_x" 1 "$_zui_w" "$_zui_styles[$_zui_role]" ' ' || { _zdraw_ui_error $? "${(%):-%N}" "native fill failed"; return $?; }
       _zdraw_ui_row "$_zui_win" "$((_zui_y+_zui_row))" "$_zui_x" "$_zui_w" left "$_zui_text" "$_zui_styles[$_zui_role]" || return
     fi
   done

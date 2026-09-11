@@ -4,8 +4,9 @@ The [external evaluation](evaluation-2026-09-11.md) identifies the right priorit
 make the existing toolkit easier to use, diagnose and maintain. The
 [scope boundary](scope.md) remains in force. This response distinguishes verified
 problems from product proposals; it does not restart either historical roadmap.
-The original report is preserved unchanged, including its claims about the
-pre-maintenance tree.
+Both the original report and the [second opinion](second-opinion-2026-09-11.md)
+are preserved unchanged. Their findings describe the commits each report assessed,
+not necessarily the current tree.
 
 ## Addressed in this maintenance pass
 
@@ -37,12 +38,37 @@ pre-maintenance tree.
   test reload capacity, failed initialization, a preloaded terminfo module and
   a pre-existing inactive stock curses screen.
 
+## Second-opinion maintenance pass
+
+The second opinion correctly identifies a provenance regression introduced by the
+licence clarification, and confirms the remaining diagnostic gaps. This pass is
+bounded to those two outcomes. It introduces no native API or feature family.
+
+- [x] Preserve the original Zsh licence as `upstream/LICENCE`, verified against
+  the digest already recorded in the manifest. Make `upstream/SHA256SUMS` cover
+  only the immutable baseline files under `upstream/`. Keep the project owner's
+  Zsh licence decision and the root declaration intact.
+- [x] Add a portable manifest regression check to the ordinary test suite, so a
+  later project-licence edit cannot silently break baseline verification again.
+- [x] Extend diagnostics across input editing, streaming paste, validation,
+  forms, document compilation/reflow/navigation/drawing, tabs, meters, badges
+  and help rows. Preserve validation statuses, native failure propagation and
+  existing API-specific status mappings.
+- [x] Verify absent, enabled, closed and malformed sinks; writable output
+  requirements; rejected edit/reflow atomicity; paste drain and cleanup state;
+  validation messages; rendering preflight; and injected native failures.
+  Do not log input values, paste payloads or document contents.
+- [x] Clarify diagnostic coverage and status mappings in the toolkit guide.
+
+The report's broader recommendations are valuable, but accepting a review does
+not approve every proposed helper or an indefinite distribution project. The
+remaining work below stays subject to the scope boundary and a bounded task.
+
 ## Accepted maintenance work still open, in priority order
 
-- [ ] Extend the diagnostic helper to the remaining libraries' own validation
-  branches, particularly input/form/document and presentation helpers. Keep
-  documented validation outcomes distinct from malformed calls. Audit native
-  failure propagation without inventing a universal meaning for status 2.
+- [ ] Extend diagnostics to the remaining chart/canvas, motion and screen/fixture
+  helpers when working on those existing contracts. Input/form/document and the
+  small presentation components are covered by the second-opinion pass.
 - [ ] Simplify geometry/state reconciliation in the recipes. Compute the current
   viewport before applying navigation, then draw; cover queued resize/navigation
   events and page-step behavior at narrow sizes. Avoid making renderers own input.
@@ -55,8 +81,28 @@ pre-maintenance tree.
   coverage. Keep the graphical terminal matrix dated and distinguish it from
   the ordinary PTY suite.
 
+- [ ] Add native-command and recipe-component completion without loading curses
+  or initializing a terminal during completion. Check grammar against the command
+  table and manual, and exercise completions in a clean matching Zsh.
+- [ ] Clarify core, optional and development-tool roles in the documentation.
+  Keep shipped contracts and cleanup obligations; describing an existing feature
+  as optional must not silently downgrade its compatibility guarantees.
+- [ ] Consolidate the native guide into task examples with the `.yo` manual as
+  the full reference. Preserve useful links rather than creating another manual.
+- [ ] Document accessibility limits and an application-owned plain-output
+  pattern, without claiming screen-reader compatibility that has not been tested.
+- [ ] Write an upstream patch taxonomy around independently useful fixes and
+  tests. `make patch` remains an integrated build export, not a proposed upstream
+  submission. Split C files only to serve one of those concrete reviews.
+
 These are maintenance candidates, not an instruction to proceed indefinitely.
 A subsequent task should select a bounded outcome and its acceptance checks.
+
+For adoption work, start with an explicit API compatibility policy and packager
+requirements, then consider a verified matching-shell bootstrap/launcher. Keep
+module ABI matching separate from API versioning. Actual second-platform results
+and a bounded external application pilot would provide better prioritization
+than another expansion roadmap; none is claimed by this maintenance pass.
 
 ## Proposals requiring a separate decision
 
@@ -108,3 +154,9 @@ screen state inconsistent with reloaded color globals. The follow-up owns and
 releases that screen using the standard lifecycle APIs; libraries without those
 APIs retain the previous initialization path. CI explicitly keeps `--as-needed`
 so the reload regression remains exercised.
+
+Second-opinion maintenance validation: all 133 tests passed with the selected
+Zsh 5.9.2 sources and their matching built shell, including the new diagnostic
+and provenance checks. `sha256sum -c upstream/SHA256SUMS` passes for all five
+recorded baseline files. Changed Markdown file links and `git diff --check`
+also pass. Full-suite log: `.build/second-response-make-test.log`.

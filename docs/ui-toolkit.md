@@ -80,8 +80,9 @@ parsing the implementation files. Application options are restored on return.
 
 ## Diagnosing failures
 
-For themes, styles, labels, panels, layouts, lists and tables, opt into diagnostics
-with a descriptor opened by your application **before** entering curses:
+For themes, styles, labels, panels, layouts, lists, tables, input, forms,
+documents, tabs, meters, badges and help rows, opt into diagnostics with a
+descriptor opened by your application **before** entering curses:
 
 ```zsh
 exec {ZDRAW_UI_DEBUG_FD}>>./zdraw-debug.log
@@ -98,13 +99,20 @@ The diagnostic path uses a subshell to isolate descriptor redirection; successfu
 calls do not invoke it. Logs can include caller-supplied style values.
 
 This currently covers the shared core and the component families listed above;
-other libraries have not yet had all of their own validation branches migrated.
-It does not capture native stderr or arbitrary application failures.
+chart/canvas, motion and screen/fixture helpers still have validation branches
+without diagnostics. It does not capture native stderr or arbitrary application
+failures. Input, paste and document diagnostics identify the failed check without
+copying the text or payload into the log. Ordinary field-validation outcomes
+(such as an empty required field) continue to return their application-facing
+message; they are not logged as malformed calls.
 
-Existing return contracts are preserved: malformed toolkit arguments return 1;
-layout constraints that do not fit return 2; native failures propagate their own
-status. Input validation has a different documented 0/1/2 contract. **Status 2
-is not a toolkit-wide synonym for insufficient space.** A rectangle outside a
+Existing return contracts are preserved. Malformed drawing calls generally return
+1; layout constraints that do not fit return 2. Validation and action APIs have
+their own distinctions. Native failures propagate their status except where the
+function already maps failures to its documented API status. For example, `zdraw-input-check` returns 2 for invalid state, including a
+failed native text-position query; a diagnostic records both the underlying
+failure and the validation status. Ordinary input validation has a distinct
+0/1/2 contract. **Status 2 is not a toolkit-wide synonym for insufficient space.** A rectangle outside a
 window still returns 1, now with a geometry diagnosis. Branch on the documented
 contract of the function you call.
 
