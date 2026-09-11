@@ -7,6 +7,10 @@ Applications choose their rectangles, data, keymaps and event loops.
 Pure layout helpers now handle fixed/flexible tracks, gaps, insets and centering;
 the [list/detail recipe](recipes/list-detail.md) demonstrates responsive composition.
 
+For a visual entry point, [Choose and combine TUI pieces](choose-and-combine.md)
+maps reader tasks to existing libraries and experimental treatments, with their
+space requirements, shared styling and application-owned connections.
+
 This is the first implementation from the
 [beautiful TUI research](beautiful-tuis-research.md). It uses ordinary Zsh
 arguments and arrays for a Tailwind-inspired workflow: share a theme, combine

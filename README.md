@@ -43,14 +43,17 @@ for the full instructions and publisher checksum link.
 
 ## Try the components
 
-Start with the [visual design study](docs/design-study.md) to compare three
-complete compositions, including narrow layouts, empty states and color fallbacks:
+Start with [Choose and combine TUI pieces](docs/choose-and-combine.md) to select
+a treatment by its purpose, appearance and space requirements. The review
+example combines a linked list, status display and change gutter under one theme:
 
 ```sh
-.build/zsh/Src/zsh -df examples/design-study.zsh
+.build/zsh/Src/zsh -df examples/review-composition.zsh
 ```
 
-Press `1`, `2`, or `3` to change direction and `s` to explore interaction states.
+Press `j`/`k` to select a file, Tab to focus its changes, `t` to switch the shared
+theme, and `v` to vary only the status treatment. These three pieces are
+experimental examples; the guide also points to the existing library components.
 
 Run these with the matching built shell from the repository root:
 
@@ -96,6 +99,7 @@ application that handles resize and render failures.
 
 | Task | Start here |
 | --- | --- |
+| Choose reusable treatments and combine their data, themes and layout | [Choose and combine](docs/choose-and-combine.md) |
 | Explore three visual directions with real terminal captures | [Design study](docs/design-study.md) |
 | Reuse a themed list/detail treatment | [Linked detail prototype](docs/linked-detail.md) |
 | Show compact line numbers and added/removed review markers | [Change gutter prototype](docs/change-gutter.md) |

@@ -285,6 +285,12 @@ review rows through application code; the pieces share one theme. This example
 requires no changes to the components or native module. It is a bounded reuse
 exercise, not another feature family or automatic roadmap progression.
 
+The [choose-and-combine guide](choose-and-combine.md) is the developer-facing
+entry point for these results: choose by task and appearance, inspect footprint,
+then follow the existing theme, state and ownership contracts into a runnable
+example. Keep it aligned with the actual APIs. It documents the available pieces
+and does not promote experimental treatments or create a new backlog.
+
 ### Rejected shadow treatment
 
 The maintainer rejected both the full-cell and adjustable thin/half-cell shadows
