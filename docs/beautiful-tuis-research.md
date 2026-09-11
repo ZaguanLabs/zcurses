@@ -1,5 +1,10 @@
 # Making beautiful TUIs easier with zdraw
 
+**Scope update 2026-09-11:** this report is historical research. The
+[project stop line](scope.md) supersedes its expansion proposals. Image work was
+rejected and removed; scaled text is cancelled. References below do not imply
+current support or an implementation commitment.
+
 **The strongest opportunity is a small, optional Zsh design toolkit built on zdraw's existing drawing primitives, with a Tailwind-inspired model of composition and customization.** Developers select the elements they need and adjust colors, borders, spacing, and states through shared utilities and theme tokens. Good defaults make the first interface attractive; individual overrides make it their own.
 
 The most useful references are Lip Gloss for composition, Textual for themes and visual development, Ratatui for rectangular layout, Posting for application polish, and btop for dense graphical information. Their value comes from different strengths; adopting one framework's entire architecture would lose that distinction.

@@ -1,13 +1,18 @@
 # Exploration checklist
 
+**Expansion stopped 2026-09-11.** The [project scope and stop line](scope.md)
+supersedes this historical idea inventory. Unchecked entries are not queued work.
+Image rendering has been removed and scaled-text work cancelled. New directions
+require a concrete need, comparative quality evidence and an explicit decision.
+
 This roadmap records the ideas discussed after the rename to `zdraw`. It is a
 set of candidates, not a promise to implement every item. Check an item only
 when its implementation, documentation and relevant verification are complete.
 A completed first milestone does not complete the broader direction.
 
-The [incremental implementation plan](implementation-plan.md) orders the remaining
-work by usefulness and dependencies, and records companion-layer work that already
-covers some older entries below. Use that plan for the next milestone checklist.
+The [incremental implementation plan](implementation-plan.md) recorded the order
+of follow-up work by usefulness and dependencies, and records companion-layer work that already
+covers some older entries below. Its sequence is now stopped.
 
 The native exploration batch stopped after application integration (2026-09-10):
 streaming paste, suspend/resume, asynchronous input integration and colored command
@@ -281,13 +286,10 @@ These operations understand cells and rectangles, not application layouts.
 - [x] Demonstrate ASCII/Braille alternatives for the same waveform or plot.
   Delivered by the [character canvas](character-canvas.md), with a waveform
   recipe and [recorded redraw/memory measurements](../benchmarks/README.md#character-canvas).
-- [ ] Explore an optional image-upload and placement interface.
-- [ ] Investigate Unicode image placeholders against curses character capacity,
-  widths, clipping, scrolling, multiplexers and resource cleanup.
 
-Reference: [kitty graphics protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/).
-Image placements are an experiment, not a promise that arbitrary raw graphics
-can coexist with curses' retained-screen state.
+Image conversion and placement were tried and removed on 2026-09-11. Their
+user-visible quality and lifecycle results did not justify keeping them. Image
+rendering and scaled text are outside the [current scope](scope.md).
 
 ## 12. Interaction within the shell session
 

@@ -1,5 +1,10 @@
 # Scope and project direction
 
+**Current boundary (2026-09-11):** [project scope and stop line](scope.md).
+Feature expansion is stopped; the implementation notes and candidates below are
+historical context, not instructions to resume the roadmap. The supported focus
+is a polished text-and-cell TUI toolkit. Images and scaled text are out of scope.
+
 `zdraw` develops portable, general-purpose terminal and curses primitives for
 Zsh. Derived from `zsh/curses`, it has its own loadable module, builtin and
 parameter namespace. Each extension should solve a shell-level problem and

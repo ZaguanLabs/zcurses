@@ -7,8 +7,9 @@ fixes and extensions remain candidates for contribution to Zsh.
 It has no dependency on another application or a contributor's local setup.
 
 Applications own their layouts, themes and event-loop policy; `zdraw` supplies
-terminal primitives. The [exploration checklist](docs/roadmap.md) tracks candidate
-additions and completed milestones.
+terminal primitives. The [project scope and stop line](docs/scope.md) defines the
+supported text-and-cell TUI toolkit and its quality bar. Feature expansion is
+paused; the [exploration checklist](docs/roadmap.md) is a historical record.
 
 **Optional UI components** provide shared themes, styling utilities, panels,
 labels, scrolling lists and tables through companion Zsh libraries. Select the pieces
@@ -81,9 +82,6 @@ Try the task monitor with `--motion` or `--reduced-motion`.
 [Inline shell interaction](docs/inline-shell.md) experiments with a short ZLE
 picker below the prompt, optional asynchronous choices and restored editor state.
 Try `.build/zsh/Src/zsh -df scripts/inline-shell.zsh` in a terminal.
-[Image previews](docs/image-previews.md) convert PNG/JPEG files into retained
-colored half blocks or ASCII mosaics, with optional ImageMagick conversion and
-explicit resource bounds. Native image placement remains a documented experiment.
 [Recording and restoration](docs/recording-and-restoration.md) adds explicit PTY
 input/resize replay, optional snapshot occupancy metadata and a separate bounded
 text-screen format with symbolic styles.

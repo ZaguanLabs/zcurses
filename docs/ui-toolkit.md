@@ -452,5 +452,6 @@ This toolkit checklist is complete. Follow-up components are tracked in the
 [incremental implementation plan](implementation-plan.md); see
 [compact charts](compact-charts.md) for sparklines and bar comparisons, and
 [character canvas](character-canvas.md) for points, lines and rectangles. The broader experimental ideas in the
-research report and native roadmap remain separate future work. Using the toolkit
+research report and native roadmap are historical candidates subject to the
+[project stop line](scope.md); they are not scheduled work. Using the toolkit
 does not require adopting an application framework or changing the native module.

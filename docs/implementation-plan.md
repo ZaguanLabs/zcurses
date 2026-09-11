@@ -1,12 +1,17 @@
 # Incremental implementation plan
 
-Recorded 2026-09-10, after completion of the visual toolkit. This is the ordered
+**Stopped 2026-09-11:** the [project scope and stop line](scope.md) supersedes
+this sequence. Milestones 1–11 are historical completed work. Image work was
+removed after failing the usefulness bar; scaled text is cancelled. No unchecked
+item authorizes further implementation.
+
+Recorded 2026-09-10, after completion of the visual toolkit. This was the ordered
 follow-up plan for the [native exploration roadmap](roadmap.md) and the graphics
 ideas in the [TUI research](beautiful-tuis-research.md). The order reflects
 expected developer value, dependencies and implementation uncertainty; it is not
 a delivery-date estimate or an instruction to start every experiment at once.
 
-Use this file to track the next implementation milestones. The original roadmap
+This file records the earlier implementation milestones. The original roadmap
 remains the inventory of ideas and historical native work. The completed
 [toolkit checklist](ui-toolkit.md#implementation-checklist) remains its own record.
 
@@ -50,10 +55,11 @@ screen-restoration/replay format.
 | 9 | Interaction recording and replay | Reproduce failures from bounded recordings | Tooling + native metadata | 3, 4 and 8 contracts |
 | 10 | Optional motion | Useful activity and transition feedback | Zsh | 1, 5 and 7 |
 | 11 | Inline shell interaction | A bounded UI below the prompt | Zsh + lifecycle investigation | 3's job-control coverage |
-| 12 | Image previews | Optional previews with explicit fallbacks | Adapter + native experiment | 3, 5, 6 and 7 |
-| 13 | Scaled text | Larger headings on suitable terminals | Native experiment | 3, 5, 8 and placement findings from 12 |
+| 12 | Image previews — removed | Failed the usefulness bar | Outside current scope | Closed |
+| 13 | Scaled text — cancelled | No implementation planned | Outside current scope | Closed |
 
-This is a default sequence, not a dependency chain through every row. For example,
+The original sequence below is retained as historical context. It was not a
+dependency chain through every row. For example,
 frame presentation does not depend on completing the richer keyboard protocol.
 Each milestone should leave a usable, documented result and a natural stopping
 point. The first two deliver visible improvements without protocol negotiation;
@@ -475,8 +481,8 @@ Separate replaying application events from restoring a saved screen.
   and document when timing-dependent failures still need a real terminal.
 
 **Completion:** an explicitly recorded interaction is reproducible, and the
-supported restoration subset is distinct from raw readback. Future image/text-size
-placements are not implicitly included in this version.
+supported restoration subset is distinct from raw readback. Image and scaled-text
+placements are outside project scope.
 
 **Completed 2026-09-10 — implementation commit `038b347`.**
 The [recording and restoration guide](recording-and-restoration.md) defines two
@@ -613,125 +619,26 @@ origin, scrollback policy or coordinated ZLE redisplay lifecycle. This milestone
 completes the bounded experiment and records that blocker; it does not claim to
 solve native inline drawing.
 
-## 12. Image previews
+## 12. Image previews — removed
 
-Separate a portable character-based preview from terminal image placement. Each
-can ship independently if its own contract is satisfied.
+**Closed 2026-09-11.** The mosaic preview failed the user-visible quality bar.
+Improved contrast and passing tests did not make screenshot content useful.
+Native placement research also left recovery and lifecycle gaps unresolved.
 
-- [x] Prototype an optional adapter for bounded Unicode/ASCII image mosaics using
-  a documented external converter; do not make it a core runtime dependency.
-- [x] Define maximum input/output sizes, palette limits, invalid output handling,
-  placeholder/alt text, clipping and cancellation for the adapter.
-- [x] Design one opt-in terminal image-placement experiment with explicit upload,
-  placement, replacement, deletion and ownership of resources.
-- [x] Investigate Unicode image placeholders against curses storage and width
-  limits; test redraw, scrolling, overlays, resize and multiplexer behavior.
-- [x] Verify suspend/resume, end/unload, interrupted uploads and resource cleanup;
-  retain the text preview when terminal support is unavailable or uncertain.
-- [x] Publish a working preview example and the evidence for accepting, narrowing
-  or deferring the native placement API.
+- [x] Remove the preview libraries, converter, example and dedicated tests.
+- [x] Remove native image-placement fixtures, matrix and capture artifacts.
+- [x] Remove build hooks and documentation advertising image support.
+- [x] Record the rejection and quality gate in [project scope](scope.md).
 
-**Completion:** the text-preview adapter is usable on its documented baseline.
-Native image placement remains experimental until its retained-screen lifecycle
-is demonstrated; merely emitting an image escape sequence is not completion.
+The earlier implementation and measurements remain in Git history (`187c39b`,
+`6241c08`, `0ab8105`). This milestone is withdrawn, not shipped or deferred.
 
-**Completed 2026-09-10 — implementation commit `187c39b`.**
-The [image-preview guide](image-previews.md) documents the optional ImageMagick 7
-converter and caller-owned `zdraw-image-1` raster. The
-[preview example](../examples/image-preview.zsh) decodes once before curses starts,
-then draws retained colored half blocks or ASCII density cells. It supports
-monochrome/theme colors, viewport cropping on resize, a missing-image placeholder,
-suspend/resume and cancellation. Drawing/export owns no converter, timer,
-descriptor or terminal protocol. The native module is unchanged.
+Removal verification: all **127 remaining tests passed** against the matching
+public Zsh 5.9.2 build, including the normal Zsh parse checks. Updated documents
+have no broken local file links. Log: `.build/remove-images-make-test.log`.
 
-Input is limited to regular PNG/JPEG files of 8 MiB, at most 4096 pixels per side
-and 4,194,304 pixels total. Output is at most 4096 cells, 8192 sampled pixels and
-24,576 raw RGB bytes. A five-second conversion deadline, private decoder policy,
-bounded stdout reader and signal cleanup constrain the optional worker. A fixed
-16-color palette bounds half-block drawing to 256 ordered color pairs; warmed
-redraws allocate no additional pairs. Invalid packets leave prior raster state
-unchanged. Alt text is required and limited to 256 encoded bytes.
+## 13. Scaled text — cancelled
 
-The separate opt-in [placement fixture](../scripts/portability/image-source.zsh)
-uses one private image ID and quiet, bounded kitty graphics transfers in fresh
-terminals. The [recorded matrix](portability/image-matrix-2026-09-10.json) includes
-48 captures across Kitty 0.44.0, Kitty through tmux `next-3.3`, Kitty through
-Screen 5.0.1 and XTerm(407). Full row/column/high-ID combining marks round-trip
-through the selected ncurses cells at one column per placeholder. Direct Kitty
-and tmux display copied, covered, replaced and resized images. Direct Kitty
-resumes successfully; the tmux profile does not restore the image after resume.
-Neither restores visible image data after the interrupted-transfer reupload.
-Screen/direct-APC and xterm show no test-image pixels. Every profile has zero
-test-image pixels at suspend, end and unload capture points; this is visible
-cleanup evidence, not proof of all terminal-side memory being released.
-
-**Native placement API deferred:** quiet uploads do not establish acknowledged
-readiness/error ownership; interruption recovery and multiplexer redisplay remain
-unreliable. Curses has no image-resource registry or automatic image cleanup at
-session boundaries. The fixture coordinates deletion explicitly, and its fixed
-ID is only suitable for a fresh private terminal. These are concrete lifecycle
-gaps, so the experiment stays research and the ordinary text preview remains
-the usable baseline. Completing this milestone does not claim native image
-placement support in `zdraw`.
-
-Verification: all **137 tests passed** against the selected public Zsh 5.9.2 source
-release and matching built shell. Ten new tests cover conversion/byte/dimension
-limits, literal filenames, PNG/JPEG decoding, cancellation and worker reaping,
-atomic data loading, palette allocation, ASCII-only builds, resize, missing-image
-fallback, suspend/resume, terminal restoration, full placeholder storage and
-owned protocol cleanup on interruption/signals. Changed Zsh files pass parse
-checks. All 48 capture hashes were verified. Final log:
-`.build/image-final-make-test.log`.
-
-Image-quality follow-up: the default converter now retains an adaptive palette
-using extended terminal colors, including dark grays. The example retains up to
-128 columns and fits the whole image on resize. Legacy packets and default
-cropping remain supported. Regression coverage checks palette validation, dark
-surfaces, colored accents, ASCII fallback and containment. Character mosaics still
-cannot preserve screenshot text at its original resolution. All **138 tests
-passed** against the matching Zsh 5.9.2 build; changed Zsh files pass parse
-checks. The actual example was visually checked in a private xterm session.
-Test log: `.build/image-quality-final-make-test.log`.
-
-## 13. Scaled text
-
-Keep this last: it affects geometry, repainting, hit-testing and retained-screen
-representation while benefiting a narrower set of interfaces.
-
-- [ ] Define one bounded use case, such as a large section heading, together
-  with its ordinary single-cell text alternative.
-- [ ] Investigate support/activation evidence and representation of occupied
-  rows/columns, clipping, overlap, baselines and source-byte hit-testing.
-- [ ] Prototype placement and removal without allowing curses to repaint through
-  the region incorrectly; document whether a separate placement model is necessary.
-- [ ] Test resize, selection boundaries, overlays, suspend/resume, cleanup and
-  unavailable support, reusing findings from images and Unicode experiments.
-- [ ] Publish the prototype and a decision on a reusable API; keep the ordinary
-  text path as the portable default.
-
-**Completion:** the feasibility result and limitations are reproducible. A general
-scaled-text API requires a proven retained-screen contract beyond this experiment.
-
-## Working and completion rules
-
-Check implementation items only when code, documentation, an example where useful,
-and relevant verification are complete. A design decision or experiment can be
-checked when its stated evidence is recorded; do not mark a corresponding feature
-implemented if the decision was to defer it. Record deferred work and its reason
-beside the affected milestone so it does not become an endless open-ended task.
-
-Keep components, styles, layouts and application policy in optional Zsh libraries.
-Add C only for a demonstrated general-purpose gap or measured bottleneck. Preserve
-inherited `zdraw` behavior, separate stock `zsh/curses`, and the original sources.
-New protocols stay opt-in with one input owner and explicit cleanup.
-
-For code changes, use the Zsh expertise skill where Zsh semantics matter and run
-`make test` with `ZSH_BUILD_ROOT` selecting the public Zsh source release and the
-matching built shell. Build in `.build/`; never change an installed module or
-source tree during normal verification. Extend PTY tests and visual fixtures for
-meaningful behavior, and record actual terminal coverage separately from simulated
-coverage. Native API changes also need native manual and integration-patch checks.
-
-Commit and push each completed implementation milestone, recording its commit and
-verification evidence here. Stop at its completion boundary before beginning a
-later experimental branch of work unless that work is part of the active request.
+**Closed without implementation 2026-09-11.** Scaled text is outside the
+text-and-cell toolkit boundary. The proposed investigation and prototype are
+cancelled. There is no next automatic graphics milestone.

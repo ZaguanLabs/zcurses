@@ -1,5 +1,10 @@
 # Project guidance
 
+- Follow the hard boundary in `docs/scope.md`. Automatic roadmap progression is
+  stopped. Image rendering and scaled text are out of scope; new feature families
+  require an explicit bounded task and evidence meeting the recorded quality bar.
+  Focus on the usefulness and quality of the existing text-and-cell TUI toolkit.
+
 - Develop `zdraw` as an independent, portable, general-purpose Zsh module derived
   from `zsh/curses`. Keep useful fixes and extensions suitable for adaptation to
   the official Zsh distribution. Keep application layouts,
