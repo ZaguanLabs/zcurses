@@ -14,7 +14,7 @@ import test_features
 
 
 class RecipeSession:
-    def __init__(self, case, example, fixture='composition.zsh'):
+    def __init__(self, case, example, fixture='composition.zsh', term='xterm-256color'):
         self.case = case
         self.control_r, self.control = os.pipe()
         self.report, report_w = os.pipe()
@@ -25,7 +25,7 @@ class RecipeSession:
             os.set_inheritable(self.control_r, True)
             os.set_inheritable(report_w, True)
             fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack('HHHH', 24, 80, 0, 0))
-            os.environ.update(TERM='xterm-256color', LC_ALL='C.UTF-8')
+            os.environ.update(TERM=term, LC_ALL='C.UTF-8')
             for name in ('LINES', 'COLUMNS', 'NO_COLOR'):
                 os.environ.pop(name, None)
             os.execl(test_features.ZSH, test_features.ZSH, '-df',

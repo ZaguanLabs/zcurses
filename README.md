@@ -43,6 +43,15 @@ for the full instructions and publisher checksum link.
 
 ## Try the components
 
+Start with the [visual design study](docs/design-study.md) to compare three
+complete compositions, including narrow layouts, empty states and color fallbacks:
+
+```sh
+.build/zsh/Src/zsh -df examples/design-study.zsh
+```
+
+Press `1`, `2`, or `3` to change direction and `s` to explore interaction states.
+
 Run these with the matching built shell from the repository root:
 
 ```sh
@@ -87,6 +96,9 @@ application that handles resize and render failures.
 
 | Task | Start here |
 | --- | --- |
+| Explore three visual directions with real terminal captures | [Design study](docs/design-study.md) |
+| Reuse a themed list/detail treatment | [Linked detail prototype](docs/linked-detail.md) |
+| Show compact line numbers and added/removed review markers | [Change gutter prototype](docs/change-gutter.md) |
 | Choose components, themes and style utilities | [UI toolkit](docs/ui-toolkit.md) |
 | Debug component failures | [Toolkit diagnostics](docs/ui-toolkit.md#diagnosing-failures) |
 | Compose responsive panes | [List/detail recipe](docs/recipes/list-detail.md) |

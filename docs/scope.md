@@ -3,6 +3,11 @@
 Decision recorded 2026-09-11. This supersedes expansion suggestions in the
 exploration roadmap, implementation plan and earlier research.
 
+Read [design-direction.md](design-direction.md) for the maintainer-approved
+creative toolkit vision, layered API model, theme/component relationships and
+decision rules for future agents. That direction operates within this stop line;
+it does not restart automatic feature expansion.
+
 `zdraw` makes it easier to build polished, responsive text-and-cell terminal
 interfaces in native Zsh. Its value is a coherent drawing and interaction
 contract, good reusable components, and dependable behavior during real use.

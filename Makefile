@@ -7,6 +7,15 @@ build:
 	+ZDRAW_MAKE="$(MAKE)" "$(ZSH_BIN)" -df scripts/build.zsh
 
 test: build
+	"$(ZSH_BIN)" -dfn examples/components/change-gutter.zsh
+	"$(ZSH_BIN)" -dfn examples/change-gutter.zsh
+	"$(ZSH_BIN)" -dfn tests/change-gutter.zsh
+	"$(ZSH_BIN)" -dfn examples/components/linked-detail.zsh
+	"$(ZSH_BIN)" -dfn examples/linked-detail.zsh
+	"$(ZSH_BIN)" -dfn tests/linked-detail.zsh
+	"$(ZSH_BIN)" -dfn examples/design-study.zsh
+	"$(ZSH_BIN)" -dfn tests/design-study.zsh
+	"$(ZSH_BIN)" -dfn scripts/design-study-frame.zsh
 	"$(ZSH_BIN)" -dfn scripts/build.zsh
 	"$(ZSH_BIN)" -dfn scripts/inline-shell.zsh
 	"$(ZSH_BIN)" -dfn examples/inline-picker.zsh
