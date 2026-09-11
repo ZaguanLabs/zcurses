@@ -1,5 +1,7 @@
 """Components share selection/theme while the application owns input and layout."""
 import unittest
+import os
+import termios
 from test_compositions import RecipeSession
 
 
@@ -111,5 +113,63 @@ class ReviewCompositionTests(unittest.TestCase):
             self.assertEqual(f[12:14], ['2', '1'])
             self.assertEqual(f[3:8], before[3:8])
             s.finish()
+        finally:
+            s.close()
+
+    def test_key_reference_preserves_review_and_reaches_every_key(self):
+        s = RecipeSession(self, 'dark', fixture='review-composition.zsh')
+        try:
+            s.advance()
+            s.advance(b'\t')
+            s.advance(size=(18, 38))
+            s.advance(b'j')
+            s.advance(b'l')
+            before = s.advance(b't')
+            f = s.advance(b'?')
+            self.assertEqual(f[15], '1')
+            self.assertIn('KEYS / review', self.screen(f))
+            self.assertEqual(f[3:15], before[3:15])
+            f = s.advance(size=(11, 26))
+            seen = self.screen(f)
+            for _ in range(5):
+                f = s.advance(b'j')
+                seen += self.screen(f)
+                self.assertEqual(f[3:15], before[3:15])
+            for word in ('Switch pane', 'Move file or row', 'Pan change text',
+                         'Leftmost text', 'Compact status', 'Switch theme',
+                         'Status emphasis', 'Monochrome', 'Empty sample',
+                         'Quit review', 'Show these keys'):
+                self.assertIn(word, seen)
+            self.assertEqual(f[16], '6')
+            self.assertEqual(s.advance(b'j')[16], '6')
+            self.assertEqual(s.advance(b'\x1bOA')[16], '5')
+            f = s.advance(size=(1, 12))
+            self.assertEqual(f[15], '1')
+            s.advance(size=(18, 38))
+            f = s.advance(b'\x1b')
+            self.assertEqual(f[15], '0')
+            self.assertEqual(f[3:15], before[3:15])
+            self.assertNotIn('KEYS / review', self.screen(f))
+            s.advance(b'?')
+            # Review controls are ignored while the reference owns input.
+            f = s.advance(b'etc?')
+            self.assertEqual(f[3:15], before[3:15])
+            s.finish()
+        finally:
+            s.close()
+
+    def test_quit_from_initial_key_reference(self):
+        s = RecipeSession(self, 'keys', fixture='review-composition.zsh', term='vt100')
+        try:
+            f = s.advance()
+            self.assertEqual(f[15], '1')
+            self.assertEqual(f[10], 'mono')
+            self.assertTrue(self.screen(f).isascii())
+            self.assertIn('Show these keys', self.screen(f))
+            self.assertEqual(s.advance(b'q'), ['done'])
+            self.assertEqual(termios.tcgetattr(s.terminal), s.baseline)
+            _, result = os.waitpid(s.pid, 0)
+            s.reaped = True
+            self.assertEqual(os.waitstatus_to_exitcode(result), 0)
         finally:
             s.close()

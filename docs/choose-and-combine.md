@@ -21,6 +21,8 @@ explains the complete application and all controls.
 Use `c` or start it with `--compact` to give the changes two more rows. This
 omits the status explanation and its gap; below 18 terminal rows the example
 selects that layout automatically.
+Press `?` for the complete key reference when footer hints do not fit. It
+scrolls independently, and `?` or Escape returns to the review.
 
 ## Choose by the job
 

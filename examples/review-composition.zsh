@@ -18,6 +18,13 @@ typeset -a explanations=('All defaults checked' 'Checking terminal cleanup' 'Par
 typeset focus=list theme_name=dark profile=mono requested_profile=auto glyphs=auto layout_mode=tiny phase=working
 typeset -i rows columns first=1 offset=0 visible=1 dirty=1 exit_code=0 empty=0 variant=0 selected=2
 typeset -i compact=0 status_height=2 status_gap=1
+typeset -i show_help=0 help_first=1
+typeset -a review_keys=(
+  Tab 'Switch pane' j/k 'Move file or row' Up/Down 'Move file or row'
+  h/l 'Pan change text' 0 'Leftmost text' c 'Compact status'
+  t 'Switch theme' v 'Status emphasis' m Monochrome e 'Empty sample'
+  q/Esc 'Quit review' '?' 'Show these keys'
+)
 while (( $# )); do
   case $1 in
     --theme|--profile)
@@ -28,6 +35,7 @@ while (( $# )); do
     --empty) empty=1 ;;
     --variant) variant=1 ;;
     --compact) compact=1 ;;
+    --keys) show_help=1 ;;
     *) print -ru2 -- "unknown option: $1"; exit 1 ;;
   esac
   shift
@@ -70,6 +78,30 @@ function review-render {
   zdraw-ui-theme "$theme_name" "$profile" || return
   zdraw-ui-style normal fg=text bg=canvas || return
   zdraw fill stdscr 0 0 "$rows" "$columns" "$zdraw_ui_style[style]" ' ' || return
+  if (( show_help )); then
+    zdraw-label stdscr 0 0 "$columns" 'KEYS / review' normal fg=accent bg=canvas bold || return
+    if (( rows<5 || columns<26 )); then
+      if (( rows>1 )); then
+        zdraw-label stdscr 1 0 "$columns" '? back; q quit; resize' normal bg=canvas || return
+      fi
+    else
+      local -i key_count=$((${#review_keys}/2)) key_rows=$((rows-4)) last
+      local key_label
+      (( help_first>key_count-key_rows+1 )) && help_first=$((key_count-key_rows+1))
+      (( help_first<1 )) && help_first=1
+      last=$((help_first+key_rows-1))
+      (( last>key_count )) && last=$key_count
+      for (( i=help_first; i<=last; i++ )); do
+        printf -v key_label '%-7s' "$review_keys[$((2*i-1))]"
+        zdraw-help stdscr "$((2+i-help_first))" 1 "$((columns-2))" normal -- \
+          "$key_label" "$review_keys[$((2*i))]" || return
+      done
+      zdraw-label stdscr "$((rows-2))" 1 "$((columns-2))" "j/k scroll keys $help_first-$last/$key_count" normal fg=muted bg=canvas || return
+      zdraw-help stdscr "$((rows-1))" 1 "$((columns-2))" normal -- q quit '?' back Esc back || return
+    fi
+    zdraw refresh stdscr
+    return
+  fi
   zdraw-label stdscr 0 0 "$columns" 'REVIEW / terminal ownership' normal fg=accent bg=canvas bold || return
   layout_mode=tiny
   if (( rows<11 || columns<26 )); then
@@ -114,7 +146,7 @@ function review-render {
   local hint='j/k files'
   [[ $focus == detail ]] && hint='j/k rows; h/l pan; 0 left'
   zdraw-label stdscr "$((rows-2))" 1 "$((columns-2))" "Tab pane; $hint" normal fg=muted bg=canvas || return
-  zdraw-help stdscr "$((rows-1))" 1 "$((columns-2))" normal -- q quit c compact t theme v status m mono e empty || return
+  zdraw-help stdscr "$((rows-1))" 1 "$((columns-2))" normal -- q quit '?' keys c compact t theme v status m mono e empty || return
   zdraw refresh stdscr
 }
 
@@ -131,11 +163,34 @@ zdraw init || exit 1
   while true; do
     if (( dirty )); then review-render || { exit_code=1; break; }; dirty=0; fi
     if zdraw event stdscr event "${input_options[@]}"; then
+      # The application owns help input. Review state remains untouched here.
+      if (( show_help )); then
+        case $event[type] in
+          character)
+            case $event[text] in
+              q) break ;;
+              '?'|$'\e') show_help=0 ;;
+              j) (( help_first++ )) ;; k) (( help_first-- )) ;;
+              *) continue ;;
+            esac ;;
+          key)
+            case $event[key] in
+              DOWN) (( help_first++ )) ;; UP) (( help_first-- )) ;; *) continue ;;
+            esac ;;
+          resize) zdraw resize "$event[rows]" "$event[columns]" nosave || { exit_code=1; break; } ;;
+          *) continue ;;
+        esac
+        (( help_first<1 )) && help_first=1
+        (( help_first>${#review_keys}/2 )) && help_first=$((${#review_keys}/2))
+        dirty=1
+        continue
+      fi
       typeset action=keep
       case $event[type] in
         character)
           case $event[text] in
             q|$'\e') break ;;
+            '?') show_help=1 help_first=1 ;;
             $'\t') if [[ $focus == list ]]; then focus=detail; else focus=list; fi ;;
             j) action=down ;; k) action=up ;;
             h) [[ $focus == detail ]] && (( offset-=4 )) ;;

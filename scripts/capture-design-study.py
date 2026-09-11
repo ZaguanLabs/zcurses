@@ -97,6 +97,8 @@ def capture(output, example='design-study'):
             ]
         if example == 'review-composition':
             scenarios = [
+                ('keys', 'dark', 'ready', '80x24', 'list', 'auto'),
+                ('keys-narrow', 'dark', 'ready', '26x11', 'list', 'auto'),
                 ('dark', 'dark', 'ready', '120x28', 'list', 'auto'),
                 ('compact', 'dark', 'ready', '120x28', 'list', 'auto'),
                 ('short', 'dark', 'ready', '38x11', 'detail', 'auto'),
@@ -119,6 +121,8 @@ def capture(output, example='design-study'):
                            str(ROOT / 'scripts/design-study-frame.zsh'), str(directory), focus]
                 if example in ('linked-detail', 'change-gutter', 'status-strip', 'review-composition'):
                     command += ['--example', example, '--theme', design, '--profile', profile]
+                    if example == 'review-composition' and name in ('keys', 'keys-narrow'):
+                        command += ['--keys']
                     if name == 'compact':
                         command += ['--compact'] if example in ('status-strip', 'review-composition') else ['--item-gap', '0']
                     if example == 'status-strip':

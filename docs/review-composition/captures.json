@@ -1,8 +1,8 @@
 {
   "format": "zdraw-review-composition-captures-1",
   "platform": "Linux-6.18.44-desktop-1.mga10-x86_64-with-glibc2.42",
-  "captured_at": "2026-09-11T14:06:33.334251+00:00",
-  "source_sha256": "72875664f7ed86f7b14b813f66cb1537dc1503ceef2c14e85a4f9fbdd33c8bdc",
+  "captured_at": "2026-09-11T14:18:29.002432+00:00",
+  "source_sha256": "382abaf83d167dbff031743dda224c0186364ca953c69fbc3d9d31ae3abca670",
   "module_sha256": "62e7d56a14659839d0cb2b97ed87179723c8421d2d233d7938581124a8fb8228",
   "xterm": "XTerm(407)",
   "shell": "zsh 5.9.2 (x86_64-pc-linux-gnu)",
@@ -10,6 +10,40 @@
   "locale": "C.UTF-8",
   "term": "xterm-256color",
   "scenarios": [
+    {
+      "name": "keys",
+      "design": "dark",
+      "state": "ready",
+      "geometry": "80x24",
+      "focus": "list",
+      "profile": "auto",
+      "options": [
+        "--example",
+        "review-composition",
+        "--theme",
+        "dark",
+        "--profile",
+        "auto",
+        "--keys"
+      ]
+    },
+    {
+      "name": "keys-narrow",
+      "design": "dark",
+      "state": "ready",
+      "geometry": "26x11",
+      "focus": "list",
+      "profile": "auto",
+      "options": [
+        "--example",
+        "review-composition",
+        "--theme",
+        "dark",
+        "--profile",
+        "auto",
+        "--keys"
+      ]
+    },
     {
       "name": "dark",
       "design": "dark",

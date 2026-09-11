@@ -25,6 +25,7 @@ After the [normal build](../building.md), from the repository root:
 .build/zsh/Src/zsh -df examples/review-composition.zsh
 .build/zsh/Src/zsh -df examples/review-composition.zsh --theme light
 .build/zsh/Src/zsh -df examples/review-composition.zsh --compact
+.build/zsh/Src/zsh -df examples/review-composition.zsh --keys
 .build/zsh/Src/zsh -df examples/review-composition.zsh --profile mono --ascii
 ```
 
@@ -40,6 +41,13 @@ After the [normal build](../building.md), from the repository root:
 | `m` | Toggle monochrome within terminal capabilities |
 | `e` | Toggle empty sample data; restoring selects the first file |
 | `q` / Escape | Quit and restore terminal state |
+| `?` | Open the complete key reference |
+
+In the key reference, `j`/`k` or Up/Down scroll the keys, `?` or Escape returns
+to the review, and `q` quits. Other review controls are ignored there. The
+reference retains the review's selection, focus, styling and offsets; when you
+return after resizing, normal viewport clamping still applies. `--keys` starts
+with the reference open.
 
 Selecting another file resets its review offsets. Switching focus, theme or
 local styling preserves selection and offsets. Resize preserves them subject to
@@ -122,7 +130,10 @@ output contract.
 The example repeats the established session/input boilerplate from the smaller
 studies. That makes it independently runnable; this exercise does not justify a
 new application framework. Long text still clips or scrolls, and footer hints
-can omit trailing options on narrow terminals. The table above lists every key.
+can omit trailing options on narrow terminals. The footer puts `? keys` beside
+quit so the full reference remains discoverable at the example's minimum width.
+It uses existing help rows, with one key/description pair per row and its own
+scroll position. It needs no modal component or changes to the libraries.
 
 ## Visual and interaction evidence
 
@@ -131,11 +142,13 @@ can omit trailing options on narrow terminals. The table above lists every key.
 Compare [compact at the same width and height](../review-composition/compact.png),
 [11-row terminal](../review-composition/short.png),
 [light](../review-composition/light.png),
+[complete key reference](../review-composition/keys.png),
+[narrow key reference](../review-composition/keys-narrow.png),
 [narrow file list](../review-composition/narrow-list.png),
 [monochrome](../review-composition/mono.png),
 [local status emphasis](../review-composition/variant.png) and
 [empty data](../review-composition/empty.png).
-All nine are actual xterm captures. Font, options, dimensions and hashes for
+All eleven are actual xterm captures. Font, options, dimensions and hashes for
 the example, all three components and module are recorded in
 [captures.json](../review-composition/captures.json).
 
@@ -148,8 +161,11 @@ PTY checks exercise file/status/content correspondence, unknown totals, focus,
 scrolling, horizontal panning, local styling, theme changes, density and its
 two-row gain, automatic compact layout, narrow/tiny resize,
 empty-data clearing, basic/monochrome fallback and terminal restoration.
-The full suite passed all 147 tests against the locally built Zsh 5.9.2 shell
-and matching module after the density change.
+The key-reference checks also cover reaching every shortcut at minimum review
+size, input isolation, return to the same reading position, tiny resize and
+quitting directly from the reference with terminal settings restored.
+The full suite passed all 149 tests against the locally built Zsh 5.9.2 shell
+and matching module after the key-reference change.
 
 This demonstrates reuse and records the required application glue. It makes no
 new performance or comparative visual-quality claim. Stop here for review of
