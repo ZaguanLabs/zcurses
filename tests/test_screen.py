@@ -21,6 +21,16 @@ class ScreenTests(unittest.TestCase):
                          modules / f'zsh/terminfo{suffix}')
             drawing_session(self, 'terminfo', modules, fixture='screen.zsh', marker=b'SCREEN PASS')
 
+    def test_preserves_inactive_stock_screen(self):
+        root = test_features.ROOT
+        with tempfile.TemporaryDirectory(dir=root / '.build') as tmp:
+            modules = Path(tmp) / 'modules'
+            shutil.copytree(root / '.build/modules', modules)
+            suffix = next(modules.glob('zdraw.*')).suffix
+            shutil.copy2(root / f'.build/zsh/Src/Modules/curses{suffix}',
+                         modules / f'zsh/curses{suffix}')
+            drawing_session(self, 'stock', modules, fixture='screen.zsh', marker=b'SCREEN PASS')
+
     def test_failed_screen_initialization(self):
         source = (test_features.ROOT / 'Src/Modules/zdraw.c').read_text()
         source = source.replace('#include <stdio.h>',

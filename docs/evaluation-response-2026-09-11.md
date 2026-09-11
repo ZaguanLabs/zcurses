@@ -34,7 +34,8 @@ pre-maintenance tree.
 - [x] Fix the first CI failure: release the owned curses SCREEN on end/unload,
   using `newterm`/`delscreen` where available, and restore previous shell terminfo
   state. Reproduce the old color-allocation failure with an `--as-needed` shell;
-  test reload capacity, failed initialization and a preloaded terminfo module.
+  test reload capacity, failed initialization, a preloaded terminfo module and
+  a pre-existing inactive stock curses screen.
 
 ## Accepted maintenance work still open, in priority order
 

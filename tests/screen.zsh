@@ -8,6 +8,26 @@ source "${0:A:h:h}/lib/zdraw-screen.zsh" || exit 1
 fail() { print -ru2 -- "FAIL: $*"; exit 1; }
 check() { "$@" || fail "$*"; }
 reject() { "$@" 2>/dev/null && fail "unexpected success: $*"; return 0; }
+# Pin the stock module while it is inactive: this also exercises the host
+# configuration where libncurses remains resident across zdraw unloads.
+if [[ $mode == stock ]]; then
+  check zmodload zsh/curses
+  repeat 3; do
+    check zcurses init
+    check zcurses attr stdscr blue/black
+    check zcurses string stdscr stock
+    check zcurses end
+    check zdraw init
+    check zdraw spans stdscr 0 0 red/black zdraw
+    check zdraw end
+    check zmodload -u zdraw
+    check zmodload zdraw
+  done
+  check zmodload -u zsh/curses
+  print -r -- 'SCREEN PASS'
+  exit 0
+fi
+
 typeset zdraw_screen_data saved REPLY
 typeset -A pixels original after resources
 if [[ $mode == terminfo ]]; then

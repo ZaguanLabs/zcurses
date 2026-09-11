@@ -5917,6 +5917,9 @@ finish_(UNUSED(Module m))
 # include "../zshterm.h"
 static SCREEN *zdraw_screen;
 static TERMINAL *zdraw_previous_terminal;
+# ifdef NCURSES_VERSION
+static SCREEN *zdraw_previous_screen;
+# endif
 #endif
 
 static WINDOW *
@@ -5925,8 +5928,19 @@ zdraw_screen_init(void)
 #if defined(HAVE_NEWTERM) && defined(HAVE_DELSCREEN) && \
     defined(HAVE_SET_CURTERM) && defined(ZSH_HAVE_TERM_H)
     zdraw_previous_terminal = cur_term;
+# ifdef NCURSES_VERSION
+    /* ncurses accepts NULL here and returns the detached current SCREEN.
+     * A previous owner (such as stock zsh/curses) may retain it after endwin. */
+    zdraw_previous_screen = set_term(NULL);
+    set_term(zdraw_previous_screen);
+    set_curterm(zdraw_previous_terminal);
+# endif
     zdraw_screen = newterm(NULL, stdout, stdin);
     if (!zdraw_screen) {
+# ifdef NCURSES_VERSION
+        set_term(zdraw_previous_screen);
+        zdraw_previous_screen = NULL;
+# endif
         set_curterm(zdraw_previous_terminal);
         zdraw_previous_terminal = NULL;
         return NULL;
@@ -5945,6 +5959,10 @@ zdraw_screen_end(void)
     if (zdraw_screen) {
         delscreen(zdraw_screen);
         zdraw_screen = NULL;
+# ifdef NCURSES_VERSION
+        set_term(zdraw_previous_screen);
+        zdraw_previous_screen = NULL;
+# endif
         set_curterm(zdraw_previous_terminal);
         zdraw_previous_terminal = NULL;
 # if defined(NCURSES_VERSION) && defined(ZDRAW_WINDOW_TREE)
