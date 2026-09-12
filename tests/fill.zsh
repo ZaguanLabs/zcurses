@@ -24,7 +24,7 @@ check zdraw init
     (( ! ${zdraw_features[(Ie)region_fill]} )) || fail 'unsupported feature advertised'
     zdraw fill sample 0 0 1 1 '' X
     (( $? == 2 )) || fail 'unsupported fill status'
-  elif [[ $mode == allocation_failure || $mode == write_failure ]]; then
+  elif [[ $mode == allocation_failure || $mode == write_failure || $mode == move_failure ]]; then
     check zdraw bg sample '@#' reverse
     check zdraw attr sample underline green/black
     check zdraw move sample 3 8

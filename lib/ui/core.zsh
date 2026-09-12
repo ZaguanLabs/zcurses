@@ -107,18 +107,18 @@ function _zdraw_ui_property {
 function zdraw-ui-style {
   emulate -L zsh
   [[ ${(t)zdraw_ui_style} == (association|association-local) && $# -ge 1 && $# -le 129 ]] || { _zdraw_ui_error 1 "${(%):-%N}" "requires a writable zdraw_ui_style association, states and at most 128 utilities"; return $?; }
-  local -a _zui_states=("${(@s:,:)1}") _zui_conditions _zui_base _zui_variants
-  local _zui_token _zui_condition _zui_property _zui_flag _zui_style=''
+  local -a _zui_states=("${(@s:,:)1}") _zui_conditions
+  local -A _zui_base _zui_variants
+  local _zui_token _zui_condition _zui_property _zui_flag _zui_key _zui_style=''
   local -i _zui_match
-  local -A _zui_resolved=(fg default bg default border-fg default
-    border none px 0 py 0 align left bold 0 underline 0 reverse 0)
+  local -A _zui_resolved
   for _zui_flag in "${_zui_states[@]}"; do
     [[ $_zui_flag == (normal|focus|selected|inactive|disabled|empty|title|header|alternate|filled|track|label|key|invalid|cursor|heading|subheading|paragraph|bullet|quote|code|separator|spacer|positive|negative|axis|missing|clipped) ]] || { _zdraw_ui_error 1 "${(%):-%N}" "unknown state ${(qqq)_zui_flag}"; return $?; }
   done
   (( ${#_zui_states} )) || { _zdraw_ui_error 1 "${(%):-%N}" "at least one state is required"; return $?; }
   shift
-  # Validate even inactive variants. Resolve into scratch storage, then replay
-  # ordinary utilities followed by matching variants in their declaration order.
+  # Validate even inactive variants. Retain normalized assignments, so each
+  # utility is parsed once. Last assignment wins within each precedence tier.
   for _zui_token in "$@"; do
     (( ${#_zui_token} <= 128 )) || { _zdraw_ui_error 1 "${(%):-%N}" "style utility exceeds 128 characters"; return $?; }
     if [[ $_zui_token == *:* ]]; then
@@ -131,17 +131,18 @@ function zdraw-ui-style {
         (( ${_zui_states[(Ie)$_zui_flag]} )) || _zui_match=0
       done
       _zdraw_ui_property "$_zui_property" || return 1
-      (( _zui_match )) && _zui_variants+=("$_zui_property")
+      _zui_key=${_zui_property%%=*} _zui_key=${_zui_key#no-}
+      (( _zui_match )) && _zui_variants[$_zui_key]=$_zui_resolved[$_zui_key]
     else
       _zdraw_ui_property "$_zui_token" || return 1
-      _zui_base+=("$_zui_token")
+      _zui_key=${_zui_token%%=*} _zui_key=${_zui_key#no-}
+      _zui_base[$_zui_key]=$_zui_resolved[$_zui_key]
     fi
   done
   _zui_resolved=(fg default bg default border-fg default
     border none px 0 py 0 align left bold 0 underline 0 reverse 0)
-  for _zui_token in "${_zui_base[@]}" "${_zui_variants[@]}"; do
-    _zdraw_ui_property "$_zui_token" || return 1
-  done
+  _zui_resolved+=("${(@kv)_zui_base}")
+  _zui_resolved+=("${(@kv)_zui_variants}")
   for _zui_flag in bold underline reverse; do
     (( _zui_resolved[$_zui_flag] )) && _zui_style+="$_zui_flag,"
   done

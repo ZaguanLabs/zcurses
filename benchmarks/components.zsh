@@ -2,7 +2,7 @@
 # Driven by components.py with a matching module/shell and a controlled PTY.
 emulate -R zsh
 setopt nounset
-typeset bench_root=${0:A:h:h}
+typeset bench_root=${ZDRAW_BENCH_ROOT:-${0:A:h:h}}
 [[ $# == 7 && $2 == (chart|canvas|form|document|surfaces|spans|prepared) && $3 == (repeated|changing) && $4 == (small|large) ]] || exit 1
 source "$bench_root/lib/zdraw-canvas.zsh" || exit 1
 source "$bench_root/lib/zdraw-bars.zsh" || exit 1
@@ -11,6 +11,9 @@ source "$bench_root/lib/zdraw-document.zsh" || exit 1
 _zdraw_ui_uint "$5" && _zdraw_ui_uint "$6" && _zdraw_ui_uint "$7" || exit 1
 module_path=("$1")
 zmodload zdraw || exit 1
+if [[ -n ${ZDRAW_BENCH_ZPROF-} ]]; then
+  zmodload zsh/zprof || exit 1
+fi
 typeset workload=$2 pattern=$3 size=$4 report_fd=$6 ack_fd=$7 key acknowledgement
 typeset -i frames=$((10#$5)) rows=8 columns=32 count=4 i frame phase=0
 (( frames > 0 && frames <= 1000 )) || exit 1
@@ -84,6 +87,7 @@ check zdraw init
     check zdraw prepare row1 bold,red/black "${(pl:$columns::1:):-}"
   fi
   # Warm up the same draw/stage/present path, then measure each boundary.
+  [[ -z ${ZDRAW_BENCH_ZPROF-} ]] || zprof -c
   for (( frame=-2; frame<frames; frame++ )); do
     phase=0
     [[ $pattern == changing ]] && phase=$(((frame+2)%2))
@@ -98,6 +102,7 @@ check zdraw init
     (( frame >= 0 )) && (( present += SECONDS-started ))
   done
   # Inspection and serialization are outside all measured boundaries.
+  [[ -z ${ZDRAW_BENCH_ZPROF-} ]] || zprof > "$ZDRAW_BENCH_ZPROF"
   check zdraw snapshot sample snap
   (( ${zdraw_features[(Ie)resource_info]} )) && check zdraw resourceinfo resources
 } always {

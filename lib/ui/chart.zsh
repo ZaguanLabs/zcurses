@@ -4,7 +4,8 @@
 function _zdraw_ui_chart_number {
   emulate -L zsh
   local _zui_digits=${1#-}
-  _zdraw_ui_uint "$_zui_digits" || return 1
+  [[ $_zui_digits == <-> && ${#_zui_digits} -le 5 ]] &&
+    (( 10#$_zui_digits <= 32767 )) || return 1
   REPLY=$((10#$_zui_digits))
   [[ $1 == -* ]] && REPLY=$((-REPLY))
   return 0

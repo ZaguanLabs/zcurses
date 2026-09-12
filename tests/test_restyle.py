@@ -30,7 +30,9 @@ class RestyleTests(unittest.TestCase):
                     prefix=f'restyle-{mode}-', dir=ROOT / '.build') as tmp:
                 variant = source.replace('#include <stdio.h>', '#include <stdio.h>\n' + definitions, 1)
                 if mode == 'move_failure':
-                    variant = variant.replace('wmove(win, row + i, col) == ERR', '(i == 1 || wmove(win, row + i, col) == ERR)', 1)
+                    needle = 'if (wmove(win, row + i, col) == ERR ||'
+                    self.assertEqual(variant.count(needle), 1)
+                    variant = variant.replace(needle, 'if (i == 1 || wmove(win, row + i, col) == ERR ||', 1)
                 modules = test_features.FeatureTests().variant(tmp, variant)
                 drawing_session(self, mode, modules, fixture='restyle.zsh', marker=b'RESTYLE PASS')
 

@@ -1,4 +1,11 @@
-# Styled-span benchmark
+# Performance benchmarks
+
+The [2026-09-12 profiling sweep](performance-2026-09-12.md) records native and
+component improvements, exact-output comparisons, profiling evidence and
+commands for reproducing the measurements. `native.py` and `components.py`
+can alternate a baseline and the working module/libraries in the same run.
+
+## Styled spans
 
 Build with the public Zsh source setup in the [repository README](../README.md),
 then run from the repository root:

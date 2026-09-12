@@ -23,6 +23,14 @@ check zdraw-ui-style focus 'focus:fg=accent' fg=text bg=canvas border=rounded px
    $zdraw_ui_style[px] == 2 && $zdraw_ui_style[border] == rounded ]] || fail 'conditional precedence'
 check zdraw-ui-style focus,selected fg=text selected:bg=selection selected+focus:underline bold no-bold
 [[ $zdraw_ui_style[style] == underline,252/30 ]] || fail 'combined state and removal'
+check zdraw-ui-style focus focus:fg=accent fg=text focus:no-bold bold \
+  focus:fg=002 normal:bg=error bg=surface focus:bold focus:no-bold
+[[ $zdraw_ui_style[fg] == 2 && $zdraw_ui_style[bg] == 236 &&
+   $zdraw_ui_style[bold] == 0 ]] || fail 'normalized precedence tiers'
+zdraw_ui_theme[accent]=003
+check zdraw-ui-style focus focus:fg=accent
+[[ $zdraw_ui_style[fg] == 3 ]] || fail 'theme mutation was cached'
+zdraw_ui_theme[accent]=81
 typeset -A previous=("${(@kv)zdraw_ui_style}")
 same() {
   local -A actual=("$@")

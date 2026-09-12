@@ -183,7 +183,7 @@ function zdraw-canvas-raster {
   local -A _zui_masks _zui_raster
   _zdraw_ui_canvas_read || return
   local _zui_kind _zui_paint
-  local -i _zui_i _zui_x0 _zui_y0 _zui_x1 _zui_y1 _zui_x _zui_y _zui_mask _zui_bit _zui_pixels=0 _zui_cells=0
+  local -i _zui_i _zui_x0 _zui_y0 _zui_x1 _zui_y1 _zui_x _zui_y _zui_mask _zui_pixels=0 _zui_cells=0
   for (( _zui_i=1; _zui_i<=${#_zui_ops}; _zui_i+=6 )); do
     _zui_kind=$_zui_ops[$_zui_i] _zui_x0=$_zui_ops[$((_zui_i+1))] _zui_y0=$_zui_ops[$((_zui_i+2))]
     _zui_x1=$_zui_ops[$((_zui_i+3))] _zui_y1=$_zui_ops[$((_zui_i+4))] _zui_paint=$_zui_ops[$((_zui_i+5))]
@@ -217,8 +217,14 @@ function zdraw-canvas-raster {
   for (( _zui_i=1; _zui_i<=_zui_rows*_zui_columns; _zui_i++ )); do
     _zui_mask=${_zui_masks[$_zui_i]:-0}
     _zui_raster[$_zui_i,mask]=$_zui_mask
-    (( _zui_mask )) && (( _zui_cells++ ))
-    for _zui_bit in "${_zui_bits[@]}"; do (( _zui_mask & _zui_bit )) && (( _zui_pixels++ )); done
+    if (( _zui_mask )); then
+      # Count the eight occupancy bits in three bounded integer operations.
+      # The published mask above remains intact; only scratch is reduced.
+      (( _zui_cells++,
+         _zui_mask -= (_zui_mask >> 1) & 85,
+         _zui_mask = (_zui_mask & 51) + ((_zui_mask >> 2) & 51),
+         _zui_pixels += (_zui_mask + (_zui_mask >> 4)) & 15 ))
+    fi
   done
   _zui_raster[pixels]=$_zui_pixels _zui_raster[cells]=$_zui_cells
   zdraw_ui_canvas_raster=("${(@kv)_zui_raster}")
@@ -235,7 +241,9 @@ function _zdraw_ui_canvas_raster_read {
   _zui_masks=()
   for (( _zui_index=1; _zui_index<=_zui_rows*_zui_columns; _zui_index++ )); do
     _zui_value=${zdraw_ui_canvas_raster[$_zui_index,mask]-}
-    _zdraw_ui_uint "$_zui_value" || return 1
+    # This loop can visit 4096 cells. Keep the same decimal grammar and length
+    # bound without a function/options scope for every single mask.
+    [[ $_zui_value == <-> && ${#_zui_value} -le 5 ]] || return 1
     (( 10#$_zui_value <= 255 )) || return 1
     _zui_masks+=("$((10#$_zui_value))")
   done
@@ -245,10 +253,11 @@ function _zdraw_ui_canvas_raster_read {
 # validation once per call avoids rescanning every cell in the draw path.
 function _zdraw_ui_canvas_rows {
   emulate -L zsh
-  local _zui_profile=$1 _zui_ink=${2-#} _zui_glyph _zui_escape _zui_row=''
+  setopt extendedglob
+  local _zui_profile=$1 _zui_ink=${2-#} _zui_glyph _zui_escape
   [[ $_zui_profile == (auto|ascii|block|braille) ]] || return 1
   local -i _zui_mask _zui_i _zui_supported=1
-  local -a _zui_output _zui_probe
+  local -a _zui_output _zui_probe _zui_encoded match mbegin mend
   local -A _zui_info _zui_glyphs
   # ASCII export works without a native module; custom ink is printable ASCII.
   [[ ${#_zui_ink} == 1 && $_zui_ink == [\ -\~] ]] || return 1
@@ -283,20 +292,28 @@ function _zdraw_ui_canvas_rows {
       _zui_profile=ascii
     elif [[ $_zui_profile == auto ]]; then _zui_profile=braille; fi
   fi
-  for (( _zui_i=1; _zui_i<=${#_zui_masks}; _zui_i++ )); do
-    _zui_mask=$_zui_masks[$_zui_i] _zui_glyph=' '
-    if (( _zui_mask )); then
+  # Resolve each distinct mask once, then the cell loop only joins glyphs.
+  _zui_glyphs[0]=' '
+  if [[ $_zui_profile != braille ]]; then
+    for _zui_mask in "${(@u)_zui_masks}"; do
+      (( _zui_mask )) || continue
       case $_zui_profile in
         ascii) _zui_glyph=$_zui_ink ;;
-        braille) _zui_glyph=$_zui_glyphs[$_zui_mask] ;;
         block)
           if (( (_zui_mask & 27) && (_zui_mask & 228) )); then _zui_glyph=█
           elif (( _zui_mask & 27 )); then _zui_glyph=▀
           else _zui_glyph=▄; fi ;;
       esac
-    fi
-    _zui_row+=$_zui_glyph
-    if (( _zui_i % _zui_columns == 0 )); then _zui_output+=("$_zui_row"); _zui_row=''; fi
+      _zui_glyphs[$_zui_mask]=$_zui_glyph
+    done
+  fi
+  # (@) substitutes each array element separately; (#b) captures its canonical
+  # decimal mask for a literal association lookup. This maps cells in Zsh's
+  # expansion engine without a shell loop or evaluating input as shell code.
+  # Backreference outputs are local so the caller's match state is preserved.
+  _zui_encoded=("${(@)_zui_masks/(#b)(*)/${_zui_glyphs[$match[1]]}}")
+  for (( _zui_i=1; _zui_i<=${#_zui_encoded}; _zui_i+=_zui_columns )); do
+    _zui_output+=("${(j::)_zui_encoded[_zui_i,_zui_i+_zui_columns-1]}")
   done
   reply=("${_zui_output[@]}")
 }

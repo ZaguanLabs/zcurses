@@ -14,6 +14,10 @@ static unsigned int
 zdraw_grapheme_props(unsigned int point)
 {
     unsigned int lo = 0, hi = sizeof(zdraw_grapheme_ranges) / sizeof(zdraw_grapheme_ranges[0]);
+    /* The common printable ASCII range has no grapheme properties. Controls
+     * still use the generated table, preserving CR/LF and all boundary rules. */
+    if (point >= 0x20 && point <= 0x7e)
+        return 0;
     while (lo < hi) {
         unsigned int mid = lo + (hi - lo) / 2;
         const struct zdraw_grapheme_range *range = &zdraw_grapheme_ranges[mid];

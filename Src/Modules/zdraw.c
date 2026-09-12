@@ -386,15 +386,31 @@ zdraw_strerror(int err)
     return errs[(err < 1 || err > 3) ? 0 : err];
 }
 
+/* Dispatch checks stdscr before looking up the drawing target. Retain both
+ * recent lookups so that check cannot evict a repeatedly used target. The
+ * list remains authoritative, including its public order. */
+static LinkNode zdraw_last_window, zdraw_previous_window;
+
 static LinkNode
 zdraw_getwindowbyname(const char *name)
 {
     LinkNode node;
     ZCWin w;
 
+    if (zdraw_last_window &&
+        !strcmp(((ZCWin)getdata(zdraw_last_window))->name, name))
+        return zdraw_last_window;
+    if (zdraw_previous_window &&
+        !strcmp(((ZCWin)getdata(zdraw_previous_window))->name, name)) {
+        node = zdraw_previous_window;
+        zdraw_previous_window = zdraw_last_window;
+        return zdraw_last_window = node;
+    }
     for (node = firstnode(zdraw_windows); node; incnode(node))
-	if (w = (ZCWin)getdata(node), !strcmp(w->name, name))
-	    return node;
+	if (w = (ZCWin)getdata(node), !strcmp(w->name, name)) {
+            zdraw_previous_window = zdraw_last_window;
+	    return zdraw_last_window = node;
+        }
 
     return NULL;
 }
@@ -429,6 +445,9 @@ static int
 zdraw_free_window(ZCWin w)
 {
     int ret = 0;
+
+    /* Callers may already have unlinked/freed the list node. */
+    zdraw_last_window = zdraw_previous_window = NULL;
 
     if (!(w->flags & ZCWF_PERMANENT) && delwin(w->win)!=OK) {
 	DPUTS2(1, "BUG: Failed to delete ncurses window %s with %d children",
@@ -607,6 +626,10 @@ zdraw_colorget_reverse(short cp)
     if (!zdraw_colorpairs)
 	return NULL;
 
+    /* Pair IDs are immutable for the session; adjacent inspected cells often
+     * have the same pair. Invalidate this pointer when its node is freed. */
+    if (cpn_match && cpn_match->colorpair == cp)
+        return cpn_match;
     cpn_match = NULL;
     scanhashtable(zdraw_colorpairs, 0, 0, 0,
 		  zdraw_colornode, cp);
@@ -616,6 +639,8 @@ zdraw_colorget_reverse(short cp)
 static void
 freecolorpairnode(HashNode hn)
 {
+    if ((Colorpairnode)hn == cpn_match)
+        cpn_match = NULL;
     zsfree(hn->nam);
     zfree(hn, sizeof(struct colorpairnode));
 }
@@ -892,6 +917,7 @@ zccmd_delwin(const char *nam, char **args)
     if (w->children)
 	freelinklist(w->children, (FreeFunc)NULL);
 
+    zdraw_last_window = zdraw_previous_window = NULL;
     zfree((ZCWin)remnode(zdraw_windows, node), sizeof(struct zc_win));
 
     return ret;
@@ -1652,7 +1678,15 @@ zccmd_sync(const char *nam, char **args)
 static int
 zdraw_text_next(char **text, int wide, convchar_t *wc, int *width)
 {
-    unsigned char ch;
+    unsigned char ch = (unsigned char)**text;
+    /* Zsh's decoder already returns ASCII without changing its shift state.
+     * Printable ASCII has one native column in both supported text paths. */
+    if (ch >= 32 && ch <= 126) {
+        (*text)++;
+        *wc = ch;
+        *width = 1;
+        return 0;
+    }
 #ifdef MULTIBYTE_SUPPORT
     if (wide) {
 	int len = mb_metacharlenconv(*text, wc);
@@ -1681,12 +1715,40 @@ zdraw_text_next(char **text, int wide, convchar_t *wc, int *width)
 }
 
 #ifdef ZDRAW_WIDE_SPANS
+/* A bounded, invocation-local cache for single-scalar cells. Repeated spaces,
+ * digits and table glyphs need one public curses round-trip per style/pair.
+ * Combining sequences always take the complete representability check. */
+#define ZDRAW_SPAN_CACHE_SIZE 64
+struct zdraw_span_cache {
+    wchar_t scalar;
+    chtype attrs;
+    short pair;
+    cchar_t cell;
+};
+
 static int
-zdraw_span_cell(cchar_t *cell, const wchar_t *group, chtype attrs)
+zdraw_span_cell(cchar_t *cell, const wchar_t *group, chtype attrs, short pair,
+                struct zdraw_span_cache *cache, int validate)
 {
+    struct zdraw_span_cache *entry = NULL;
+    if (group[0] && !group[1]) {
+        entry = cache + (unsigned int)group[0] % ZDRAW_SPAN_CACHE_SIZE;
+        if (entry->scalar == group[0] && entry->attrs == attrs && entry->pair == pair) {
+            *cell = entry->cell;
+            return 0;
+        }
+    }
     /* setcchar may silently discard excess combining characters. */
-    return setcchar(cell, group, attrs, 0, NULL) == ERR ||
-	(size_t)getcchar(cell, NULL, NULL, NULL, NULL) != wcslen(group) + 1;
+    if (setcchar(cell, group, attrs, pair, NULL) == ERR ||
+        (validate && (size_t)getcchar(cell, NULL, NULL, NULL, NULL) != wcslen(group) + 1))
+        return 1;
+    if (entry) {
+        entry->scalar = group[0];
+        entry->attrs = attrs;
+        entry->pair = pair;
+        entry->cell = *cell;
+    }
+    return 0;
 }
 #endif
 
@@ -1703,6 +1765,7 @@ zdraw_text_break(struct zdraw_grapheme_state *state, convchar_t wc, int width)
 struct zdraw_safe_group {
     wchar_t text[CCHARW_MAX + 1];
     int length, width;
+    unsigned int ascii_checked[3];
 };
 
 /* Public curses round-trip, including exact text; never access cchar_t fields. */
@@ -1729,7 +1792,17 @@ zdraw_safe_scalar(struct zdraw_safe_group *group, convchar_t wc, int width)
 {
     cchar_t cell;
     if (width || !wc) {
-        if (zdraw_safe_cell(&cell, group, A_NORMAL, 0)) return 2;
+        /* Headless validation uses the same attributes/pair throughout one
+         * query. Reuse the exact round-trip check for repeated ASCII bases;
+         * any combining suffix still requires its own complete check. */
+        if (group->length == 1 && group->text[0] >= 32 && group->text[0] <= 126) {
+            unsigned int index = (unsigned int)group->text[0] - 32;
+            unsigned int bit = 1U << (index % 32);
+            if (!(group->ascii_checked[index / 32] & bit)) {
+                if (zdraw_safe_cell(&cell, group, A_NORMAL, 0)) return 2;
+                group->ascii_checked[index / 32] |= bit;
+            }
+        } else if (zdraw_safe_cell(&cell, group, A_NORMAL, 0)) return 2;
         group->length = 0;
     }
     if (!wc) return 0;
@@ -1946,6 +2019,7 @@ zdraw_compile_spans(const char *nam, char **args, int cols, int clip,
     int *widths;
 #ifdef ZDRAW_WIDE_SPANS
     cchar_t discarded;
+    struct zdraw_span_cache cache[ZDRAW_SPAN_CACHE_SIZE] = {{0}};
     int keep_group;
     wchar_t **groups, *out, *group;
     size_t len;
@@ -1991,7 +2065,7 @@ zdraw_compile_spans(const char *nam, char **args, int cols, int clip,
 		if (group) {
 		    *out++ = L'\0';
 		    if (zdraw_span_cell(keep_group ? cells + count - 1 : &discarded,
-				  group, span->attrs))
+				  group, span->attrs, 0, cache, 1))
 			goto badtext;
 		}
 		if (cw > cols - width) {
@@ -2011,7 +2085,7 @@ zdraw_compile_spans(const char *nam, char **args, int cols, int clip,
 	}
 	*out = L'\0';
 	if (group && zdraw_span_cell(keep_group ? cells + count - 1 : &discarded,
-				     group, span->attrs))
+				     group, span->attrs, 0, cache, 1))
 	    goto badtext;
 #else
 	while (*str) {
@@ -2051,9 +2125,16 @@ zdraw_compile_spans(const char *nam, char **args, int cols, int clip,
 	    }
 	    cp = pair->colorpair;
 	}
+#ifdef ZDRAW_WIDE_SPANS
+        /* Preflight already constructed and checked these exact pair-0 cells. */
+        if (!cp)
+            continue;
+#endif
 	for (j = span->first; j < span->first + span->count; j++) {
 #ifdef ZDRAW_WIDE_SPANS
-	    if (setcchar(cells + j, groups[j], span->attrs, cp, NULL) == ERR)
+            /* Every group passed representability preflight before colors
+             * were allocated. Recoloring need only check setcchar's status. */
+	    if (zdraw_span_cell(cells + j, groups[j], span->attrs, cp, cache, 0))
 		return 1;
 #else
 	    if (PAIR_NUMBER(COLOR_PAIR(cp)) != cp) {
@@ -2074,11 +2155,12 @@ badtext:
     return 1;
 }
 
-/* A single write, preserving cursor, background and current window style. */
+/* Write identical rows under one saved cursor/background/style scope. */
 static int
-zdraw_write_row(WINDOW *win, int row, int col, ZDrawCell *cells, int count)
+zdraw_write_rows(WINDOW *win, int row, int col, ZDrawCell *cells, int count,
+                 int rows)
 {
-    int y, x, result;
+    int y, x, result, i;
 #ifdef ZDRAW_WIDE_SPANS
     cchar_t saved_bg, neutral_bg;
     attr_t saved_attrs;
@@ -2100,17 +2182,34 @@ zdraw_write_row(WINDOW *win, int row, int col, ZDrawCell *cells, int count)
     }
     wbkgrndset(win, &neutral_bg);
     result = wattr_set(win, A_NORMAL, 0, NULL);
-    if (result != ERR)
-	result = wadd_wchnstr(win, cells, count);
+#else
+    result = OK;
+#endif
+    for (i = 0; i < rows && result != ERR; i++) {
+        if (i && wmove(win, row + i, col) == ERR) {
+            result = ERR;
+            break;
+        }
+#ifdef ZDRAW_WIDE_SPANS
+        result = wadd_wchnstr(win, cells, count);
+#else
+        result = waddchnstr(win, cells, count);
+#endif
+    }
+#ifdef ZDRAW_WIDE_SPANS
     wbkgrndset(win, &saved_bg);
     if (wattr_set(win, saved_attrs, saved_pair, NULL) == ERR)
 	result = ERR;
-#else
-    result = waddchnstr(win, cells, count);
 #endif
     if (wmove(win, y, x) == ERR)
 	return 1;
     return result == ERR;
+}
+
+static int
+zdraw_write_row(WINDOW *win, int row, int col, ZDrawCell *cells, int count)
+{
+    return zdraw_write_rows(win, row, col, cells, count, 1);
 }
 
 static int
@@ -2265,11 +2364,7 @@ zccmd_fill(const char *nam, char **args)
     cells = (ZDrawCell *)zhalloc((size_t)cols * sizeof(*cells));
     for (i = 0; i < cols; i++)
         cells[i] = tile.cells[0];
-    for (i = 0; i < rows; i++) {
-        if (zdraw_write_row(win, row + i, col, cells, cols))
-            return 1;
-    }
-    return 0;
+    return zdraw_write_rows(win, row, col, cells, cols, rows);
 #else
     (void)nam;
     (void)args;
@@ -2576,8 +2671,11 @@ zccmd_draw(const char *nam, char **args)
         zwarnnam(nam, "prepared row does not fit");
         return 1;
     }
-    while (count < p->row.count && p->row.widths[count] <= cols - width)
-        width += p->row.widths[count++];
+    if (p->row.width <= cols)
+        count = p->row.count;
+    else
+        while (count < p->row.count && p->row.widths[count] <= cols - width)
+            width += p->row.widths[count++];
     result = zdraw_write_row(win, row, col, p->row.cells, count);
     if (!result) {
         if (p->draws < ZLONG_MAX) p->draws++;

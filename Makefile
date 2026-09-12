@@ -76,6 +76,8 @@ test: build
 	"$(ZSH_BIN)" -dfn tests/clipping.zsh
 	"$(ZSH_BIN)" -dfn benchmarks/spans.zsh
 	"$(ZSH_BIN)" -dfn benchmarks/fill.zsh
+	"$(ZSH_BIN)" -dfn benchmarks/native.zsh
+	"$(ZSH_BIN)" -dfn tests/performance.zsh
 	"$(ZSH_BIN)" -dfn examples/events.zsh
 	"$(ZSH_BIN)" -dfn examples/streams.zsh
 	"$(ZSH_BIN)" -dfn examples/hit-test.zsh

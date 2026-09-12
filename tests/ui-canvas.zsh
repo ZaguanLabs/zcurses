@@ -127,6 +127,51 @@ reply=(sentinel)
 zdraw_ui_canvas_raster[1,mask]='evil=1'
 reject zdraw-canvas-rows ascii
 [[ $reply == sentinel ]] || fail 'invalid raster mutated output'
+# All eight-bit combinations exercise population counts and distinct-glyph
+# encoding. Caller edits and accepted zero padding must remain observable.
+for (( mask=0; mask<256; mask++ )); do
+  check zdraw-canvas-init 0 0 1 3
+  typeset -i expected_pixels=0
+  for (( x=0; x<2; x++ )); do
+    for (( y=0; y<4; y++ )); do
+      if (( mask & bits[x*4+y+1] )); then
+        check zdraw-canvas-add point "$x" "$((3-y))"
+        (( expected_pixels++ ))
+      fi
+    done
+  done
+  check zdraw-canvas-raster 1 1
+  [[ $zdraw_ui_canvas_raster[1,mask] == $mask &&
+     $zdraw_ui_canvas_raster[pixels] == $expected_pixels ]] || fail "mask count $mask"
+  zdraw_ui_canvas_raster[1,mask]=00$mask
+  check zdraw-canvas-rows ascii X
+  if (( mask )); then [[ $reply == X ]] || fail 'occupied glyph'
+  else [[ $reply == ' ' ]] || fail 'empty glyph'; fi
+done
+for bad in '' 256 000000 000256 -1 +1 'evil=1'; do
+  reply=(sentinel)
+  zdraw_ui_canvas_raster[1,mask]=$bad
+  reject zdraw-canvas-rows ascii
+  [[ $reply == sentinel ]] || fail 'invalid mask changed output'
+done
+zdraw_ui_canvas_raster[1,mask]=1
+typeset -a match=(kept) mbegin=(7) mend=(9)
+check zdraw-canvas-rows ascii
+[[ $match == kept && $mbegin == 7 && $mend == 9 ]] || fail 'backreference state leaked'
+() {
+  local -A zdraw_ui_canvas_raster=(format zdraw-canvas-raster-1 rows 2 columns 3
+    1,mask 1 2,mask 0 3,mask 255 4,mask 0 5,mask 1 6,mask 0)
+  local -a reply
+  local -i scalar
+  local escape ink
+  # Replacement metacharacters are literal ink, including backslash and '&'.
+  for (( scalar=32; scalar<=126; scalar++ )); do
+    printf -v escape '\\u%04x' "$scalar"
+    printf -v ink '%b' "$escape"
+    check zdraw-canvas-rows ascii "$ink"
+    [[ $reply[1] == "$ink $ink" && $reply[2] == " $ink " ]] || fail "ink $scalar"
+  done
+}
 () {
   local -A zdraw_ui_canvas zdraw_ui_canvas_raster
   local -a reply
